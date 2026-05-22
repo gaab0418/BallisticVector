@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AmmoData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ammo_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+ammo_name = "Perfurante"
+speed = 750.0
+gravity = 150.0
+precision = 0.85
+damage = 35
+max_ammo = 5
+color = Color(0.2, 0.9, 1.0, 1.0)

@@ -1,23 +1,26 @@
-[gd_scene load_steps=2 format=3 uid="uid://cxarenal8317"]
+[gd_scene format=3 uid="uid://cxarenal8317"]
 
-[ext_resource type="Script" path="res://scenes/arena/arena.gd" id="1_arena"]
+[ext_resource type="Script" uid="uid://daxyuxb3rfpt8" path="res://scenes/arena/arena.gd" id="1_arena"]
 
-[node name="Arena" type="Node2D"]
+[node name="Arena" type="Node2D" unique_id=1002648168]
 script = ExtResource("1_arena")
 
-[node name="BackgroundColorRect" type="ColorRect" parent="."]
-offset_right = 1152.0
-offset_bottom = 648.0
+[node name="BackgroundColorRect" type="ColorRect" parent="." unique_id=251571123]
+offset_right = 1280.0
+offset_bottom = 720.0
 color = Color(0.188235, 0.188235, 0.188235, 1)
 
-[node name="PlayerPlaceholder" type="ColorRect" parent="."]
-offset_left = 120.0
-offset_top = 400.0
-offset_right = 180.0
-offset_bottom = 460.0
+[node name="Player" type="Node2D" parent="." unique_id=852931779]
+position = Vector2(83, 690)
+
+[node name="Body" type="ColorRect" parent="Player" unique_id=1930321668]
+offset_left = -25.0
+offset_top = -30.0
+offset_right = 25.0
+offset_bottom = 30.0
 color = Color(0.247059, 0.54902, 0.843137, 1)
 
-[node name="PlayerLabel" type="Label" parent="PlayerPlaceholder"]
+[node name="PlayerLabel" type="Label" parent="Player/Body" unique_id=505080293]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -28,14 +31,30 @@ text = "P1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="EnemyPlaceholder" type="ColorRect" parent="."]
-offset_left = 900.0
-offset_top = 400.0
-offset_right = 960.0
-offset_bottom = 460.0
+[node name="Cannon" type="Node2D" parent="Player" unique_id=1526038416]
+
+[node name="Barrel" type="ColorRect" parent="Player/Cannon" unique_id=1945599142]
+offset_top = -5.0
+offset_right = 50.0
+offset_bottom = 5.0
+color = Color(0.4, 0.4, 0.4, 1)
+
+[node name="AimLine" type="Line2D" parent="Player/Cannon" unique_id=335186173]
+points = PackedVector2Array(50, 0, 200, 0)
+width = 2.0
+default_color = Color(1, 0.2, 0.2, 0.6)
+
+[node name="Enemy" type="Node2D" parent="." unique_id=1552833360]
+position = Vector2(1150, 500)
+
+[node name="Body" type="ColorRect" parent="Enemy" unique_id=1997766582]
+offset_left = -25.0
+offset_top = -30.0
+offset_right = 25.0
+offset_bottom = 30.0
 color = Color(0.843137, 0.247059, 0.247059, 1)
 
-[node name="EnemyLabel" type="Label" parent="EnemyPlaceholder"]
+[node name="EnemyLabel" type="Label" parent="Enemy/Body" unique_id=1937663123]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -45,3 +64,76 @@ grow_vertical = 2
 text = "INM"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=2049132065]
+
+[node name="LeftPanel" type="VBoxContainer" parent="HUD" unique_id=1327390959]
+offset_left = 10.0
+offset_top = 200.0
+offset_right = 130.0
+offset_bottom = 520.0
+theme_override_constants/separation = 8
+
+[node name="AmmoPanel" type="HBoxContainer" parent="HUD/LeftPanel" unique_id=811269253]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AmmoIcon" type="ColorRect" parent="HUD/LeftPanel/AmmoPanel" unique_id=1105561761]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+color = Color(0.6, 0.4, 0.15, 1)
+
+[node name="AmmoLabel" type="Label" parent="HUD/LeftPanel/AmmoPanel" unique_id=2025255978]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "x10"
+
+[node name="AmmoNameLabel" type="Label" parent="HUD/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Enferrujada"
+
+[node name="SwitchAmmoBtn" type="Button" parent="HUD/LeftPanel"]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 16
+text = "Trocar Munição"
+
+[node name="Separator1" type="HSeparator" parent="HUD/LeftPanel" unique_id=319193737]
+layout_mode = 2
+
+[node name="RotateLeftBtn" type="Button" parent="HUD/LeftPanel" unique_id=2096046691]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "Girar ↺"
+
+[node name="RotateRightBtn" type="Button" parent="HUD/LeftPanel" unique_id=63018279]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 20
+text = "Girar ↻"
+
+[node name="Separator2" type="HSeparator" parent="HUD/LeftPanel" unique_id=2040540094]
+layout_mode = 2
+
+[node name="FireBtn" type="Button" parent="HUD/LeftPanel" unique_id=19471222]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 22
+text = "ATIRAR"
+
+[node name="Separator3" type="HSeparator" parent="HUD/LeftPanel" unique_id=1527612722]
+layout_mode = 2
+
+[node name="QuitBtn" type="Button" parent="HUD/LeftPanel" unique_id=788364175]
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 16
+text = "Desistir"
+
+[connection signal="pressed" from="HUD/LeftPanel/SwitchAmmoBtn" to="." method="_on_switch_ammo"]
+[connection signal="pressed" from="HUD/LeftPanel/RotateLeftBtn" to="." method="_on_rotate_left"]
+[connection signal="pressed" from="HUD/LeftPanel/RotateRightBtn" to="." method="_on_rotate_right"]
+[connection signal="pressed" from="HUD/LeftPanel/FireBtn" to="." method="_on_fire"]
+[connection signal="pressed" from="HUD/LeftPanel/QuitBtn" to="." method="_on_quit"]
