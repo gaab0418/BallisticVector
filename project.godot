@@ -11,8 +11,19 @@ config_version=5
 [application]
 
 config/name="BallisticVector"
+run/main_scene="uid://d2ethghqw1yei"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=680
+window/size/viewport_height=480
+window/stretch/mode="canvas_items"
+
+[global_group]
+
+MenuPlayGroupButtons=""
 
 [physics]
 

@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://db1wtq3qjylm5"]
+
+[ext_resource type="Script" uid="uid://cw3i0whhauqds" path="res://scenes/war_map/war_map.gd" id="1_10uxf"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_xc2ja"]
+
+[node name="War_Map" type="Control" unique_id=454709943]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_10uxf")
+
+[node name="Label" type="Label" parent="." unique_id=514397011]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -11.5
+offset_right = 20.0
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.36862746)
+text = "Mapa de guerra aqui"
+
+[node name="Enemy2" type="BoxContainer" parent="." unique_id=1044843279 groups=["EnemysBaseGroup"]]
+clip_contents = true
+layout_mode = 0
+offset_left = 477.0
+offset_top = 117.0
+offset_right = 541.0
+offset_bottom = 157.0
+mouse_filter = 2
+alignment = 1
+
+[node name="Label" type="Label" parent="Enemy2" unique_id=1773551709]
+layout_mode = 2
+text = "ENEMY2"
+
+[node name="Area2D" type="Area2D" parent="Enemy2" unique_id=1900810010]
+linear_damp = 3.31
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Enemy2/Area2D" unique_id=602239652]
+position = Vector2(31.385, 20.115)
+rotation = 1.5707964
+scale = Vector2(1.98, 2.63)
+shape = SubResource("CapsuleShape2D_xc2ja")
+
+[connection signal="input_event" from="Enemy2/Area2D" to="." method="_on_area_2d_input_event"]
