@@ -2,7 +2,7 @@ class_name AmmoData
 extends Resource
 
 @export var ammo_name: String = "Sem nome"
-@export var speed: float = 500.0
+@export var impulse: float = 500.0
 @export var gravity: float = 400.0
 @export var precision: float = 0.3      # 1.0 = perfeita, 0.0 = ruim, negativo = muito difícil
 @export var damage: int = 10

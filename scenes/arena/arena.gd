@@ -62,19 +62,6 @@ func _get_current_ammo() -> AmmoData:
 	return ammo_types[current_ammo_index]
 
 func _process(delta: float) -> void:
-	# === Movimentação vertical do jogador (setas cima/baixo) ===
-	var move_dir: float = 0.0
-	if Input.is_action_pressed("ui_up"):
-		move_dir -= 1.0
-	if Input.is_action_pressed("ui_down"):
-		move_dir += 1.0
-	
-	if move_dir != 0.0:
-		player.position.y += move_dir * PLAYER_SPEED * delta
-		# Limitar dentro da tela
-		player.position.y = clamp(player.position.y, 50.0, 680.0)
-		_update_aim_line()
-	
 	# === Rotação do canhão (setas esquerda/direita ou botões) ===
 	var rot_dir: float = 0.0
 	if Input.is_action_pressed("ui_left") or is_rotating_left:
@@ -83,7 +70,13 @@ func _process(delta: float) -> void:
 		rot_dir += 1.0
 	
 	if rot_dir != 0.0:
-		cannon.rotation += rot_dir * ROTATION_SPEED * delta
+		var ammo = _get_current_ammo()
+		var speed_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+		# Ajustar a velocidade de rotação para manter a sensação consistente:
+		# Munições mais fortes giram mais devagar.
+		var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
+		
+		cannon.rotation += rot_dir * (ROTATION_SPEED * speed_mult * impulse_compensation) * delta
 		cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
 		_update_aim_line()
 	
@@ -107,7 +100,7 @@ func _update_aim_line() -> void:
 	
 	# Velocidade inicial em global (mesma do projétil real)
 	var fire_direction: Vector2 = Vector2.RIGHT.rotated(cannon.global_rotation)
-	var sim_vel: Vector2 = fire_direction * ammo.speed
+	var sim_vel: Vector2 = fire_direction * ammo.impulse
 	var sim_pos: Vector2 = barrel_tip_global
 	
 	var dt: float = 0.02  # Passo de simulação
@@ -154,7 +147,7 @@ func _fire_projectile() -> void:
 	var fire_direction = Vector2.RIGHT.rotated(cannon.global_rotation + angle_deviation)
 	
 	# Configurar o projétil com dados do Resource
-	projectile.velocity = fire_direction * ammo.speed
+	projectile.velocity = fire_direction * ammo.impulse
 	projectile.gravity = ammo.gravity
 	projectile.precision = ammo.precision
 	projectile.bullet_color = ammo.color
@@ -181,12 +174,18 @@ func _on_switch_ammo() -> void:
 
 # === Callbacks dos botões da HUD ===
 func _on_rotate_left() -> void:
-	cannon.rotation -= ROTATION_STEP
+	var ammo = _get_current_ammo()
+	var step_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
+	cannon.rotation -= (ROTATION_STEP * step_mult * impulse_compensation)
 	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
 	_update_aim_line()
 
 func _on_rotate_right() -> void:
-	cannon.rotation += ROTATION_STEP
+	var ammo = _get_current_ammo()
+	var step_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
+	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
+	cannon.rotation += (ROTATION_STEP * step_mult * impulse_compensation)
 	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
 	_update_aim_line()
 
