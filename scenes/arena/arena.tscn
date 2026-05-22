@@ -1,0 +1,47 @@
+[gd_scene load_steps=2 format=3 uid="uid://cxarenal8317"]
+
+[ext_resource type="Script" path="res://scenes/arena/arena.gd" id="1_arena"]
+
+[node name="Arena" type="Node2D"]
+script = ExtResource("1_arena")
+
+[node name="BackgroundColorRect" type="ColorRect" parent="."]
+offset_right = 1152.0
+offset_bottom = 648.0
+color = Color(0.188235, 0.188235, 0.188235, 1)
+
+[node name="PlayerPlaceholder" type="ColorRect" parent="."]
+offset_left = 120.0
+offset_top = 400.0
+offset_right = 180.0
+offset_bottom = 460.0
+color = Color(0.247059, 0.54902, 0.843137, 1)
+
+[node name="PlayerLabel" type="Label" parent="PlayerPlaceholder"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "P1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EnemyPlaceholder" type="ColorRect" parent="."]
+offset_left = 900.0
+offset_top = 400.0
+offset_right = 960.0
+offset_bottom = 460.0
+color = Color(0.843137, 0.247059, 0.247059, 1)
+
+[node name="EnemyLabel" type="Label" parent="EnemyPlaceholder"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "INM"
+horizontal_alignment = 1
+vertical_alignment = 1
