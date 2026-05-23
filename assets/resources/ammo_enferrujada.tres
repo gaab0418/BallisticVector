@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AmmoData" format=3 uid="uid://748uiukbs05m"]
+
+[ext_resource type="Script" uid="uid://dw3xtw4s1cjqt" path="res://scripts/ammo_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+ammo_name = "Enferrujada"
+impulse = 800.0
+gravity = 500.0
+precision = -0.5
+damage = 8
+max_ammo = 15
+color = Color(0.5, 0.35, 0.15, 1)
