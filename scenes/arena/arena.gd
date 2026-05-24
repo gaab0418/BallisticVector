@@ -9,6 +9,7 @@ extends Node2D
 @onready var ammo_label: Label = $HUD/LeftPanel/AmmoPanel/AmmoLabel
 @onready var ammo_icon: ColorRect = $HUD/LeftPanel/AmmoPanel/AmmoIcon
 @onready var ammo_name_label: Label = $HUD/LeftPanel/AmmoNameLabel
+@onready var power_label: Label = $HUD/LeftPanel/PowerLabel
 
 # === Configurações ===
 const PLAYER_SPEED: float = 300.0       # Velocidade vertical do jogador
@@ -26,6 +27,7 @@ var ammo_counts: Array[int] = []  # Quantidade restante de cada tipo
 var is_rotating_left: bool = false
 var is_rotating_right: bool = false
 var _tab_was_pressed: bool = false
+var current_power: float = 1.0
 
 # === Preload do script do projétil ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
@@ -44,6 +46,7 @@ func _ready() -> void:
 	# Carregar munições dos Resources
 	_load_ammo_types()
 	_update_hud()
+	_update_power_hud()
 	_update_aim_line()
 
 func _load_ammo_types() -> void:
@@ -65,6 +68,19 @@ func _get_current_ammo() -> AmmoData:
 	return ammo_types[current_ammo_index]
 
 func _process(delta: float) -> void:
+	# === Controle de Força (setas cima/baixo) ===
+	var power_dir: float = 0.0
+	if Input.is_action_pressed("ui_up"):
+		power_dir += 1.0
+	if Input.is_action_pressed("ui_down"):
+		power_dir -= 1.0
+	
+	if power_dir != 0.0:
+		current_power += power_dir * 0.5 * delta
+		current_power = clamp(current_power, 0.05, 1.0)
+		_update_power_hud()
+		_update_aim_line()
+
 	# === Rotação do canhão (setas esquerda/direita ou botões) ===
 	var rot_dir: float = 0.0
 	if Input.is_action_pressed("ui_left") or is_rotating_left:
@@ -103,7 +119,7 @@ func _update_aim_line() -> void:
 	
 	# Velocidade inicial em global (mesma do projétil real)
 	var fire_direction: Vector2 = Vector2.RIGHT.rotated(cannon.global_rotation)
-	var sim_vel: Vector2 = fire_direction * ammo.impulse
+	var sim_vel: Vector2 = fire_direction * (ammo.impulse * current_power)
 	var sim_pos: Vector2 = barrel_tip_global
 	
 	var dt: float = 0.02  # Passo de simulação
@@ -151,7 +167,7 @@ func _fire_projectile() -> void:
 	var fire_direction = Vector2.RIGHT.rotated(cannon.global_rotation + angle_deviation)
 	
 	# Configurar o projétil com dados do Resource
-	projectile.velocity = fire_direction * ammo.impulse
+	projectile.velocity = fire_direction * (ammo.impulse * current_power)
 	projectile.gravity = ammo.gravity
 	projectile.precision = ammo.precision
 	projectile.bullet_color = ammo.color
@@ -169,6 +185,10 @@ func _update_hud() -> void:
 		ammo_icon.color = ammo.color
 	if ammo_name_label:
 		ammo_name_label.text = ammo.ammo_name
+
+func _update_power_hud() -> void:
+	if power_label:
+		power_label.text = "Forca: " + str(round(current_power * 100)) + "%"
 
 # === Troca de munição ===
 func _on_switch_ammo() -> void:
@@ -195,6 +215,18 @@ func _on_rotate_right() -> void:
 
 func _on_fire() -> void:
 	_fire_projectile()
+
+func _on_power_up() -> void:
+	current_power += 0.05
+	current_power = clamp(current_power, 0.05, 1.0)
+	_update_power_hud()
+	_update_aim_line()
+
+func _on_power_down() -> void:
+	current_power -= 0.05
+	current_power = clamp(current_power, 0.05, 1.0)
+	_update_power_hud()
+	_update_aim_line()
 
 func _on_quit() -> void:
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")

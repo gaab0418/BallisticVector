@@ -117,13 +117,37 @@ text = "Girar ↻"
 [node name="Separator2" type="HSeparator" parent="HUD/LeftPanel" unique_id=2040540094]
 layout_mode = 2
 
+[node name="PowerLabel" type="Label" parent="HUD/LeftPanel"]
+layout_mode = 2
+text = "Forca: 100%"
+horizontal_alignment = 1
+
+[node name="PowerPanel" type="HBoxContainer" parent="HUD/LeftPanel"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="PowerDownBtn" type="Button" parent="HUD/LeftPanel/PowerPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "-5%"
+
+[node name="PowerUpBtn" type="Button" parent="HUD/LeftPanel/PowerPanel"]
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "+5%"
+
+[node name="Separator3" type="HSeparator" parent="HUD/LeftPanel" unique_id=1527612722]
+layout_mode = 2
+
 [node name="FireBtn" type="Button" parent="HUD/LeftPanel" unique_id=19471222]
 layout_mode = 2
 focus_mode = 0
 theme_override_font_sizes/font_size = 22
 text = "ATIRAR"
 
-[node name="Separator3" type="HSeparator" parent="HUD/LeftPanel" unique_id=1527612722]
+[node name="Separator4" type="HSeparator" parent="HUD/LeftPanel"]
 layout_mode = 2
 
 [node name="QuitBtn" type="Button" parent="HUD/LeftPanel" unique_id=788364175]
@@ -135,5 +159,7 @@ text = "Desistir"
 [connection signal="pressed" from="HUD/LeftPanel/SwitchAmmoBtn" to="." method="_on_switch_ammo"]
 [connection signal="pressed" from="HUD/LeftPanel/RotateLeftBtn" to="." method="_on_rotate_left"]
 [connection signal="pressed" from="HUD/LeftPanel/RotateRightBtn" to="." method="_on_rotate_right"]
+[connection signal="pressed" from="HUD/LeftPanel/PowerPanel/PowerDownBtn" to="." method="_on_power_down"]
+[connection signal="pressed" from="HUD/LeftPanel/PowerPanel/PowerUpBtn" to="." method="_on_power_up"]
 [connection signal="pressed" from="HUD/LeftPanel/FireBtn" to="." method="_on_fire"]
 [connection signal="pressed" from="HUD/LeftPanel/QuitBtn" to="." method="_on_quit"]
