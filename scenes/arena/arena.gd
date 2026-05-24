@@ -54,9 +54,12 @@ func _load_ammo_types() -> void:
 	ammo_types.append(enferrujada)
 	ammo_types.append(perfurante)
 	
-	# Inicializar contadores com o max_ammo de cada tipo
+	# Inicializar contadores com o inventário global
 	for ammo in ammo_types:
-		ammo_counts.append(ammo.max_ammo)
+		if Global.ammo_inventory.has(ammo.ammo_name):
+			ammo_counts.append(Global.ammo_inventory[ammo.ammo_name])
+		else:
+			ammo_counts.append(0)
 
 func _get_current_ammo() -> AmmoData:
 	return ammo_types[current_ammo_index]
@@ -131,6 +134,7 @@ func _fire_projectile() -> void:
 		return
 	
 	ammo_counts[current_ammo_index] -= 1
+	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
 	
 	# Criar o projétil como um ColorRect dentro de um Node2D

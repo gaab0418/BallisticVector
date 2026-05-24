@@ -10,4 +10,5 @@ gravity = 300.0
 precision = 0.9
 damage = 35
 max_ammo = 5
+price = 50
 color = Color(0.2, 0.9, 1, 1)
