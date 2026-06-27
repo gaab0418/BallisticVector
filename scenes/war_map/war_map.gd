@@ -105,26 +105,36 @@ func _build_hud_panel() -> void:
 	panel.add_theme_stylebox_override("panel", style)
 	add_child(panel)
 
-	# Label de ouro
+	# Container de Ouro
+	var money_container = HBoxContainer.new()
+	money_container.name = "MoneyContainer"
+	money_container.anchors_preset = Control.PRESET_CENTER_LEFT
+	money_container.anchor_left = 0.0
+	money_container.anchor_top = 0.5
+	money_container.anchor_right = 0.0
+	money_container.anchor_bottom = 0.5
+	money_container.offset_left = 20.0
+	money_container.offset_top = -14.0
+	money_container.offset_right = 300.0
+	money_container.offset_bottom = 14.0
+	money_container.add_theme_constant_override("separation", 8)
+	panel.add_child(money_container)
+
+	var coin_icon = TextureRect.new()
+	coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	money_container.add_child(coin_icon)
+
 	money_label = Label.new()
 	money_label.name = "MoneyLabel"
-	money_label.anchors_preset = Control.PRESET_CENTER_LEFT
-	money_label.anchor_left = 0.0
-	money_label.anchor_top = 0.5
-	money_label.anchor_right = 0.0
-	money_label.anchor_bottom = 0.5
-	money_label.offset_left = 20.0
-	money_label.offset_top = -14.0
-	money_label.offset_right = 300.0
-	money_label.offset_bottom = 14.0
-	money_label.text = "🪙 Ouro: 0"
+	money_label.text = "Ouro: 0"
 	money_label.add_theme_font_override("font", font_bold)
 	money_label.add_theme_font_size_override("font_size", 22)
 	money_label.add_theme_color_override("font_color", Color.WHITE)
 	money_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
 	money_label.add_theme_constant_override("shadow_offset_x", 2)
 	money_label.add_theme_constant_override("shadow_offset_y", 2)
-	panel.add_child(money_label)
+	money_container.add_child(money_label)
 
 	# Título centralizado
 	var title := Label.new()
@@ -138,7 +148,7 @@ func _build_hud_panel() -> void:
 	title.offset_top = -14.0
 	title.offset_right = 200.0
 	title.offset_bottom = 14.0
-	title.text = "⚔ MAPA DE GUERRA ⚔"
+	title.text = "MAPA DE GUERRA"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_override("font", font_bold)
 	title.add_theme_font_size_override("font_size", 26)
@@ -314,6 +324,9 @@ func _build_attack_popup() -> void:
 	attack_btn = _create_texture_button("ATACAR", tex_btn_yellow, Color(0.15, 0.08, 0.0))
 	attack_btn.name = "AttackBtn"
 	attack_btn.custom_minimum_size = Vector2(150, 48)
+	attack_btn.icon = load("res://assets/sprites/icons/joystick.png")
+	attack_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	attack_btn.expand_icon = true
 	attack_btn.pressed.connect(_on_attack_pressed)
 	btn_row.add_child(attack_btn)
 
@@ -397,7 +410,7 @@ func _build_shop_panel() -> void:
 	vbox.add_child(header)
 
 	var shop_title := Label.new()
-	shop_title.text = "⚙ Loja de Munições"
+	shop_title.text = "Loja de Munições"
 	shop_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shop_title.add_theme_font_override("font", font_bold)
 	shop_title.add_theme_font_size_override("font_size", 28)
@@ -406,7 +419,10 @@ func _build_shop_panel() -> void:
 
 	var close_btn := Button.new()
 	close_btn.name = "CloseShopBtn"
-	close_btn.text = "✕"
+	close_btn.text = ""
+	close_btn.icon = load("res://assets/sprites/ui_pack/Grey/Default/icon_cross.png")
+	close_btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	close_btn.expand_icon = true
 	close_btn.custom_minimum_size = Vector2(36, 36)
 	close_btn.add_theme_font_override("font", font_bold)
 	close_btn.add_theme_font_size_override("font_size", 20)
@@ -438,13 +454,22 @@ func _build_shop_panel() -> void:
 	money_bg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	vbox.add_child(money_bg)
 
+	var shop_money_container = HBoxContainer.new()
+	shop_money_container.add_theme_constant_override("separation", 8)
+	money_bg.add_child(shop_money_container)
+
+	var shop_coin_icon = TextureRect.new()
+	shop_coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	shop_coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	shop_money_container.add_child(shop_coin_icon)
+
 	shop_money_label = Label.new()
 	shop_money_label.name = "ShopMoneyLabel"
-	shop_money_label.text = "🪙 Ouro: 0"
+	shop_money_label.text = "Ouro: 0"
 	shop_money_label.add_theme_font_override("font", font_bold)
 	shop_money_label.add_theme_font_size_override("font_size", 24)
 	shop_money_label.add_theme_color_override("font_color", Color(0.75, 0.6, 0.15))
-	money_bg.add_child(shop_money_label)
+	shop_money_container.add_child(shop_money_label)
 
 	# ── Item Enferrujada ─────────────────────────────────────────────
 	var row_enf := _build_shop_item_row(
@@ -536,8 +561,11 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> Pa
 
 func _build_bottom_buttons() -> void:
 	# ── Botão Loja (canto inferior esquerdo) ─────────────────────────
-	var shop_btn := _create_texture_button("⚙ Loja", tex_btn_grey, Color(0.15, 0.08, 0.0))
+	var shop_btn := _create_texture_button("Loja", tex_btn_grey, Color(0.15, 0.08, 0.0))
 	shop_btn.name = "ShopButton"
+	shop_btn.icon = load("res://assets/sprites/icons/gear_white.png")
+	shop_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	shop_btn.expand_icon = true
 	shop_btn.anchors_preset = Control.PRESET_BOTTOM_LEFT
 	shop_btn.anchor_left = 0.0
 	shop_btn.anchor_top = 1.0
@@ -551,8 +579,11 @@ func _build_bottom_buttons() -> void:
 	add_child(shop_btn)
 
 	# ── Botão Voltar (canto inferior direito) ────────────────────────
-	var back_btn := _create_texture_button("◀ Voltar", tex_btn_grey, Color(0.15, 0.08, 0.0))
+	var back_btn := _create_texture_button("Voltar", tex_btn_grey, Color(0.15, 0.08, 0.0))
 	back_btn.name = "BackButton"
+	back_btn.icon = load("res://assets/sprites/ui_pack/Grey/Default/arrow_basic_w.png")
+	back_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	back_btn.expand_icon = true
 	back_btn.anchors_preset = Control.PRESET_BOTTOM_RIGHT
 	back_btn.anchor_left = 1.0
 	back_btn.anchor_top = 1.0
@@ -612,7 +643,7 @@ func _refresh_all() -> void:
 
 func _update_money_display() -> void:
 	if money_label:
-		money_label.text = "🪙 Ouro: " + str(Global.money)
+		money_label.text = "Ouro: " + str(Global.money)
 
 
 func _update_base_visuals() -> void:
@@ -647,7 +678,7 @@ func _update_base_visuals() -> void:
 
 func _update_shop_ui() -> void:
 	if shop_money_label:
-		shop_money_label.text = "🪙 Ouro: " + str(Global.money)
+		shop_money_label.text = "Ouro: " + str(Global.money)
 
 	var count_enf: int = Global.ammo_inventory.get(ammo_enf.ammo_name, 0)
 	var count_perf: int = Global.ammo_inventory.get(ammo_perf.ammo_name, 0)
@@ -687,14 +718,14 @@ func _show_attack_popup(base_id: String) -> void:
 
 	if complete:
 		attack_title_label.text = base_name
-		attack_desc_label.text = "⚑ Base já conquistada!"
+		attack_desc_label.text = "Base já conquistada!"
 		attack_btn.disabled = true
 		attack_btn.text = "CONQUISTADA"
 	else:
 		attack_title_label.text = base_name + " — Fase " + str(cleared + 1) + " de " + str(total)
 		attack_desc_label.text = "Prepare-se para o combate!\nDerrote os inimigos para avançar."
 		attack_btn.disabled = false
-		attack_btn.text = "⚔ ATACAR"
+		attack_btn.text = "ATACAR"
 
 	# Mostrar overlay e popup
 	var overlay = get_node("PopupOverlay")

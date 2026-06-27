@@ -137,7 +137,10 @@ func _setup_ui() -> void:
 	quit_btn.add_theme_stylebox_override("pressed", pressed_style)
 	quit_btn.add_theme_font_override("font", font)
 	quit_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	quit_btn.add_theme_color_override("font_hover_color", Color(0.15, 0.08, 0.0))
+	quit_btn.add_theme_color_override("font_pressed_color", Color(0.15, 0.08, 0.0))
 	quit_btn.add_theme_font_size_override("font_size", 20)
+	quit_btn.icon = load("res://assets/sprites/icons/exit.png")
 	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	quit_btn.pressed.connect(_on_quit)
 	left_vbox.add_child(quit_btn)
