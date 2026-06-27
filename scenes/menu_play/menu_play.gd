@@ -33,8 +33,10 @@ var decor_bot: ColorRect
 
 func _ready() -> void:
 	# Carregar fontes
-	var font_bold: Font = load(FONT_BOLD_PATH)
-	var font_regular: Font = load(FONT_REGULAR_PATH)
+	var font_bold := SystemFont.new()
+	font_bold.font_names = ["Georgia", "Times New Roman", "Serif"]
+	var font_regular := SystemFont.new()
+	font_regular.font_names = ["Georgia", "Times New Roman", "Serif"]
 
 	# ── 1. Fundo pergaminho ─────────────────────────────────────────
 	var bg := ColorRect.new()

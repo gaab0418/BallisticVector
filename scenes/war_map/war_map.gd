@@ -47,8 +47,10 @@ func _ready() -> void:
 	ammo_enf = load("res://assets/resources/ammo_enferrujada.tres") as AmmoData
 	ammo_perf = load("res://assets/resources/ammo_perfurante.tres") as AmmoData
 
-	font_bold = load("res://assets/fonts/Caveat/static/Caveat-Bold.ttf") as Font
-	font_regular = load("res://assets/fonts/Caveat/static/Caveat-Regular.ttf") as Font
+	var sys_font := SystemFont.new()
+	sys_font.font_names = ["Georgia", "Times New Roman", "Serif"]
+	font_bold = sys_font
+	font_regular = sys_font
 
 	tex_castle = load("res://assets/sprites/cartography/Default/castle.png") as Texture2D
 	tex_castle_wide = load("res://assets/sprites/cartography/Default/castleWide.png") as Texture2D

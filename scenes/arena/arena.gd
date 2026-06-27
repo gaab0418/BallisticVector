@@ -57,12 +57,14 @@ func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
 	var tex_rect = TextureRect.new()
 	tex_rect.texture = icon_tex
 	tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	tex_rect.custom_minimum_size = Vector2(32, 32)
+	tex_rect.custom_minimum_size = Vector2(48, 48)
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	
 	var lbl = Label.new()
 	lbl.text = text
-	lbl.add_theme_font_override("font", preload("res://assets/fonts/Caveat/static/Caveat-Bold.ttf"))
+	var sys_font = SystemFont.new()
+	sys_font.font_names = ["Georgia", "Times New Roman", "Serif"]
+	lbl.add_theme_font_override("font", sys_font)
 	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
 	
@@ -75,7 +77,8 @@ func _setup_ui() -> void:
 	hud_canvas.name = "HUD"
 	add_child(hud_canvas)
 	
-	var font = preload("res://assets/fonts/Caveat/static/Caveat-Bold.ttf")
+	var font = SystemFont.new()
+	font.font_names = ["Georgia", "Times New Roman", "Serif"]
 	
 	# Painel Esquerdo (Controles e Força)
 	var left_panel = PanelContainer.new()
@@ -115,8 +118,27 @@ func _setup_ui() -> void:
 	
 	var quit_btn = Button.new()
 	quit_btn.text = "Desistir"
+	
+	var btn_tex = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
+	var normal_style = StyleBoxTexture.new()
+	normal_style.texture = btn_tex
+	normal_style.content_margin_left = 12.0
+	normal_style.content_margin_top = 8.0
+	normal_style.content_margin_right = 12.0
+	normal_style.content_margin_bottom = 8.0
+	
+	var hover_style = normal_style.duplicate()
+	hover_style.modulate_color = Color(1.1, 1.05, 0.95)
+	var pressed_style = normal_style.duplicate()
+	pressed_style.modulate_color = Color(0.85, 0.8, 0.75)
+	
+	quit_btn.add_theme_stylebox_override("normal", normal_style)
+	quit_btn.add_theme_stylebox_override("hover", hover_style)
+	quit_btn.add_theme_stylebox_override("pressed", pressed_style)
 	quit_btn.add_theme_font_override("font", font)
+	quit_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
 	quit_btn.add_theme_font_size_override("font_size", 20)
+	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	quit_btn.pressed.connect(_on_quit)
 	left_vbox.add_child(quit_btn)
 
@@ -165,7 +187,7 @@ func _setup_ui() -> void:
 	bottom_hbox.add_child(hp_vbox)
 	
 	var hp_lbl = Label.new()
-	hp_lbl.text = "Player Armor"
+	hp_lbl.text = "Armadura"
 	hp_lbl.add_theme_font_override("font", font)
 	hp_lbl.add_theme_font_size_override("font_size", 18)
 	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -218,6 +240,8 @@ func _ready() -> void:
 	_update_hud()
 	_update_power_hud()
 	_update_aim_line()
+	
+	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 func _load_ammo_types() -> void:
 	# Carrega todos os tipos de munição definidos nos .tres
@@ -322,6 +346,8 @@ func _fire_projectile() -> void:
 	ammo_counts[current_ammo_index] -= 1
 	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
+	
+	AudioManager.play_sfx("res://assets/audio/cannon_fire.ogg")
 	
 	# Criar o projétil como um ColorRect dentro de um Node2D
 	var projectile = Node2D.new()

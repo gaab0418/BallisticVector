@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bgk136mleyioy"
-path="res://.godot/imported/missles.png-c78bf50972cf4f678a289f5a933db0c2.ctex"
+uid="uid://idvkoli582fr"
+path="res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/missles.png"
-dest_files=["res://.godot/imported/missles.png-c78bf50972cf4f678a289f5a933db0c2.ctex"]
+source_file="res://assets/sprites/airplane_enemy.png"
+dest_files=["res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"]
 
 [params]
 
