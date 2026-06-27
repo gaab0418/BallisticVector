@@ -33,6 +33,10 @@ func play_bgm(path: String) -> void:
 	current_bgm_path = path
 	var stream = load(path)
 	if stream:
+		if stream is AudioStreamWAV:
+			stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		elif stream is AudioStreamMP3 or stream is AudioStreamOggVorbis:
+			stream.loop = true
 		bgm_player.stream = stream
 		bgm_player.play()
 

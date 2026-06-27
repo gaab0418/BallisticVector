@@ -37,9 +37,9 @@ var selected_base_id: String = ""
 
 # ── Configuração das bases ───────────────────────────────────────────
 const BASE_CONFIGS: Array = [
-	{"id": "Base_A", "pos": Vector2(180, 250), "sprite": "castle"},
-	{"id": "Base_B", "pos": Vector2(960, 610), "sprite": "castleWide"},
-	{"id": "Base_C", "pos": Vector2(910, 330), "sprite": "towerTall"},
+	{"id": "Base_A", "pos": Vector2(200, 250), "sprite": "castle"},
+	{"id": "Base_B", "pos": Vector2(975, 580), "sprite": "castleWide"},
+	{"id": "Base_C", "pos": Vector2(910, 340), "sprite": "towerTall"},
 ]
 
 
