@@ -301,6 +301,7 @@ func _fire_projectile() -> void:
 	if ammo_counts[current_ammo_index] <= 0:
 		return
 
+	AudioManager.play_sfx("res://assets/audio/cannon_fire.ogg")
 	ammo_counts[current_ammo_index] -= 1
 	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
