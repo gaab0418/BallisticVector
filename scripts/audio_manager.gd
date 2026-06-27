@@ -6,17 +6,25 @@ var bgm_player: AudioStreamPlayer
 var sfx_player: AudioStreamPlayer
 var current_bgm_path: String = ""
 
+var master_volume: float = 1.0
+var bgm_volume: float = 0.5 # default
+var sfx_volume: float = 1.0
+
+func update_volumes() -> void:
+	if bgm_player: bgm_player.volume_db = linear_to_db(bgm_volume * master_volume) - 8.0
+	if sfx_player: sfx_player.volume_db = linear_to_db(sfx_volume * master_volume) - 3.0
+
 
 func _ready() -> void:
 	bgm_player = AudioStreamPlayer.new()
 	bgm_player.bus = "Master"
-	bgm_player.volume_db = -8.0
 	add_child(bgm_player)
 
 	sfx_player = AudioStreamPlayer.new()
 	sfx_player.bus = "Master"
-	sfx_player.volume_db = -3.0
 	add_child(sfx_player)
+	
+	update_volumes()
 
 
 func play_bgm(path: String) -> void:

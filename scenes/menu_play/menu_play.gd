@@ -30,6 +30,13 @@ var version_label: Label
 var decor_top: ColorRect
 var decor_bot: ColorRect
 
+var settings_btn: TextureButton
+var settings_panel: PanelContainer
+var master_slider: HSlider
+var bgm_slider: HSlider
+var sfx_slider: HSlider
+var close_settings_btn: TextureButton
+
 
 func _ready() -> void:
 	# Carregar fontes
@@ -151,6 +158,9 @@ func _ready() -> void:
 	# ── 8. Iniciar música de fundo ──────────────────────────────────
 	AudioManager.play_bgm(BGM_MENU_PATH)
 
+	# ── 8.5. Menu de Configurações ──────────────────────────────────
+	_build_settings_ui(font_bold, font_regular)
+
 	# ── 9. Animação de entrada (fade-in escalonado) ─────────────────
 	_play_intro_animation()
 
@@ -197,3 +207,122 @@ func _create_decor_line(y_position: float) -> ColorRect:
 	line.offset_top = y_position
 	line.offset_bottom = y_position + 2.0
 	return line
+
+
+# ── Configurações UI ───────────────────────────────────────────────
+func _build_settings_ui(font_bold: Font, font_regular: Font) -> void:
+	settings_btn = TextureButton.new()
+	settings_btn.texture_normal = load("res://assets/sprites/icons/gear_white.png")
+	settings_btn.ignore_texture_size = true
+	settings_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	settings_btn.custom_minimum_size = Vector2(48, 48)
+	settings_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	settings_btn.offset_left = -64.0
+	settings_btn.offset_top = 16.0
+	settings_btn.offset_right = -16.0
+	settings_btn.offset_bottom = 64.0
+	settings_btn.pressed.connect(_on_settings_pressed)
+	add_child(settings_btn)
+
+	settings_panel = PanelContainer.new()
+	settings_panel.set_anchors_preset(Control.PRESET_CENTER)
+	settings_panel.offset_left = -200.0
+	settings_panel.offset_top = -150.0
+	settings_panel.offset_right = 200.0
+	settings_panel.offset_bottom = 150.0
+	settings_panel.visible = false
+	settings_panel.z_index = 100
+	
+	var sp_style := StyleBoxFlat.new()
+	sp_style.bg_color = COLOR_PARCHMENT_INNER
+	sp_style.border_color = COLOR_BORDER
+	sp_style.border_width_left = 3
+	sp_style.border_width_top = 3
+	sp_style.border_width_right = 3
+	sp_style.border_width_bottom = 3
+	sp_style.corner_radius_top_left = 8
+	sp_style.corner_radius_top_right = 8
+	sp_style.corner_radius_bottom_left = 8
+	sp_style.corner_radius_bottom_right = 8
+	sp_style.shadow_color = Color(0.0, 0.0, 0.0, 0.3)
+	sp_style.shadow_size = 10
+	settings_panel.add_theme_stylebox_override("panel", sp_style)
+	add_child(settings_panel)
+	
+	var vbox := VBoxContainer.new()
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 16)
+	settings_panel.add_child(vbox)
+	
+	var settings_title := Label.new()
+	settings_title.text = "Configurações"
+	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	settings_title.add_theme_font_override("font", font_bold)
+	settings_title.add_theme_font_size_override("font_size", 32)
+	settings_title.add_theme_color_override("font_color", COLOR_TITLE)
+	vbox.add_child(settings_title)
+	
+	master_slider = _create_slider_row(vbox, "Volume Geral", AudioManager.master_volume, font_regular)
+	master_slider.value_changed.connect(_on_master_volume_changed)
+	
+	bgm_slider = _create_slider_row(vbox, "Música (BGM)", AudioManager.bgm_volume, font_regular)
+	bgm_slider.value_changed.connect(_on_bgm_volume_changed)
+	
+	sfx_slider = _create_slider_row(vbox, "Efeitos (SFX)", AudioManager.sfx_volume, font_regular)
+	sfx_slider.value_changed.connect(_on_sfx_volume_changed)
+	
+	close_settings_btn = TextureButton.new()
+	close_settings_btn.texture_normal = load("res://assets/sprites/ui_pack/Grey/Default/icon_cross.png")
+	close_settings_btn.ignore_texture_size = true
+	close_settings_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	close_settings_btn.custom_minimum_size = Vector2(32, 32)
+	close_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	close_settings_btn.pressed.connect(_on_close_settings_pressed)
+	vbox.add_child(close_settings_btn)
+
+
+func _create_slider_row(parent: Control, lbl_text: String, start_val: float, font: Font) -> HSlider:
+	var hbox := HBoxContainer.new()
+	var lbl := Label.new()
+	lbl.text = lbl_text
+	lbl.add_theme_font_override("font", font)
+	lbl.add_theme_color_override("font_color", COLOR_TITLE)
+	lbl.custom_minimum_size = Vector2(140, 0)
+	hbox.add_child(lbl)
+	
+	var slider := HSlider.new()
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.max_value = 1.0
+	slider.step = 0.1
+	slider.value = start_val
+	hbox.add_child(slider)
+	
+	parent.add_child(hbox)
+	return slider
+
+
+func _on_settings_pressed() -> void:
+	AudioManager.play_sfx(SFX_CLICK_PLAY_PATH)
+	settings_panel.visible = true
+
+func _on_close_settings_pressed() -> void:
+	AudioManager.play_sfx(SFX_CLICK_PLAY_PATH)
+	settings_panel.visible = false
+
+func _on_master_volume_changed(value: float) -> void:
+	AudioManager.master_volume = value
+	AudioManager.update_volumes()
+	_play_slider_sfx()
+
+func _on_bgm_volume_changed(value: float) -> void:
+	AudioManager.bgm_volume = value
+	AudioManager.update_volumes()
+	_play_slider_sfx()
+
+func _on_sfx_volume_changed(value: float) -> void:
+	AudioManager.sfx_volume = value
+	AudioManager.update_volumes()
+	_play_slider_sfx()
+
+func _play_slider_sfx() -> void:
+	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
