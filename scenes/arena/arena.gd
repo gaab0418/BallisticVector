@@ -473,7 +473,8 @@ func _update_hud() -> void:
 	if ammo_label:
 		ammo_label.text = "x" + str(ammo_counts[current_ammo_index])
 	if ammo_icon:
-		ammo_icon.color = ammo.color
+		ammo_icon.ammo_color = ammo.color
+		ammo_icon.queue_redraw()
 	if ammo_name_label:
 		ammo_name_label.text = ammo.ammo_name
 

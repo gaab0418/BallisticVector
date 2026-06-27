@@ -810,7 +810,6 @@ func _on_buy_perfurante() -> void:
 
 func _buy_ammo_batch(ammo: AmmoData, qty: int) -> void:
 	var current_count: int = Global.ammo_inventory.get(ammo.ammo_name, 0)
-	var total_cost: int = ammo.price * qty
 	var can_add: int = ammo.max_ammo - current_count
 
 	if can_add <= 0:
@@ -931,4 +930,3 @@ func _on_buy_repair_kit() -> void:
 		_update_shop_ui()
 	else:
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
-
