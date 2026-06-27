@@ -6,10 +6,17 @@ extends Node2D
 @onready var aim_line: Line2D = $Player/Cannon/AimLine
 @onready var enemy: Node2D = $Enemy
 @onready var bg: ColorRect = $BackgroundColorRect
-@onready var ammo_label: Label = $HUD/LeftPanel/AmmoPanel/AmmoLabel
-@onready var ammo_icon: ColorRect = $HUD/LeftPanel/AmmoPanel/AmmoIcon
-@onready var ammo_name_label: Label = $HUD/LeftPanel/AmmoNameLabel
-@onready var power_label: Label = $HUD/LeftPanel/PowerLabel
+# Variáveis de UI
+var hud_canvas: CanvasLayer
+var ammo_label: Label
+var ammo_icon: TextureRect
+var ammo_name_label: Label
+var power_label: Label
+var hp_bar: ProgressBar
+var enemies_label: Label
+
+var tex_missile_1 = preload("res://assets/sprites/missile_1.png")
+var tex_missile_2 = preload("res://assets/sprites/missile_2.png")
 
 # === Configurações ===
 const PLAYER_SPEED: float = 300.0       # Velocidade vertical do jogador
@@ -32,8 +39,176 @@ var current_power: float = 1.0
 # === Preload do script do projétil ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 
+func _create_steampunk_panel() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
+	style.border_width_left = 3
+	style.border_width_top = 3
+	style.border_width_right = 3
+	style.border_width_bottom = 3
+	style.border_color = Color(0.7, 0.5, 0.2, 1.0)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 4
+	return style
+
+func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
+	var hb = HBoxContainer.new()
+	var tex_rect = TextureRect.new()
+	tex_rect.texture = icon_tex
+	tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	tex_rect.custom_minimum_size = Vector2(32, 32)
+	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	
+	var lbl = Label.new()
+	lbl.text = text
+	lbl.add_theme_font_override("font", preload("res://assets/fonts/Caveat/static/Caveat-Bold.ttf"))
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
+	
+	hb.add_child(tex_rect)
+	hb.add_child(lbl)
+	return hb
+
+func _setup_ui() -> void:
+	hud_canvas = CanvasLayer.new()
+	hud_canvas.name = "HUD"
+	add_child(hud_canvas)
+	
+	var font = preload("res://assets/fonts/Caveat/static/Caveat-Bold.ttf")
+	
+	# Painel Esquerdo (Controles e Força)
+	var left_panel = PanelContainer.new()
+	left_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	left_panel.position = Vector2(20, 20)
+	left_panel.size = Vector2(220, 300)
+	hud_canvas.add_child(left_panel)
+	
+	var left_vbox = VBoxContainer.new()
+	left_vbox.add_theme_constant_override("separation", 15)
+	left_vbox.position = Vector2(10, 10)
+	left_vbox.size = Vector2(200, 280)
+	left_panel.add_child(left_vbox)
+	
+	var controls_lbl = Label.new()
+	controls_lbl.text = "Controles"
+	controls_lbl.add_theme_font_override("font", font)
+	controls_lbl.add_theme_font_size_override("font_size", 24)
+	controls_lbl.add_theme_color_override("font_color", Color(0.8, 0.6, 0.2))
+	controls_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_vbox.add_child(controls_lbl)
+	
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png"), "Trocar Municao"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"), "Mirar"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"), "Forca"))
+	
+	var hs = HSeparator.new()
+	left_vbox.add_child(hs)
+	
+	power_label = Label.new()
+	power_label.text = "Forca: 100%"
+	power_label.add_theme_font_override("font", font)
+	power_label.add_theme_font_size_override("font_size", 22)
+	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_vbox.add_child(power_label)
+	
+	var quit_btn = Button.new()
+	quit_btn.text = "Desistir"
+	quit_btn.add_theme_font_override("font", font)
+	quit_btn.add_theme_font_size_override("font_size", 20)
+	quit_btn.pressed.connect(_on_quit)
+	left_vbox.add_child(quit_btn)
+
+	# Painel Inferior (Munição e Vida)
+	var bottom_panel = PanelContainer.new()
+	bottom_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	bottom_panel.position = Vector2(440, 620)
+	bottom_panel.size = Vector2(400, 80)
+	hud_canvas.add_child(bottom_panel)
+	
+	var bottom_hbox = HBoxContainer.new()
+	bottom_hbox.add_theme_constant_override("separation", 20)
+	bottom_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_hbox.size = Vector2(400, 80)
+	bottom_panel.add_child(bottom_hbox)
+	
+	var ammo_info_vbox = VBoxContainer.new()
+	ammo_info_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_hbox.add_child(ammo_info_vbox)
+	
+	var ammo_hbox = HBoxContainer.new()
+	ammo_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	ammo_info_vbox.add_child(ammo_hbox)
+	
+	ammo_icon = TextureRect.new()
+	ammo_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	ammo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ammo_icon.custom_minimum_size = Vector2(40, 40)
+	ammo_hbox.add_child(ammo_icon)
+	
+	ammo_label = Label.new()
+	ammo_label.add_theme_font_override("font", font)
+	ammo_label.add_theme_font_size_override("font_size", 28)
+	ammo_hbox.add_child(ammo_label)
+	
+	ammo_name_label = Label.new()
+	ammo_name_label.add_theme_font_override("font", font)
+	ammo_name_label.add_theme_font_size_override("font_size", 16)
+	ammo_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ammo_info_vbox.add_child(ammo_name_label)
+	
+	var vs = VSeparator.new()
+	bottom_hbox.add_child(vs)
+	
+	var hp_vbox = VBoxContainer.new()
+	hp_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hp_vbox.custom_minimum_size = Vector2(150, 0)
+	bottom_hbox.add_child(hp_vbox)
+	
+	var hp_lbl = Label.new()
+	hp_lbl.text = "Player Armor"
+	hp_lbl.add_theme_font_override("font", font)
+	hp_lbl.add_theme_font_size_override("font_size", 18)
+	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_vbox.add_child(hp_lbl)
+	
+	hp_bar = ProgressBar.new()
+	hp_bar.custom_minimum_size = Vector2(150, 20)
+	hp_bar.value = 100
+	hp_bar.show_percentage = true
+	var sb_bg = StyleBoxFlat.new()
+	sb_bg.bg_color = Color(0.2, 0.0, 0.0)
+	var sb_fg = StyleBoxFlat.new()
+	sb_fg.bg_color = Color(0.8, 0.2, 0.2)
+	hp_bar.add_theme_stylebox_override("background", sb_bg)
+	hp_bar.add_theme_stylebox_override("fill", sb_fg)
+	hp_bar.add_theme_font_override("font", font)
+	hp_vbox.add_child(hp_bar)
+
+	# Painel Superior (Inimigos)
+	var top_panel = PanelContainer.new()
+	top_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	top_panel.position = Vector2(540, 10)
+	top_panel.size = Vector2(200, 60)
+	hud_canvas.add_child(top_panel)
+	
+	enemies_label = Label.new()
+	enemies_label.text = "Inimigos: 1"
+	enemies_label.add_theme_font_override("font", font)
+	enemies_label.add_theme_font_size_override("font_size", 24)
+	enemies_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
+	enemies_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	enemies_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	enemies_label.set_anchors_preset(PRESET_FULL_RECT)
+	top_panel.add_child(enemies_label)
+
 func _ready() -> void:
 	randomize()
+	_setup_ui()
 	# Fundo aleatório
 	if bg:
 		bg.color = Color(
@@ -182,7 +357,12 @@ func _update_hud() -> void:
 	if ammo_label:
 		ammo_label.text = "x" + str(ammo_counts[current_ammo_index])
 	if ammo_icon:
-		ammo_icon.color = ammo.color
+		if current_ammo_index == 0:
+			ammo_icon.texture = tex_missile_1
+		else:
+			ammo_icon.texture = tex_missile_2
+		# Aplica a cor da munição no ícone
+		ammo_icon.modulate = ammo.color
 	if ammo_name_label:
 		ammo_name_label.text = ammo.ammo_name
 
