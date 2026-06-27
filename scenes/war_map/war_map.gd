@@ -444,24 +444,20 @@ func _build_shop_panel() -> void:
 	shop_money_label.add_theme_color_override("font_color", Color(0.75, 0.6, 0.15))
 	money_bg.add_child(shop_money_label)
 
-	# Carregar os ícones de mísseis recortados
-	var tex_missile_enf := load("res://assets/sprites/missile_1.png") as Texture2D
-	var tex_missile_perf := load("res://assets/sprites/missile_2.png") as Texture2D
-
 	# ── Item Enferrujada ─────────────────────────────────────────────
 	var row_enf := _build_shop_item_row(
-		ammo_enf, 5, "_on_buy_enferrujada", tex_missile_enf
+		ammo_enf, 5, "_on_buy_enferrujada"
 	)
 	vbox.add_child(row_enf)
 
 	# ── Item Perfurante ──────────────────────────────────────────────
 	var row_perf := _build_shop_item_row(
-		ammo_perf, 3, "_on_buy_perfurante", tex_missile_perf
+		ammo_perf, 3, "_on_buy_perfurante"
 	)
 	vbox.add_child(row_perf)
 
 
-func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String, tex_icon: Texture2D) -> PanelContainer:
+func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> PanelContainer:
 	var card := PanelContainer.new()
 	var card_style := StyleBoxFlat.new()
 	card_style.bg_color = Color(0.72, 0.62, 0.45, 0.8)
@@ -484,12 +480,8 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String, tex_i
 	row.add_theme_constant_override("separation", 15)
 	card.add_child(row)
 
-	# Ícone do Míssil (Atlas)
-	var icon := TextureRect.new()
-	icon.texture = tex_icon
-	icon.custom_minimum_size = Vector2(48, 48)
-	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	# Ícone do Míssil (Procedural 2D)
+	var icon := load("res://scripts/ammo_icon.gd").new(ammo.color)
 	row.add_child(icon)
 
 	# VBox Centro (Nome + Estoque)

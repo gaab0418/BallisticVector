@@ -9,14 +9,11 @@ extends Node2D
 # Variáveis de UI
 var hud_canvas: CanvasLayer
 var ammo_label: Label
-var ammo_icon: TextureRect
+var ammo_icon: Control
 var ammo_name_label: Label
 var power_label: Label
 var hp_bar: ProgressBar
 var enemies_label: Label
-
-var tex_missile_1 = preload("res://assets/sprites/missile_1.png")
-var tex_missile_2 = preload("res://assets/sprites/missile_2.png")
 
 # === Configurações ===
 const PLAYER_SPEED: float = 300.0       # Velocidade vertical do jogador
@@ -144,9 +141,7 @@ func _setup_ui() -> void:
 	ammo_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	ammo_info_vbox.add_child(ammo_hbox)
 	
-	ammo_icon = TextureRect.new()
-	ammo_icon.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	ammo_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ammo_icon = load("res://scripts/ammo_icon.gd").new()
 	ammo_icon.custom_minimum_size = Vector2(40, 40)
 	ammo_hbox.add_child(ammo_icon)
 	
@@ -356,13 +351,9 @@ func _update_hud() -> void:
 	var ammo = _get_current_ammo()
 	if ammo_label:
 		ammo_label.text = "x" + str(ammo_counts[current_ammo_index])
-	if ammo_icon:
-		if current_ammo_index == 0:
-			ammo_icon.texture = tex_missile_1
-		else:
-			ammo_icon.texture = tex_missile_2
-		# Aplica a cor da munição no ícone
-		ammo_icon.modulate = ammo.color
+	if ammo_icon and ammo_icon.has_method("queue_redraw"):
+		ammo_icon.ammo_color = ammo.color
+		ammo_icon.queue_redraw()
 	if ammo_name_label:
 		ammo_name_label.text = ammo.ammo_name
 
