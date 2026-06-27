@@ -62,6 +62,22 @@ func _process(delta: float) -> void:
 		position.x = min_x
 		move_dir = 1.0
 
+	# Checagem geométrica para não bater nas montanhas
+	var arena = get_parent()
+	if arena and arena.has_method("get_obstacle_polygons"):
+		var polygons = arena.get_obstacle_polygons()
+		# Projetar a posição futura para checar antes de bater (olhar ~0.5s a frente)
+		var check_pos = global_position + Vector2(move_speed * move_dir * 0.5, 0)
+		for poly in polygons:
+			if poly is PackedVector2Array and poly.size() >= 3:
+				# Checar se a parte de baixo ou o meio do avião vai entrar no polígono
+				var lower_point = check_pos + Vector2(0, 20)
+				if Geometry2D.is_point_in_polygon(check_pos, poly) or Geometry2D.is_point_in_polygon(lower_point, poly):
+					move_dir *= -1.0
+					# Afastar um pouquinho para evitar que fique preso
+					position.x += move_dir * 2.0
+					break
+
 	# === Timer de disparo ===
 	shoot_timer -= delta
 	if shoot_timer <= 0.0:
@@ -104,8 +120,7 @@ func _shoot_at_player() -> void:
 	vy *= randf_range(0.85, 1.15)
 
 	# Criar o projétil
-	var projectile = Node2D.new()
-	projectile.set_script(ProjectileScript)
+	var projectile = ProjectileScript.new()
 	projectile.position = global_position
 	projectile.velocity = Vector2(vx, vy)
 	projectile.gravity = projectile_gravity

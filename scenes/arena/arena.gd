@@ -13,15 +13,18 @@ extends Node2D
 @onready var bg: ColorRect = $BackgroundColorRect
 @onready var obstacles_node: Node2D = $Obstacles
 
-# === Referências HUD ===
-@onready var ammo_label: Label = $HUD/LeftPanel/AmmoPanel/AmmoLabel
-@onready var ammo_icon: ColorRect = $HUD/LeftPanel/AmmoPanel/AmmoIcon
-@onready var ammo_name_label: Label = $HUD/LeftPanel/AmmoNameLabel
-@onready var power_label: Label = $HUD/LeftPanel/PowerLabel
-@onready var armor_bar: ProgressBar = $HUD/ArmorBar
-@onready var stage_label: Label = $HUD/StageLabel
-@onready var next_stage_btn: Button = $HUD/NextStageBtn
-@onready var return_btn: Button = $HUD/ReturnBtn
+
+# === Variáveis de UI ===
+var hud_canvas: CanvasLayer
+var ammo_label: Label
+var ammo_icon: Control
+var ammo_name_label: Label
+var power_label: Label
+var armor_bar: ProgressBar
+var stage_label: Label
+var next_stage_btn: Button
+var return_btn: Button
+var quit_btn: Button
 
 # === Configurações ===
 const PLAYER_SPEED: float = 300.0       # Velocidade vertical do jogador
@@ -77,6 +80,9 @@ func _ready() -> void:
 
 	# Carregar munições dos Resources
 	_load_ammo_types()
+
+	_setup_ui()
+	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 	# Inicializar HUD
 	_update_hud()
@@ -151,11 +157,14 @@ func _spawn_enemies() -> void:
 
 	# --- Spawnar aviões ---
 	for i in range(config.num_airplanes):
-		var airplane = _create_airplane(config.airplane_hp)
+		var airplane = AirplaneScript.new()
+		airplane.name = "Airplane"
 		airplane.position = Vector2(
 			randf_range(750.0, 1200.0),
 			randf_range(200.0, 480.0)
 		)
+		airplane.hp = config.airplane_hp
+		airplane.player_ref = player
 		add_child(airplane)
 		active_enemies.append(airplane)
 
@@ -190,17 +199,6 @@ func _create_boss(boss_hp: int) -> Node2D:
 	boss.set_meta("is_boss", true)
 
 	return boss
-
-
-# --- Cria um avião inimigo com o script airplane_enemy.gd ---
-func _create_airplane(airplane_hp: int) -> Node2D:
-	var airplane = Node2D.new()
-	airplane.set_script(AirplaneScript)
-	airplane.name = "Airplane"
-	airplane.hp = airplane_hp
-	airplane.player_ref = player
-	# As propriedades visuais e de movimento são definidas no _ready do script
-	return airplane
 
 
 # =============================================================================
@@ -304,13 +302,13 @@ func _fire_projectile() -> void:
 	if ammo_counts[current_ammo_index] <= 0:
 		return
 
+	AudioManager.play_sfx("res://assets/audio/cannon_fire.ogg")
 	ammo_counts[current_ammo_index] -= 1
 	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
 
-	# Criar o projétil como um ColorRect dentro de um Node2D
-	var projectile = Node2D.new()
-	projectile.set_script(ProjectileScript)
+	# Criar o projétil usando o Script carregado
+	var projectile = ProjectileScript.new()
 
 	# Posição global da ponta do cano
 	var barrel_tip_local = Vector2(50, 0)
@@ -376,8 +374,12 @@ func on_player_hit(dmg: int) -> void:
 
 # --- Inimigo foi destruído (chamado pelo airplane_enemy.gd ou internamente) ---
 func on_enemy_destroyed(enemy: Node2D) -> void:
+	if enemy.name == "Boss":
+		Global.money += 150
+	else:
+		Global.money += 25
+		
 	active_enemies.erase(enemy)
-	# Verificar se todos os inimigos morreram
 	# Limpar referências inválidas
 	var still_alive: Array = []
 	for e in active_enemies:
@@ -397,7 +399,7 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 func _on_stage_cleared() -> void:
 	stage_cleared = true
 	# Recompensar o jogador
-	Global.money += 50
+	Global.money += 250
 
 	# Mostrar botão de próxima fase
 	if next_stage_btn:
@@ -468,7 +470,8 @@ func _update_hud() -> void:
 	if ammo_label:
 		ammo_label.text = "x" + str(ammo_counts[current_ammo_index])
 	if ammo_icon:
-		ammo_icon.color = ammo.color
+		ammo_icon.ammo_color = ammo.color
+		ammo_icon.queue_redraw()
 	if ammo_name_label:
 		ammo_name_label.text = ammo.ammo_name
 
@@ -538,3 +541,218 @@ func _on_power_down() -> void:
 
 func _on_quit() -> void:
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+
+func _create_steampunk_panel() -> StyleBoxFlat:
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
+	style.border_width_left = 3
+	style.border_width_top = 3
+	style.border_width_right = 3
+	style.border_width_bottom = 3
+	style.border_color = Color(0.7, 0.5, 0.2, 1.0)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	style.shadow_color = Color(0, 0, 0, 0.5)
+	style.shadow_size = 4
+	return style
+
+func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
+	var hb = HBoxContainer.new()
+	var tex_rect = TextureRect.new()
+	tex_rect.texture = icon_tex
+	tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	tex_rect.custom_minimum_size = Vector2(48, 48)
+	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	
+	var lbl = Label.new()
+	lbl.text = text
+	var sys_font = SystemFont.new()
+	sys_font.font_names = ["Georgia", "Times New Roman", "Serif"]
+	lbl.add_theme_font_override("font", sys_font)
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
+	
+	hb.add_child(tex_rect)
+	hb.add_child(lbl)
+	return hb
+
+func _setup_ui() -> void:
+	hud_canvas = CanvasLayer.new()
+	hud_canvas.name = "HUD"
+	add_child(hud_canvas)
+	
+	var font = SystemFont.new()
+	font.font_names = ["Georgia", "Times New Roman", "Serif"]
+	
+	# Painel Esquerdo (Controles e Força)
+	var left_panel = PanelContainer.new()
+	left_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	left_panel.position = Vector2(20, 20)
+	left_panel.size = Vector2(220, 300)
+	hud_canvas.add_child(left_panel)
+	
+	var left_vbox = VBoxContainer.new()
+	left_vbox.add_theme_constant_override("separation", 15)
+	left_vbox.position = Vector2(10, 10)
+	left_vbox.size = Vector2(200, 280)
+	left_panel.add_child(left_vbox)
+	
+	var controls_lbl = Label.new()
+	controls_lbl.text = "Controles"
+	controls_lbl.add_theme_font_override("font", font)
+	controls_lbl.add_theme_font_size_override("font_size", 24)
+	controls_lbl.add_theme_color_override("font_color", Color(0.8, 0.6, 0.2))
+	controls_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_vbox.add_child(controls_lbl)
+	
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png"), "Trocar Municao"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"), "Mirar"))
+	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"), "Forca"))
+	
+	var hs = HSeparator.new()
+	left_vbox.add_child(hs)
+	
+	power_label = Label.new()
+	power_label.text = "Forca: 100%"
+	power_label.add_theme_font_override("font", font)
+	power_label.add_theme_font_size_override("font_size", 22)
+	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	left_vbox.add_child(power_label)
+	
+	quit_btn = Button.new()
+	quit_btn.text = "Desistir"
+	var btn_tex = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
+	var normal_style = StyleBoxTexture.new()
+	normal_style.texture = btn_tex
+	normal_style.content_margin_left = 12.0
+	normal_style.content_margin_top = 8.0
+	normal_style.content_margin_right = 12.0
+	normal_style.content_margin_bottom = 8.0
+	var hover_style = normal_style.duplicate()
+	hover_style.modulate_color = Color(1.1, 1.05, 0.95)
+	var pressed_style = normal_style.duplicate()
+	pressed_style.modulate_color = Color(0.85, 0.8, 0.75)
+	quit_btn.add_theme_stylebox_override("normal", normal_style)
+	quit_btn.add_theme_stylebox_override("hover", hover_style)
+	quit_btn.add_theme_stylebox_override("pressed", pressed_style)
+	quit_btn.add_theme_font_override("font", font)
+	quit_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	quit_btn.add_theme_font_size_override("font_size", 20)
+	quit_btn.icon = load("res://assets/sprites/icons/exit.png")
+	quit_btn.expand_icon = true
+	quit_btn.add_theme_constant_override("icon_max_width", 24)
+	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	quit_btn.pressed.connect(_on_quit)
+	left_vbox.add_child(quit_btn)
+
+	# Painel Inferior (Munição e Vida)
+	var bottom_panel = PanelContainer.new()
+	bottom_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	bottom_panel.position = Vector2(440, 620)
+	bottom_panel.size = Vector2(400, 80)
+	hud_canvas.add_child(bottom_panel)
+	
+	var bottom_hbox = HBoxContainer.new()
+	bottom_hbox.add_theme_constant_override("separation", 20)
+	bottom_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_hbox.size = Vector2(400, 80)
+	bottom_panel.add_child(bottom_hbox)
+	
+	var ammo_info_vbox = VBoxContainer.new()
+	ammo_info_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	bottom_hbox.add_child(ammo_info_vbox)
+	
+	var ammo_hbox = HBoxContainer.new()
+	ammo_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	ammo_info_vbox.add_child(ammo_hbox)
+	
+	ammo_icon = load("res://scripts/ammo_icon.gd").new()
+	ammo_icon.custom_minimum_size = Vector2(40, 40)
+	ammo_hbox.add_child(ammo_icon)
+	
+	ammo_label = Label.new()
+	ammo_label.add_theme_font_override("font", font)
+	ammo_label.add_theme_font_size_override("font_size", 28)
+	ammo_hbox.add_child(ammo_label)
+	
+	ammo_name_label = Label.new()
+	ammo_name_label.add_theme_font_override("font", font)
+	ammo_name_label.add_theme_font_size_override("font_size", 16)
+	ammo_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	ammo_info_vbox.add_child(ammo_name_label)
+	
+	var vs = VSeparator.new()
+	bottom_hbox.add_child(vs)
+	
+	var hp_vbox = VBoxContainer.new()
+	hp_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	hp_vbox.custom_minimum_size = Vector2(150, 0)
+	bottom_hbox.add_child(hp_vbox)
+	
+	var hp_lbl = Label.new()
+	hp_lbl.text = "Armadura"
+	hp_lbl.add_theme_font_override("font", font)
+	hp_lbl.add_theme_font_size_override("font_size", 18)
+	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hp_vbox.add_child(hp_lbl)
+	
+	armor_bar = ProgressBar.new()
+	armor_bar.max_value = 100
+	armor_bar.value = 100
+	armor_bar.custom_minimum_size = Vector2(150, 20)
+	
+	var sb_bg = StyleBoxFlat.new()
+	sb_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
+	sb_bg.corner_radius_top_left = 5
+	sb_bg.corner_radius_bottom_right = 5
+	var sb_fg = StyleBoxFlat.new()
+	sb_fg.bg_color = Color(0.2, 0.6, 0.8, 1.0)
+	sb_fg.corner_radius_top_left = 5
+	sb_fg.corner_radius_bottom_right = 5
+	armor_bar.add_theme_stylebox_override("background", sb_bg)
+	armor_bar.add_theme_stylebox_override("fill", sb_fg)
+	hp_vbox.add_child(armor_bar)
+	
+	# Stage Label
+	stage_label = Label.new()
+	stage_label.add_theme_font_override("font", font)
+	stage_label.add_theme_font_size_override("font_size", 24)
+	stage_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
+	stage_label.position = Vector2(950, 20)
+	stage_label.size = Vector2(300, 40)
+	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	hud_canvas.add_child(stage_label)
+
+	# Next Stage Btn
+	next_stage_btn = Button.new()
+	next_stage_btn.text = "-> Proxima Fase"
+	next_stage_btn.add_theme_font_override("font", font)
+	next_stage_btn.add_theme_font_size_override("font_size", 22)
+	next_stage_btn.add_theme_stylebox_override("normal", normal_style)
+	next_stage_btn.add_theme_stylebox_override("hover", hover_style)
+	next_stage_btn.add_theme_stylebox_override("pressed", pressed_style)
+	next_stage_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	next_stage_btn.position = Vector2(1000, 330)
+	next_stage_btn.size = Vector2(250, 50)
+	next_stage_btn.visible = false
+	next_stage_btn.pressed.connect(_on_next_stage)
+	hud_canvas.add_child(next_stage_btn)
+
+	# Return Btn (same style as quit btn)
+	return_btn = Button.new()
+	return_btn.text = "Voltar ao Mapa"
+	return_btn.add_theme_font_override("font", font)
+	return_btn.add_theme_font_size_override("font_size", 20)
+	return_btn.add_theme_stylebox_override("normal", normal_style)
+	return_btn.add_theme_stylebox_override("hover", hover_style)
+	return_btn.add_theme_stylebox_override("pressed", pressed_style)
+	return_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	return_btn.icon = load("res://assets/sprites/icons/exit.png")
+	return_btn.expand_icon = true
+	return_btn.add_theme_constant_override("icon_max_width", 24)
+	return_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	return_btn.pressed.connect(_on_return_to_map)
+	left_vbox.add_child(return_btn)
