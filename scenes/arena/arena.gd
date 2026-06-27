@@ -374,8 +374,12 @@ func on_player_hit(dmg: int) -> void:
 
 # --- Inimigo foi destruído (chamado pelo airplane_enemy.gd ou internamente) ---
 func on_enemy_destroyed(enemy: Node2D) -> void:
+	if enemy.name == "Boss":
+		Global.money += 40
+	else:
+		Global.money += 15
+		
 	active_enemies.erase(enemy)
-	# Verificar se todos os inimigos morreram
 	# Limpar referências inválidas
 	var still_alive: Array = []
 	for e in active_enemies:
