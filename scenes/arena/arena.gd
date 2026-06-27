@@ -198,7 +198,7 @@ func _setup_ui() -> void:
 	enemies_label.add_theme_color_override("font_color", Color(1, 0.3, 0.3))
 	enemies_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	enemies_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	enemies_label.set_anchors_preset(PRESET_FULL_RECT)
+	enemies_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	top_panel.add_child(enemies_label)
 
 func _ready() -> void:

@@ -481,7 +481,7 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> Pa
 	card.add_child(row)
 
 	# Ícone do Míssil (Procedural 2D)
-	var icon := load("res://scripts/ammo_icon.gd").new(ammo.color)
+	var icon: Control = load("res://scripts/ammo_icon.gd").new(ammo.color)
 	row.add_child(icon)
 
 	# VBox Centro (Nome + Estoque)
