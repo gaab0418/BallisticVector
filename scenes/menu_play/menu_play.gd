@@ -147,9 +147,9 @@ func _ready() -> void:
 	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	version_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	version_label.offset_left = -200.0
-	version_label.offset_top = -40.0
+	version_label.offset_top = -35.0
 	version_label.offset_right = -16.0
-	version_label.offset_bottom = -10.0
+	version_label.offset_bottom = -5.0
 	version_label.add_theme_font_override("font", font_regular)
 	version_label.add_theme_font_size_override("font_size", 14)
 	version_label.add_theme_color_override("font_color", COLOR_VERSION)
