@@ -104,8 +104,7 @@ func _shoot_at_player() -> void:
 	vy *= randf_range(0.85, 1.15)
 
 	# Criar o projétil
-	var projectile = Node2D.new()
-	projectile.set_script(ProjectileScript)
+	var projectile = ProjectileScript.new()
 	projectile.position = global_position
 	projectile.velocity = Vector2(vx, vy)
 	projectile.gravity = projectile_gravity

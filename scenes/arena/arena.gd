@@ -156,11 +156,14 @@ func _spawn_enemies() -> void:
 
 	# --- Spawnar aviões ---
 	for i in range(config.num_airplanes):
-		var airplane = _create_airplane(config.airplane_hp)
+		var airplane = AirplaneScript.new()
+		airplane.name = "Airplane"
 		airplane.position = Vector2(
 			randf_range(750.0, 1200.0),
 			randf_range(200.0, 480.0)
 		)
+		airplane.hp = config.airplane_hp
+		airplane.player_ref = player
 		add_child(airplane)
 		active_enemies.append(airplane)
 
@@ -195,17 +198,6 @@ func _create_boss(boss_hp: int) -> Node2D:
 	boss.set_meta("is_boss", true)
 
 	return boss
-
-
-# --- Cria um avião inimigo com o script airplane_enemy.gd ---
-func _create_airplane(airplane_hp: int) -> Node2D:
-	var airplane = Node2D.new()
-	airplane.set_script(AirplaneScript)
-	airplane.name = "Airplane"
-	airplane.hp = airplane_hp
-	airplane.player_ref = player
-	# As propriedades visuais e de movimento são definidas no _ready do script
-	return airplane
 
 
 # =============================================================================
@@ -313,9 +305,8 @@ func _fire_projectile() -> void:
 	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
 
-	# Criar o projétil como um ColorRect dentro de um Node2D
-	var projectile = Node2D.new()
-	projectile.set_script(ProjectileScript)
+	# Criar o projétil usando o Script carregado
+	var projectile = ProjectileScript.new()
 
 	# Posição global da ponta do cano
 	var barrel_tip_local = Vector2(50, 0)
