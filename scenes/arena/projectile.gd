@@ -5,7 +5,7 @@ var velocity: Vector2 = Vector2.ZERO
 var gravity: float = 200.0
 var precision: float = -0.75  # 0.0 = máximo desvio, 1.0 = sem desvio
 var bullet_color: Color = Color(1.0, 0.85, 0.2, 1.0)  # Cor definida pelo AmmoData
-var damage: int = 10  # Dano causado ao acertar
+var damage: int = 1  # Dano causado ao acertar
 
 # === Alvos ===
 var enemy_nodes: Array = []  # Lista de inimigos ativos (projétil do jogador)
@@ -101,6 +101,7 @@ func _check_player_collision() -> void:
 
 # --- Projétil do jogador acertou um inimigo ---
 func _on_hit_enemy(enemy: Node2D) -> void:
+	AudioManager.play_sfx("res://assets/audio/cannon_hit_cannon.ogg")
 	# Delegar o tratamento de dano ao arena.gd (nó pai)
 	var arena = get_parent()
 	if arena and arena.has_method("on_enemy_hit"):
@@ -110,6 +111,7 @@ func _on_hit_enemy(enemy: Node2D) -> void:
 
 # --- Projétil inimigo acertou o jogador ---
 func _on_hit_player() -> void:
+	AudioManager.play_sfx("res://assets/audio/cannon_hit_cannon.ogg")
 	# Delegar o tratamento de dano ao arena.gd (nó pai)
 	var arena = get_parent()
 	if arena and arena.has_method("on_player_hit"):
