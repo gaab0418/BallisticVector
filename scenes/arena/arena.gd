@@ -82,6 +82,7 @@ func _ready() -> void:
 	_load_ammo_types()
 
 	_setup_ui()
+	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 	# Inicializar HUD
 	_update_hud()
@@ -740,12 +741,14 @@ func _setup_ui() -> void:
 	return_btn = Button.new()
 	return_btn.text = "Voltar ao Mapa"
 	return_btn.add_theme_font_override("font", font)
-	return_btn.add_theme_font_size_override("font_size", 18)
+	return_btn.add_theme_font_size_override("font_size", 20)
 	return_btn.add_theme_stylebox_override("normal", normal_style)
 	return_btn.add_theme_stylebox_override("hover", hover_style)
 	return_btn.add_theme_stylebox_override("pressed", pressed_style)
 	return_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	return_btn.position = Vector2(1000, 650)
-	return_btn.size = Vector2(250, 50)
+	return_btn.icon = load("res://assets/sprites/icons/exit.png")
+	return_btn.expand_icon = true
+	return_btn.add_theme_constant_override("icon_max_width", 24)
+	return_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	return_btn.pressed.connect(_on_return_to_map)
-	hud_canvas.add_child(return_btn)
+	left_vbox.add_child(return_btn)
