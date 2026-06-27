@@ -172,11 +172,11 @@ func _play_intro_animation() -> void:
 	tween.set_trans(Tween.TRANS_CUBIC)
 
 	# Título aparece primeiro
-	tween.tween_property(title_label, "modulate:a", 1.0, 1.0).from(0.0)
-	# Subtítulo logo depois
-	tween.tween_property(subtitle_label, "modulate:a", 1.0, 0.7).from(0.0).set_delay(0.3)
-	# Botão por último
-	tween.tween_property(play_button, "modulate:a", 1.0, 0.8).from(0.0).set_delay(0.2)
+	tween.tween_property(title_label, "modulate:a", 1.0, 0.8).from(0.0)
+	# Subtítulo quase junto (paralelo com delay)
+	tween.parallel().tween_property(subtitle_label, "modulate:a", 1.0, 0.6).from(0.0).set_delay(0.2)
+	# Botão aparece bem mais cedo (paralelo com delay)
+	tween.parallel().tween_property(play_button, "modulate:a", 1.0, 0.6).from(0.0).set_delay(0.4)
 
 
 # ── Callbacks de UI ─────────────────────────────────────────────────
