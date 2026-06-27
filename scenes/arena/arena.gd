@@ -375,9 +375,9 @@ func on_player_hit(dmg: int) -> void:
 # --- Inimigo foi destruído (chamado pelo airplane_enemy.gd ou internamente) ---
 func on_enemy_destroyed(enemy: Node2D) -> void:
 	if enemy.name == "Boss":
-		Global.money += 40
+		Global.money += 150
 	else:
-		Global.money += 15
+		Global.money += 25
 		
 	active_enemies.erase(enemy)
 	# Limpar referências inválidas
@@ -399,7 +399,7 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 func _on_stage_cleared() -> void:
 	stage_cleared = true
 	# Recompensar o jogador
-	Global.money += 50
+	Global.money += 300
 
 	# Mostrar botão de próxima fase
 	if next_stage_btn:
