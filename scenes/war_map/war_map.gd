@@ -122,7 +122,9 @@ func _build_hud_panel() -> void:
 
 	var coin_icon = TextureRect.new()
 	coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	coin_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	coin_icon.custom_minimum_size = Vector2(24, 24)
 	money_container.add_child(coin_icon)
 
 	money_label = Label.new()
@@ -460,7 +462,9 @@ func _build_shop_panel() -> void:
 
 	var shop_coin_icon = TextureRect.new()
 	shop_coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	shop_coin_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	shop_coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	shop_coin_icon.custom_minimum_size = Vector2(24, 24)
 	shop_money_container.add_child(shop_coin_icon)
 
 	shop_money_label = Label.new()

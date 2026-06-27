@@ -211,18 +211,32 @@ func _create_decor_line(y_position: float) -> ColorRect:
 
 # ── Configurações UI ───────────────────────────────────────────────
 func _build_settings_ui(font_bold: Font, font_regular: Font) -> void:
+	var settings_bg = PanelContainer.new()
+	var sbg_style = StyleBoxFlat.new()
+	sbg_style.bg_color = Color(0.2, 0.2, 0.2, 0.8)
+	sbg_style.corner_radius_top_left = 8
+	sbg_style.corner_radius_top_right = 8
+	sbg_style.corner_radius_bottom_left = 8
+	sbg_style.corner_radius_bottom_right = 8
+	sbg_style.content_margin_left = 15
+	sbg_style.content_margin_top = 15
+	sbg_style.content_margin_right = 15
+	sbg_style.content_margin_bottom = 15
+	settings_bg.add_theme_stylebox_override("panel", sbg_style)
+	settings_bg.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	settings_bg.offset_left = -94.0
+	settings_bg.offset_top = 16.0
+	settings_bg.offset_right = -16.0
+	settings_bg.offset_bottom = 94.0
+	add_child(settings_bg)
+
 	settings_btn = TextureButton.new()
 	settings_btn.texture_normal = load("res://assets/sprites/icons/gear_white.png")
 	settings_btn.ignore_texture_size = true
 	settings_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	settings_btn.custom_minimum_size = Vector2(48, 48)
-	settings_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	settings_btn.offset_left = -64.0
-	settings_btn.offset_top = 16.0
-	settings_btn.offset_right = -16.0
-	settings_btn.offset_bottom = 64.0
 	settings_btn.pressed.connect(_on_settings_pressed)
-	add_child(settings_btn)
+	settings_bg.add_child(settings_btn)
 
 	settings_panel = PanelContainer.new()
 	settings_panel.set_anchors_preset(Control.PRESET_CENTER)
@@ -246,6 +260,10 @@ func _build_settings_ui(font_bold: Font, font_regular: Font) -> void:
 	sp_style.corner_radius_bottom_right = 8
 	sp_style.shadow_color = Color(0.0, 0.0, 0.0, 0.3)
 	sp_style.shadow_size = 10
+	sp_style.content_margin_left = 40
+	sp_style.content_margin_top = 30
+	sp_style.content_margin_right = 40
+	sp_style.content_margin_bottom = 30
 	settings_panel.add_theme_stylebox_override("panel", sp_style)
 	add_child(settings_panel)
 	
