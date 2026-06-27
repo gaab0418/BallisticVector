@@ -344,10 +344,10 @@ func _build_shop_panel() -> void:
 	shop_panel.anchor_top = 0.5
 	shop_panel.anchor_right = 0.5
 	shop_panel.anchor_bottom = 0.5
-	shop_panel.offset_left = -240.0
-	shop_panel.offset_top = -180.0
-	shop_panel.offset_right = 240.0
-	shop_panel.offset_bottom = 180.0
+	shop_panel.offset_left = -260.0
+	shop_panel.offset_top = -200.0
+	shop_panel.offset_right = 260.0
+	shop_panel.offset_bottom = 200.0
 
 	var shop_style := StyleBoxFlat.new()
 	shop_style.bg_color = Color(0.78, 0.68, 0.52, 0.95)
@@ -360,18 +360,34 @@ func _build_shop_panel() -> void:
 	shop_style.corner_radius_top_right = 12
 	shop_style.corner_radius_bottom_left = 12
 	shop_style.corner_radius_bottom_right = 12
-	shop_style.content_margin_left = 20.0
-	shop_style.content_margin_top = 15.0
-	shop_style.content_margin_right = 20.0
-	shop_style.content_margin_bottom = 15.0
 	shop_style.shadow_color = Color(0, 0, 0, 0.35)
 	shop_style.shadow_size = 8
 	shop_panel.add_theme_stylebox_override("panel", shop_style)
 	add_child(shop_panel)
 
+	# Painel interno para borda dupla
+	var inner_panel := PanelContainer.new()
+	var inner_style := StyleBoxFlat.new()
+	inner_style.bg_color = Color(0.78, 0.68, 0.52, 0.0)
+	inner_style.border_width_left = 1
+	inner_style.border_width_top = 1
+	inner_style.border_width_right = 1
+	inner_style.border_width_bottom = 1
+	inner_style.border_color = Color(0.25, 0.18, 0.08, 0.5)
+	inner_style.corner_radius_top_left = 10
+	inner_style.corner_radius_top_right = 10
+	inner_style.corner_radius_bottom_left = 10
+	inner_style.corner_radius_bottom_right = 10
+	inner_style.content_margin_left = 20.0
+	inner_style.content_margin_top = 15.0
+	inner_style.content_margin_right = 20.0
+	inner_style.content_margin_bottom = 15.0
+	inner_panel.add_theme_stylebox_override("panel", inner_style)
+	shop_panel.add_child(inner_panel)
+
 	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 10)
-	shop_panel.add_child(vbox)
+	vbox.add_theme_constant_override("separation", 15)
+	inner_panel.add_child(vbox)
 
 	# Cabeçalho da loja
 	var header := HBoxContainer.new()
@@ -382,7 +398,7 @@ func _build_shop_panel() -> void:
 	shop_title.text = "⚙ Loja de Munições"
 	shop_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	shop_title.add_theme_font_override("font", font_bold)
-	shop_title.add_theme_font_size_override("font_size", 24)
+	shop_title.add_theme_font_size_override("font_size", 28)
 	shop_title.add_theme_color_override("font_color", Color(0.2, 0.12, 0.05))
 	header.add_child(shop_title)
 
@@ -395,76 +411,142 @@ func _build_shop_panel() -> void:
 	close_btn.pressed.connect(_on_close_shop)
 	header.add_child(close_btn)
 
-	# Dinheiro
+	# Separador decorativo
+	var sep := HSeparator.new()
+	var sep_style := StyleBoxFlat.new()
+	sep_style.bg_color = Color(0.35, 0.25, 0.12, 0.8)
+	sep_style.content_margin_top = 2.0
+	sep_style.content_margin_bottom = 2.0
+	sep.add_theme_stylebox_override("separator", sep_style)
+	vbox.add_child(sep)
+
+	# Ouro com destaque (fundo semi-transparente)
+	var money_bg := PanelContainer.new()
+	var money_bg_style := StyleBoxFlat.new()
+	money_bg_style.bg_color = Color(0.1, 0.08, 0.05, 0.6)
+	money_bg_style.corner_radius_top_left = 8
+	money_bg_style.corner_radius_top_right = 8
+	money_bg_style.corner_radius_bottom_left = 8
+	money_bg_style.corner_radius_bottom_right = 8
+	money_bg_style.content_margin_left = 15.0
+	money_bg_style.content_margin_top = 8.0
+	money_bg_style.content_margin_right = 15.0
+	money_bg_style.content_margin_bottom = 8.0
+	money_bg.add_theme_stylebox_override("panel", money_bg_style)
+	money_bg.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	vbox.add_child(money_bg)
+
 	shop_money_label = Label.new()
 	shop_money_label.name = "ShopMoneyLabel"
 	shop_money_label.text = "🪙 Ouro: 0"
 	shop_money_label.add_theme_font_override("font", font_bold)
-	shop_money_label.add_theme_font_size_override("font_size", 20)
-	shop_money_label.add_theme_color_override("font_color", Color(0.3, 0.22, 0.1))
-	vbox.add_child(shop_money_label)
+	shop_money_label.add_theme_font_size_override("font_size", 24)
+	shop_money_label.add_theme_color_override("font_color", Color(0.75, 0.6, 0.15))
+	money_bg.add_child(shop_money_label)
 
-	# Separador
-	var sep := HSeparator.new()
-	var sep_style := StyleBoxFlat.new()
-	sep_style.bg_color = Color(0.45, 0.32, 0.18, 0.5)
-	sep_style.content_margin_top = 1.0
-	sep_style.content_margin_bottom = 1.0
-	sep.add_theme_stylebox_override("separator", sep_style)
-	vbox.add_child(sep)
+	# Carregar o spritesheet dos mísseis
+	var missles_tex := load("res://assets/sprites/missles.png") as Texture2D
+	
+	# Atlas para Enferrujada
+	var atlas_enf := AtlasTexture.new()
+	atlas_enf.atlas = missles_tex
+	atlas_enf.region = Rect2(0, 0, 250, 500)
+
+	# Atlas para Perfurante
+	var atlas_perf := AtlasTexture.new()
+	atlas_perf.atlas = missles_tex
+	atlas_perf.region = Rect2(250, 0, 250, 500)
 
 	# ── Item Enferrujada ─────────────────────────────────────────────
 	var row_enf := _build_shop_item_row(
-		ammo_enf, 5, "_on_buy_enferrujada"
+		ammo_enf, 5, "_on_buy_enferrujada", atlas_enf
 	)
 	vbox.add_child(row_enf)
 
 	# ── Item Perfurante ──────────────────────────────────────────────
 	var row_perf := _build_shop_item_row(
-		ammo_perf, 3, "_on_buy_perfurante"
+		ammo_perf, 3, "_on_buy_perfurante", atlas_perf
 	)
 	vbox.add_child(row_perf)
 
 
-func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> HBoxContainer:
+func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String, atlas: AtlasTexture) -> PanelContainer:
+	var card := PanelContainer.new()
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.72, 0.62, 0.45, 0.8)
+	card_style.border_width_left = 1
+	card_style.border_width_top = 1
+	card_style.border_width_right = 1
+	card_style.border_width_bottom = 1
+	card_style.border_color = Color(0.4, 0.3, 0.15, 0.8)
+	card_style.corner_radius_top_left = 8
+	card_style.corner_radius_top_right = 8
+	card_style.corner_radius_bottom_left = 8
+	card_style.corner_radius_bottom_right = 8
+	card_style.content_margin_left = 15.0
+	card_style.content_margin_top = 15.0
+	card_style.content_margin_right = 15.0
+	card_style.content_margin_bottom = 15.0
+	card.add_theme_stylebox_override("panel", card_style)
+	
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+	row.add_theme_constant_override("separation", 15)
+	card.add_child(row)
 
-	# Indicador de cor
-	var color_box := ColorRect.new()
-	color_box.custom_minimum_size = Vector2(8, 8)
-	color_box.color = ammo.color
-	color_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	row.add_child(color_box)
+	# Ícone do Míssil (Atlas)
+	var icon := TextureRect.new()
+	icon.texture = atlas
+	icon.custom_minimum_size = Vector2(48, 48)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	row.add_child(icon)
 
-	# Label: nome e quantidade
+	# VBox Centro (Nome + Estoque)
+	var center_vbox := VBoxContainer.new()
+	center_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	center_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_child(center_vbox)
+
 	var label := Label.new()
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_override("font", font_regular)
-	label.add_theme_font_size_override("font_size", 18)
+	label.add_theme_font_override("font", font_bold)
+	label.add_theme_font_size_override("font_size", 20)
 	label.add_theme_color_override("font_color", Color(0.2, 0.12, 0.05))
-	row.add_child(label)
+	center_vbox.add_child(label)
+
+	var stock_label := Label.new()
+	stock_label.add_theme_font_override("font", font_regular)
+	stock_label.add_theme_font_size_override("font_size", 16)
+	stock_label.add_theme_color_override("font_color", Color(0.3, 0.25, 0.2))
+	center_vbox.add_child(stock_label)
 
 	if ammo.ammo_name == "Enferrujada":
 		shop_label_enf = label
 	else:
 		shop_label_perf = label
+		
+	# Adiciona stock_label como um meta para facilitar a atualização
+	label.set_meta("stock_label", stock_label)
 
-	# Preço
+	# VBox Direita (Preço + Botão)
+	var right_vbox := VBoxContainer.new()
+	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	right_vbox.add_theme_constant_override("separation", 5)
+	row.add_child(right_vbox)
+
 	var price_label := Label.new()
 	price_label.text = str(ammo.price * qty) + " G (x" + str(qty) + ")"
+	price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	price_label.add_theme_font_override("font", font_bold)
 	price_label.add_theme_font_size_override("font_size", 18)
 	price_label.add_theme_color_override("font_color", Color(0.5, 0.35, 0.12))
-	row.add_child(price_label)
+	right_vbox.add_child(price_label)
 
-	# Botão de compra
-	var buy_btn := _create_texture_button("Comprar", tex_btn_grey, Color(0.15, 0.1, 0.05))
+	var buy_btn := _create_texture_button("Comprar", tex_btn_yellow if tex_btn_yellow else tex_btn_grey, Color(0.15, 0.1, 0.05))
 	buy_btn.custom_minimum_size = Vector2(110, 36)
 	buy_btn.pressed.connect(Callable(self, callback_name))
-	row.add_child(buy_btn)
+	right_vbox.add_child(buy_btn)
 
-	return row
+	return card
 
 
 func _build_bottom_buttons() -> void:
@@ -586,9 +668,15 @@ func _update_shop_ui() -> void:
 	var count_perf: int = Global.ammo_inventory.get(ammo_perf.ammo_name, 0)
 
 	if shop_label_enf:
-		shop_label_enf.text = ammo_enf.ammo_name + " (" + str(count_enf) + "/" + str(ammo_enf.max_ammo) + ")"
+		shop_label_enf.text = ammo_enf.ammo_name
+		if shop_label_enf.has_meta("stock_label"):
+			var sl: Label = shop_label_enf.get_meta("stock_label")
+			sl.text = "(" + str(count_enf) + "/" + str(ammo_enf.max_ammo) + ")"
 	if shop_label_perf:
-		shop_label_perf.text = ammo_perf.ammo_name + " (" + str(count_perf) + "/" + str(ammo_perf.max_ammo) + ")"
+		shop_label_perf.text = ammo_perf.ammo_name
+		if shop_label_perf.has_meta("stock_label"):
+			var sl: Label = shop_label_perf.get_meta("stock_label")
+			sl.text = "(" + str(count_perf) + "/" + str(ammo_perf.max_ammo) + ")"
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -694,6 +782,7 @@ func _buy_ammo_batch(ammo: AmmoData, qty: int) -> void:
 
 	if can_add <= 0:
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+		_flash_error_money()
 		return
 
 	# Ajustar quantidade se ultrapassar o máximo
@@ -702,12 +791,33 @@ func _buy_ammo_batch(ammo: AmmoData, qty: int) -> void:
 
 	if Global.money < actual_cost:
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+		_flash_error_money()
 		return
 
 	Global.money -= actual_cost
 	Global.ammo_inventory[ammo.ammo_name] = current_count + actual_qty
 	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	
+	if ammo.ammo_name == "Enferrujada":
+		_flash_success_label(shop_label_enf)
+	else:
+		_flash_success_label(shop_label_perf)
+		
 	_update_shop_ui()
+
+
+func _flash_error_money() -> void:
+	var original_color = Color(0.75, 0.6, 0.15)
+	var tween = create_tween()
+	shop_money_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2))
+	tween.tween_property(shop_money_label, "theme_override_colors/font_color", original_color, 0.5)
+
+
+func _flash_success_label(label: Label) -> void:
+	var original_color = Color(0.2, 0.12, 0.05)
+	var tween = create_tween()
+	label.add_theme_color_override("font_color", Color(0.2, 0.8, 0.2))
+	tween.tween_property(label, "theme_override_colors/font_color", original_color, 0.4)
 
 
 # ═════════════════════════════════════════════════════════════════════
