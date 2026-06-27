@@ -28,6 +28,7 @@ var shop_panel: PanelContainer
 var shop_money_label: Label
 var shop_label_enf: Label
 var shop_label_perf: Label
+var shop_label_repair: Label
 var base_labels: Dictionary = {}     # base_id -> Label (progresso)
 var base_sprites: Dictionary = {}    # base_id -> TextureRect (sprite)
 var base_flag_icons: Dictionary = {} # base_id -> TextureRect (bandeira)
@@ -43,6 +44,10 @@ const BASE_CONFIGS: Array = [
 
 
 func _ready() -> void:
+	if Global.are_all_bases_complete():
+		get_tree().change_scene_to_file("res://scenes/victory/victory.tscn")
+		return
+
 	# Carregar recursos
 	ammo_enf = load("res://assets/resources/ammo_enferrujada.tres") as AmmoData
 	ammo_perf = load("res://assets/resources/ammo_perfurante.tres") as AmmoData
@@ -487,6 +492,10 @@ func _build_shop_panel() -> void:
 	)
 	vbox.add_child(row_perf)
 
+	# ── Item Kit de Reparo ───────────────────────────────────────────
+	var row_repair := _build_repair_kit_row()
+	vbox.add_child(row_repair)
+
 
 func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> PanelContainer:
 	var card := PanelContainer.new()
@@ -697,6 +706,10 @@ func _update_shop_ui() -> void:
 		if shop_label_perf.has_meta("stock_label"):
 			var sl: Label = shop_label_perf.get_meta("stock_label")
 			sl.text = "(" + str(count_perf) + "/" + str(ammo_perf.max_ammo) + ")"
+			
+	if shop_label_repair:
+		var armor_pct = int(Global.player_armor / Global.max_player_armor * 100.0)
+		shop_label_repair.text = "(Blindagem: " + str(armor_pct) + "%)"
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -847,3 +860,75 @@ func _flash_success_label(label: Label) -> void:
 func _on_back_pressed() -> void:
 	AudioManager.play_sfx("res://assets/audio/menu_back.ogg")
 	get_tree().change_scene_to_file("res://scenes/menu_play/menu_play.tscn")
+
+func _build_repair_kit_row() -> PanelContainer:
+	var card := PanelContainer.new()
+	var card_style := StyleBoxFlat.new()
+	card_style.bg_color = Color(0.72, 0.62, 0.45, 0.8)
+	card_style.border_width_left = 1
+	card_style.border_width_top = 1
+	card_style.border_width_right = 1
+	card_style.border_width_bottom = 1
+	card_style.border_color = Color(0.4, 0.3, 0.15, 0.8)
+	card_style.corner_radius_top_left = 8
+	card_style.corner_radius_top_right = 8
+	card_style.corner_radius_bottom_left = 8
+	card_style.corner_radius_bottom_right = 8
+	card_style.content_margin_left = 15.0
+	card_style.content_margin_top = 15.0
+	card_style.content_margin_right = 15.0
+	card_style.content_margin_bottom = 15.0
+	card.add_theme_stylebox_override("panel", card_style)
+	
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 15)
+	card.add_child(row)
+
+	var icon = TextureRect.new()
+	icon.texture = load("res://assets/sprites/icons/gear_white.png")
+	icon.custom_minimum_size = Vector2(32, 32)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	row.add_child(icon)
+
+	var center_vbox := VBoxContainer.new()
+	center_vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var name_lbl = Label.new()
+	name_lbl.text = "Kit de Reparo"
+	name_lbl.add_theme_font_override("font", font_bold)
+	name_lbl.add_theme_font_size_override("font_size", 20)
+	center_vbox.add_child(name_lbl)
+	
+	shop_label_repair = Label.new()
+	shop_label_repair.text = "(Blindagem: 100%)"
+	shop_label_repair.add_theme_font_override("font", font_regular)
+	shop_label_repair.add_theme_font_size_override("font_size", 16)
+	center_vbox.add_child(shop_label_repair)
+	row.add_child(center_vbox)
+
+	var right_vbox := VBoxContainer.new()
+	right_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	var price_lbl = Label.new()
+	price_lbl.text = "Ouro: 75"
+	price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	price_lbl.add_theme_font_override("font", font_bold)
+	right_vbox.add_child(price_lbl)
+	
+	var buy_btn = _create_texture_button("Comprar", tex_btn_yellow, Color(0.15, 0.08, 0.0))
+	buy_btn.custom_minimum_size = Vector2(100, 36)
+	buy_btn.pressed.connect(_on_buy_repair_kit)
+	right_vbox.add_child(buy_btn)
+	row.add_child(right_vbox)
+	
+	return card
+
+func _on_buy_repair_kit() -> void:
+	if Global.money >= 75 and Global.player_armor < Global.max_player_armor:
+		AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+		Global.money -= 75
+		Global.player_armor = min(Global.player_armor + 30.0, Global.max_player_armor)
+		_update_money_display()
+		_update_shop_ui()
+	else:
+		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+

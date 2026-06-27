@@ -9,6 +9,7 @@ var ammo_inventory: Dictionary = {
 
 # ── Estado de jogo ───────────────────────────────────────────────────
 var player_armor: float = 100.0
+var max_player_armor: float = 100.0
 var current_base_id: String = "Base_A"
 var current_stage: int = 0
 
@@ -39,4 +40,4 @@ func are_all_bases_complete() -> bool:
 	return true
 
 func reset_armor() -> void:
-	player_armor = 100.0
+	player_armor = max_player_armor
