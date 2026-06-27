@@ -56,6 +56,7 @@ func _process(delta: float) -> void:
 			_on_hit_enemy()
 
 func _on_hit_enemy() -> void:
+	AudioManager.play_sfx("res://assets/audio/cannon_hit_cannon.ogg")
 	# Efeito visual simples: flash no inimigo
 	if enemy_node and is_instance_valid(enemy_node):
 		var body = enemy_node.get_node_or_null("Body")
