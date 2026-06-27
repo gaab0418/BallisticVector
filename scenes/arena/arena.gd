@@ -399,7 +399,7 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 func _on_stage_cleared() -> void:
 	stage_cleared = true
 	# Recompensar o jogador
-	Global.money += 300
+	Global.money += 250
 
 	# Mostrar botão de próxima fase
 	if next_stage_btn:
