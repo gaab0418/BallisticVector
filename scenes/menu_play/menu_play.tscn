@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://ccff5017tu4dk" path="res://scenes/menu_play/menu_play.gd" id="1_g30x5"]
 
-[node name="Menu_Play" type="Control"]
+[node name="Menu_Play" type="Control" unique_id=2020129187]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

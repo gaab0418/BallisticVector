@@ -1,27 +1,24 @@
 [gd_scene format=3 uid="uid://cxarenal8317"]
 
 [ext_resource type="Script" uid="uid://daxyuxb3rfpt8" path="res://scenes/arena/arena.gd" id="1_arena"]
+[ext_resource type="Texture2D" uid="uid://bvnsxkhmyb7i0" path="res://assets/sprites/tank_player.png" id="2_8trdl"]
 
-[node name="Arena" type="Node2D"]
+[node name="Arena" type="Node2D" unique_id=1096104715]
 script = ExtResource("1_arena")
 
-[node name="BackgroundColorRect" type="ColorRect" parent="."]
+[node name="BackgroundColorRect" type="ColorRect" parent="." unique_id=277088720]
 offset_right = 1280.0
 offset_bottom = 720.0
 color = Color(0.188235, 0.188235, 0.188235, 1)
 
-[node name="Player" type="Node2D" parent="."]
-position = Vector2(83, 690)
+[node name="Player" type="Node2D" parent="." unique_id=207162485]
+position = Vector2(88, 677)
 
-[node name="Body" type="ColorRect" parent="Player"]
-offset_left = -25.0
-offset_top = -30.0
-offset_right = 25.0
-offset_bottom = 30.0
-color = Color(0.247059, 0.54902, 0.843137, 1)
+[node name="Body" type="Sprite2D" parent="Player" unique_id=2099911528]
+scale = Vector2(0.25, 0.25)
+texture = ExtResource("2_8trdl")
 
-[node name="PlayerLabel" type="Label" parent="Player/Body"]
-layout_mode = 1
+[node name="PlayerLabel" type="Label" parent="Player/Body" unique_id=686919438]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -31,47 +28,48 @@ text = "P1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="Cannon" type="Node2D" parent="Player"]
+[node name="Cannon" type="Node2D" parent="Player" unique_id=1358989827]
 
-[node name="Barrel" type="ColorRect" parent="Player/Cannon"]
+[node name="Barrel" type="ColorRect" parent="Player/Cannon" unique_id=479369535]
+visible = false
 offset_top = -5.0
 offset_right = 50.0
 offset_bottom = 5.0
 color = Color(0.4, 0.4, 0.4, 1)
 
-[node name="AimLine" type="Line2D" parent="Player/Cannon"]
+[node name="AimLine" type="Line2D" parent="Player/Cannon" unique_id=2079732846]
 points = PackedVector2Array(50, 0, 200, 0)
 width = 2.0
 default_color = Color(1, 0.2, 0.2, 0.6)
 
-[node name="Obstacles" type="Node2D" parent="."]
+[node name="Obstacles" type="Node2D" parent="." unique_id=16766051]
 
-[node name="Mountain1" type="StaticBody2D" parent="Obstacles"]
+[node name="Mountain1" type="StaticBody2D" parent="Obstacles" unique_id=732829785]
 position = Vector2(400, 720)
 
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain1"]
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain1" unique_id=130352445]
 polygon = PackedVector2Array(-80, 0, 0, -280, 80, 0)
 
-[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain1"]
-polygon = PackedVector2Array(-80, 0, 0, -280, 80, 0)
+[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain1" unique_id=813581639]
 color = Color(0.35, 0.28, 0.18, 1)
+polygon = PackedVector2Array(-80, 0, 0, -280, 80, 0)
 
-[node name="Mountain2" type="StaticBody2D" parent="Obstacles"]
+[node name="Mountain2" type="StaticBody2D" parent="Obstacles" unique_id=17292709]
 position = Vector2(680, 720)
 
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain2"]
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain2" unique_id=240001538]
 polygon = PackedVector2Array(-100, 0, -30, -340, 60, -320, 100, 0)
 
-[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain2"]
-polygon = PackedVector2Array(-100, 0, -30, -340, 60, -320, 100, 0)
+[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain2" unique_id=1979088355]
 color = Color(0.3, 0.25, 0.15, 1)
+polygon = PackedVector2Array(-100, 0, -30, -340, 60, -320, 100, 0)
 
-[node name="Mountain3" type="StaticBody2D" parent="Obstacles"]
+[node name="Mountain3" type="StaticBody2D" parent="Obstacles" unique_id=1242289284]
 position = Vector2(550, 720)
 
-[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain3"]
+[node name="CollisionPolygon2D" type="CollisionPolygon2D" parent="Obstacles/Mountain3" unique_id=10776712]
 polygon = PackedVector2Array(-60, 0, 0, -200, 70, 0)
 
-[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain3"]
-polygon = PackedVector2Array(-60, 0, 0, -200, 70, 0)
+[node name="Visual" type="Polygon2D" parent="Obstacles/Mountain3" unique_id=1027020983]
 color = Color(0.32, 0.26, 0.16, 1)
+polygon = PackedVector2Array(-60, 0, 0, -200, 70, 0)
