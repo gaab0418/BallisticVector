@@ -151,7 +151,7 @@ func _spawn_enemies() -> void:
 
 	# --- Spawnar o Boss ---
 	var boss = _create_boss(config.boss_hp)
-	boss.position = Vector2(1100, 695)
+	boss.position = Vector2(1100, 640)
 	add_child(boss)
 	active_enemies.append(boss)
 
@@ -169,33 +169,26 @@ func _spawn_enemies() -> void:
 		active_enemies.append(airplane)
 
 
-# --- Cria o nó do Boss (Node2D com ColorRect, sem script de movimento) ---
+# --- Cria o nó do Boss (Node2D com Sprite2D) ---
 func _create_boss(boss_hp: int) -> Node2D:
 	var boss = Node2D.new()
 	boss.name = "Boss"
 
-	# Visual do boss (retângulo maior, vermelho escuro)
-	var body = ColorRect.new()
+	# Visual do boss (usando Sprite2D no lugar do ColorRect)
+	var body = Sprite2D.new()
 	body.name = "Body"
-	body.size = Vector2(60, 50)
-	body.position = Vector2(-30, -25)
-	body.color = Color(0.7, 0.15, 0.15, 1.0)
+	
+	# ALERTA: Mude o caminho abaixo para a pasta onde está o PNG do seu boss!
+	body.texture = preload("res://assets/sprites/boss.png") 
+	
+	# Ajuste a escala do PNG aqui se ele ficar muito grande ou muito pequeno
+	body.scale = Vector2(0.5, 0.5) 
+	
 	boss.add_child(body)
 
-	# Label do boss
-	var label = Label.new()
-	label.name = "BossLabel"
-	label.text = "BOSS"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.position = Vector2(-20, -10)
-	label.size = Vector2(40, 20)
-	boss.add_child(label)
-
-	# Variáveis de HP no boss (usamos set_meta para não precisar de script)
+	# Variáveis de HP no boss 
 	boss.set_meta("hp", boss_hp)
 	boss.set_meta("max_hp", boss_hp)
-	boss.set_meta("original_color", body.color)
 	boss.set_meta("is_boss", true)
 
 	return boss
@@ -436,28 +429,28 @@ func _on_return_to_map() -> void:
 # --- Flash branco no inimigo (para bosses sem script) ---
 func _flash_enemy(enemy: Node2D) -> void:
 	var body = enemy.get_node_or_null("Body")
-	if body and body is ColorRect:
-		var original_color: Color = enemy.get_meta("original_color", body.color)
-		body.color = Color(1, 1, 1, 1)
-		var timer = get_tree().create_timer(0.15)
-		var body_ref = body
-		timer.timeout.connect(func():
-			if is_instance_valid(body_ref):
-				body_ref.color = original_color
-		)
-
+	if body and body is Sprite2D:
+		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
+		
+		# Espera 0.15 segundos
+		await get_tree().create_timer(0.15).timeout
+		
+		# Só devolve a cor se o boss ainda existir
+		if is_instance_valid(body):
+			body.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 # --- Flash branco no jogador ao ser atingido ---
 func _flash_player() -> void:
 	var body = player.get_node_or_null("Body")
-	if body and body is ColorRect:
-		var original_color: Color = body.color
-		body.color = Color(1, 1, 1, 1)
+	# Mudamos a checagem de ColorRect para Sprite2D
+	if body and body is Sprite2D: 
+		# Modulate faz a imagem ficar branca
+		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
 		var timer = get_tree().create_timer(0.15)
 		var body_ref = body
 		timer.timeout.connect(func():
 			if is_instance_valid(body_ref):
-				body_ref.color = original_color
+				body_ref.modulate = Color(1.0, 1.0, 1.0, 1.0) # Restaura a cor
 		)
 
 

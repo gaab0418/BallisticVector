@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://idvkoli582fr"
-path="res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"
+uid="uid://b3f1oynlome8n"
+path="res://.godot/imported/boss.png-d2a644dde9e28be3dcd6886161dea264.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/airplane_enemy.png"
-dest_files=["res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"]
+source_file="res://assets/sprites/boss.png"
+dest_files=["res://.godot/imported/boss.png-d2a644dde9e28be3dcd6886161dea264.ctex"]
 
 [params]
 

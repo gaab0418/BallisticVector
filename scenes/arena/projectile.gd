@@ -86,7 +86,16 @@ func _check_enemy_collision() -> void:
 	for enemy in enemy_nodes:
 		if enemy and is_instance_valid(enemy):
 			var dist = position.distance_to(enemy.global_position)
-			if dist < HIT_RADIUS_ENEMY:
+			
+			# Define o raio padrão (35.0 para os aviões)
+			var current_hit_radius: float = HIT_RADIUS_ENEMY
+			
+			# Se o inimigo for o Boss, aumenta o raio consideravelmente (ex: 150 pixels)
+			if enemy.has_meta("is_boss") and enemy.get_meta("is_boss") == true:
+				current_hit_radius = 85.0 
+				
+			# Verifica a colisão com o raio correto
+			if dist < current_hit_radius:
 				_on_hit_enemy(enemy)
 				return
 
