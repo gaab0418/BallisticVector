@@ -1,5 +1,8 @@
 extends Node2D
 
+# === Icones reutilizados (const preload evita recarregar o recurso) ===
+const ICON_EXIT := preload("res://assets/sprites/icons/exit.png")
+
 # =============================================================================
 #  Arena de Combate — arena.gd
 #  Gerencia o combate por turnos: canhão do jogador, inimigos dinâmicos,
@@ -12,7 +15,6 @@ extends Node2D
 @onready var aim_line: Line2D = $Player/Cannon/AimLine
 @onready var bg: ColorRect = $BackgroundColorRect
 @onready var obstacles_node: Node2D = $Obstacles
-
 
 # === Variáveis de UI ===
 var hud_canvas: CanvasLayer
@@ -27,11 +29,11 @@ var return_btn: Button
 var quit_btn: Button
 
 # === Configurações ===
-const PLAYER_SPEED: float = 300.0       # Velocidade vertical do jogador
-const ROTATION_SPEED: float = 1.5       # Velocidade de rotação do canhão (rad/s)
-const ROTATION_STEP: float = 0.15       # Passo de rotação por clique nos botões (rad)
-const MAX_CANNON_ANGLE: float = 1.225   # Ângulo máximo para cima (~69°)
-const MIN_CANNON_ANGLE: float = -1.2    # Ângulo máximo para baixo
+const PLAYER_SPEED: float = 300.0  # Velocidade vertical do jogador
+const ROTATION_SPEED: float = 1.5  # Velocidade de rotação do canhão (rad/s)
+const ROTATION_STEP: float = 0.15  # Passo de rotação por clique nos botões (rad)
+const MAX_CANNON_ANGLE: float = 1.225  # Ângulo máximo para cima (~69°)
+const MIN_CANNON_ANGLE: float = -1.2  # Ângulo máximo para baixo
 
 # === Sistema de Munição (Resources) ===
 var ammo_types: Array[AmmoData] = []
@@ -69,10 +71,7 @@ func _ready() -> void:
 	# Fundo aleatório
 	if bg:
 		bg.color = Color(
-			randf_range(0.15, 0.6),
-			randf_range(0.15, 0.6),
-			randf_range(0.15, 0.6),
-			1.0
+			randf_range(0.15, 0.6), randf_range(0.15, 0.6), randf_range(0.15, 0.6), 1.0
 		)
 
 	# Calcular polígonos de obstáculos em coordenadas globais (uma vez)
@@ -159,10 +158,7 @@ func _spawn_enemies() -> void:
 	for i in range(config.num_airplanes):
 		var airplane = AirplaneScript.new()
 		airplane.name = "Airplane"
-		airplane.position = Vector2(
-			randf_range(750.0, 1200.0),
-			randf_range(200.0, 480.0)
-		)
+		airplane.position = Vector2(randf_range(750.0, 1200.0), randf_range(200.0, 480.0))
 		airplane.hp = config.airplane_hp
 		airplane.player_ref = player
 		add_child(airplane)
@@ -177,16 +173,16 @@ func _create_boss(boss_hp: int) -> Node2D:
 	# Visual do boss (usando Sprite2D no lugar do ColorRect)
 	var body = Sprite2D.new()
 	body.name = "Body"
-	
+
 	# ALERTA: Mude o caminho abaixo para a pasta onde está o PNG do seu boss!
-	body.texture = preload("res://assets/sprites/boss.png") 
-	
+	body.texture = preload("res://assets/sprites/boss.png")
+
 	# Ajuste a escala do PNG aqui se ele ficar muito grande ou muito pequeno
-	body.scale = Vector2(0.5, 0.5) 
-	
+	body.scale = Vector2(0.5, 0.5)
+
 	boss.add_child(body)
 
-	# Variáveis de HP no boss 
+	# Variáveis de HP no boss
 	boss.set_meta("hp", boss_hp)
 	boss.set_meta("max_hp", boss_hp)
 	boss.set_meta("is_boss", true)
@@ -334,6 +330,7 @@ func _fire_projectile() -> void:
 #  CALLBACKS DE COLISÃO (chamados pelo projectile.gd)
 # =============================================================================
 
+
 # --- Projétil do jogador acertou um inimigo ---
 func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 	if not enemy or not is_instance_valid(enemy):
@@ -371,7 +368,7 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 		Global.money += 150
 	else:
 		Global.money += 25
-		
+
 	active_enemies.erase(enemy)
 	# Limpar referências inválidas
 	var still_alive: Array = []
@@ -387,6 +384,7 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 # =============================================================================
 #  SISTEMA DE FASES
 # =============================================================================
+
 
 # --- Fase limpa — todos os inimigos mortos ---
 func _on_stage_cleared() -> void:
@@ -426,37 +424,41 @@ func _on_return_to_map() -> void:
 #  EFEITOS VISUAIS
 # =============================================================================
 
+
 # --- Flash branco no inimigo (para bosses sem script) ---
 func _flash_enemy(enemy: Node2D) -> void:
 	var body = enemy.get_node_or_null("Body")
 	if body and body is Sprite2D:
 		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
-		
+
 		# Espera 0.15 segundos
 		await get_tree().create_timer(0.15).timeout
-		
+
 		# Só devolve a cor se o boss ainda existir
 		if is_instance_valid(body):
 			body.modulate = Color(1.0, 1.0, 1.0, 1.0)
+
 
 # --- Flash branco no jogador ao ser atingido ---
 func _flash_player() -> void:
 	var body = player.get_node_or_null("Body")
 	# Mudamos a checagem de ColorRect para Sprite2D
-	if body and body is Sprite2D: 
+	if body and body is Sprite2D:
 		# Modulate faz a imagem ficar branca
 		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
 		var timer = get_tree().create_timer(0.15)
 		var body_ref = body
-		timer.timeout.connect(func():
-			if is_instance_valid(body_ref):
-				body_ref.modulate = Color(1.0, 1.0, 1.0, 1.0) # Restaura a cor
+		timer.timeout.connect(
+			func():
+				if is_instance_valid(body_ref):
+					body_ref.modulate = Color(1.0, 1.0, 1.0, 1.0)  # Restaura a cor
 		)
 
 
 # =============================================================================
 #  ATUALIZAÇÃO DA HUD
 # =============================================================================
+
 
 func _update_hud() -> void:
 	var ammo = _get_current_ammo()
@@ -489,6 +491,7 @@ func _update_stage_label() -> void:
 # =============================================================================
 #  CALLBACKS DOS BOTÕES DA HUD (mantidos do original)
 # =============================================================================
+
 
 func _on_switch_ammo() -> void:
 	current_ammo_index = (current_ammo_index + 1) % ammo_types.size()
@@ -535,6 +538,7 @@ func _on_power_down() -> void:
 func _on_quit() -> void:
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
 
+
 func _create_steampunk_panel() -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
@@ -551,6 +555,7 @@ func _create_steampunk_panel() -> StyleBoxFlat:
 	style.shadow_size = 4
 	return style
 
+
 func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
 	var hb = HBoxContainer.new()
 	var tex_rect = TextureRect.new()
@@ -558,7 +563,7 @@ func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
 	tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
 	tex_rect.custom_minimum_size = Vector2(48, 48)
 	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	
+
 	var lbl = Label.new()
 	lbl.text = text
 	var sys_font = SystemFont.new()
@@ -566,32 +571,33 @@ func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
 	lbl.add_theme_font_override("font", sys_font)
 	lbl.add_theme_font_size_override("font_size", 20)
 	lbl.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
-	
+
 	hb.add_child(tex_rect)
 	hb.add_child(lbl)
 	return hb
+
 
 func _setup_ui() -> void:
 	hud_canvas = CanvasLayer.new()
 	hud_canvas.name = "HUD"
 	add_child(hud_canvas)
-	
+
 	var font = SystemFont.new()
 	font.font_names = ["Georgia", "Times New Roman", "Serif"]
-	
+
 	# Painel Esquerdo (Controles e Força)
 	var left_panel = PanelContainer.new()
 	left_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
 	left_panel.position = Vector2(20, 20)
 	left_panel.size = Vector2(220, 300)
 	hud_canvas.add_child(left_panel)
-	
+
 	var left_vbox = VBoxContainer.new()
 	left_vbox.add_theme_constant_override("separation", 15)
 	left_vbox.position = Vector2(10, 10)
 	left_vbox.size = Vector2(200, 280)
 	left_panel.add_child(left_vbox)
-	
+
 	var controls_lbl = Label.new()
 	controls_lbl.text = "Controles"
 	controls_lbl.add_theme_font_override("font", font)
@@ -599,22 +605,36 @@ func _setup_ui() -> void:
 	controls_lbl.add_theme_color_override("font_color", Color(0.8, 0.6, 0.2))
 	controls_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	left_vbox.add_child(controls_lbl)
-	
-	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar"))
-	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png"), "Trocar Municao"))
-	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"), "Mirar"))
-	left_vbox.add_child(_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"), "Forca"))
-	
+
+	left_vbox.add_child(
+		_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar")
+	)
+	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png"), "Trocar Municao"
+		)
+	)
+	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"), "Mirar"
+		)
+	)
+	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"), "Forca"
+		)
+	)
+
 	var hs = HSeparator.new()
 	left_vbox.add_child(hs)
-	
+
 	power_label = Label.new()
 	power_label.text = "Forca: 100%"
 	power_label.add_theme_font_override("font", font)
 	power_label.add_theme_font_size_override("font_size", 22)
 	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	left_vbox.add_child(power_label)
-	
+
 	quit_btn = Button.new()
 	quit_btn.text = "Desistir"
 	var btn_tex = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
@@ -634,7 +654,7 @@ func _setup_ui() -> void:
 	quit_btn.add_theme_font_override("font", font)
 	quit_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
 	quit_btn.add_theme_font_size_override("font_size", 20)
-	quit_btn.icon = load("res://assets/sprites/icons/exit.png")
+	quit_btn.icon = ICON_EXIT
 	quit_btn.expand_icon = true
 	quit_btn.add_theme_constant_override("icon_max_width", 24)
 	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
@@ -647,56 +667,56 @@ func _setup_ui() -> void:
 	bottom_panel.position = Vector2(440, 620)
 	bottom_panel.size = Vector2(400, 80)
 	hud_canvas.add_child(bottom_panel)
-	
+
 	var bottom_hbox = HBoxContainer.new()
 	bottom_hbox.add_theme_constant_override("separation", 20)
 	bottom_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_hbox.size = Vector2(400, 80)
 	bottom_panel.add_child(bottom_hbox)
-	
+
 	var ammo_info_vbox = VBoxContainer.new()
 	ammo_info_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	bottom_hbox.add_child(ammo_info_vbox)
-	
+
 	var ammo_hbox = HBoxContainer.new()
 	ammo_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	ammo_info_vbox.add_child(ammo_hbox)
-	
+
 	ammo_icon = load("res://scripts/ammo_icon.gd").new()
 	ammo_icon.custom_minimum_size = Vector2(40, 40)
 	ammo_hbox.add_child(ammo_icon)
-	
+
 	ammo_label = Label.new()
 	ammo_label.add_theme_font_override("font", font)
 	ammo_label.add_theme_font_size_override("font_size", 28)
 	ammo_hbox.add_child(ammo_label)
-	
+
 	ammo_name_label = Label.new()
 	ammo_name_label.add_theme_font_override("font", font)
 	ammo_name_label.add_theme_font_size_override("font_size", 16)
 	ammo_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ammo_info_vbox.add_child(ammo_name_label)
-	
+
 	var vs = VSeparator.new()
 	bottom_hbox.add_child(vs)
-	
+
 	var hp_vbox = VBoxContainer.new()
 	hp_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	hp_vbox.custom_minimum_size = Vector2(150, 0)
 	bottom_hbox.add_child(hp_vbox)
-	
+
 	var hp_lbl = Label.new()
 	hp_lbl.text = "Armadura"
 	hp_lbl.add_theme_font_override("font", font)
 	hp_lbl.add_theme_font_size_override("font_size", 18)
 	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hp_vbox.add_child(hp_lbl)
-	
+
 	armor_bar = ProgressBar.new()
 	armor_bar.max_value = 100
 	armor_bar.value = 100
 	armor_bar.custom_minimum_size = Vector2(150, 20)
-	
+
 	var sb_bg = StyleBoxFlat.new()
 	sb_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
 	sb_bg.corner_radius_top_left = 5
@@ -708,7 +728,7 @@ func _setup_ui() -> void:
 	armor_bar.add_theme_stylebox_override("background", sb_bg)
 	armor_bar.add_theme_stylebox_override("fill", sb_fg)
 	hp_vbox.add_child(armor_bar)
-	
+
 	# Stage Label
 	stage_label = Label.new()
 	stage_label.add_theme_font_override("font", font)
@@ -743,7 +763,7 @@ func _setup_ui() -> void:
 	return_btn.add_theme_stylebox_override("hover", hover_style)
 	return_btn.add_theme_stylebox_override("pressed", pressed_style)
 	return_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	return_btn.icon = load("res://assets/sprites/icons/exit.png")
+	return_btn.icon = ICON_EXIT
 	return_btn.expand_icon = true
 	return_btn.add_theme_constant_override("icon_max_width", 24)
 	return_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND

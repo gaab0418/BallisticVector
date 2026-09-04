@@ -25,6 +25,7 @@ const MAX_LIFETIME: float = 8.0  # Segundos antes de autodestruir
 const HIT_RADIUS_ENEMY: float = 35.0  # Raio de colisão contra inimigos
 const HIT_RADIUS_PLAYER: float = 40.0  # Raio de colisão contra jogador
 
+
 func _ready() -> void:
 	randomize()
 	# Criar o visual do projétil (retângulo pequeno)
@@ -33,6 +34,7 @@ func _ready() -> void:
 	bullet_rect.position = Vector2(-5, -3)  # Centralizar
 	bullet_rect.color = bullet_color
 	add_child(bullet_rect)
+
 
 func _process(delta: float) -> void:
 	lifetime += delta
@@ -86,14 +88,14 @@ func _check_enemy_collision() -> void:
 	for enemy in enemy_nodes:
 		if enemy and is_instance_valid(enemy):
 			var dist = position.distance_to(enemy.global_position)
-			
+
 			# Define o raio padrão (35.0 para os aviões)
 			var current_hit_radius: float = HIT_RADIUS_ENEMY
-			
+
 			# Se o inimigo for o Boss, aumenta o raio consideravelmente (ex: 150 pixels)
 			if enemy.has_meta("is_boss") and enemy.get_meta("is_boss") == true:
-				current_hit_radius = 85.0 
-				
+				current_hit_radius = 85.0
+
 			# Verifica a colisão com o raio correto
 			if dist < current_hit_radius:
 				_on_hit_enemy(enemy)
