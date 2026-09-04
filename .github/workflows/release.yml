@@ -3,7 +3,8 @@ name: Release
 # Dois canais de entrega:
 #   push na main  -> pre-release rolante de tag `staging`, sobrescrita a cada
 #                    push, para sempre existir um link com o ultimo build.
-#   tag v*        -> release estavel, com notas geradas a partir dos commits.
+#   tag v*        -> release com notas geradas dos commits. Uma tag com
+#                   sufixo (v1.1.0-beta, v2.0.0-rc1) vira pre-release.
 on:
   push:
     branches:
@@ -129,11 +130,16 @@ jobs:
 
             Para uma versao estavel, use a release mais recente com tag `v*`.
 
-      - name: Publicar release estavel
+      # Pelo versionamento semantico, tudo apos um hifen e identificador de
+      # pre-lancamento: v1.1.0-beta e v2.0.0-rc1 sao pre-releases, v1.1.0 nao.
+      # Sem esta distincao, uma beta apareceria como "Latest" no repositorio.
+      - name: Publicar release por tag
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
           files: |
             build/PAC_BallisticVector.exe
             build/PAC_BallisticVector.x86_64
