@@ -1,0 +1,9 @@
+# Ferramentas de desenvolvimento do projeto (nao sao dependencias do jogo).
+#
+# O CI instala exatamente este arquivo, entao rodar os comandos abaixo
+# localmente reproduz o gate de qualidade antes de qualquer push:
+#
+#   pip install -r requirements-dev.txt
+#   gdformat $(find . -name '*.gd' -not -path './.godot/*')
+#   gdlint   $(find . -name '*.gd' -not -path './.godot/*')
+gdtoolkit==4.5.0

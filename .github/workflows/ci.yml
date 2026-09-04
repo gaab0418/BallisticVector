@@ -1,0 +1,76 @@
+name: CI
+
+# Este workflow tambem e reutilizavel (`workflow_call`): o release.yml o invoca
+# como etapa de validacao, para que nada quebrado seja publicado. A validacao
+# vive em um lugar so.
+on:
+  workflow_call:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Lint e importacao
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Preparar Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Instalar gdtoolkit
+        run: pip install -r requirements-dev.txt
+
+      # -print0 / -0 mantem a lista correta mesmo se algum caminho tiver espaco.
+      # Para reproduzir localmente, veja requirements-dev.txt.
+      - name: Conferir formatacao (gdformat)
+        run: |
+          set -euo pipefail
+          find . -name '*.gd' -not -path './.godot/*' -print0 \
+            | xargs -0 gdformat --check
+
+      - name: Lint (gdlint)
+        run: |
+          set -euo pipefail
+          find . -name '*.gd' -not -path './.godot/*' -print0 \
+            | xargs -0 gdlint
+
+      - name: Instalar Godot
+        uses: ./.github/actions/setup-godot
+
+      # Sem suite de testes, esta e a validacao mais valiosa do projeto: o import
+      # headless carrega cenas e scripts, revelando .tscn quebrado, uid orfao,
+      # recurso ausente e erro de parse em GDScript.
+      - name: Importar projeto (headless)
+        run: |
+          set -uo pipefail
+
+          # Sem `set -e`: um exit code nao-zero do Godot abortaria o step antes
+          # de imprimirmos qual foi o erro. Capturamos o status e diagnosticamos.
+          godot --headless --import 2>&1 | tee import.log
+          status=${PIPESTATUS[0]}
+
+          if grep -qE 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open file' import.log; then
+            echo '::error::A importacao acusou erros de recurso ou de script.'
+            grep -nE 'SCRIPT ERROR|Parse Error|Failed to load|Cannot open file' import.log
+            exit 1
+          fi
+
+          if [ "$status" -ne 0 ]; then
+            echo "::error::O Godot encerrou com codigo $status durante a importacao."
+            exit "$status"
+          fi
+
+          echo 'Importacao concluida sem erros.'
