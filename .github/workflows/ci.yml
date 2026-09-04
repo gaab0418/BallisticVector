@@ -10,11 +10,13 @@ on:
     branches-ignore:
       - main
 
-# `head_ref` existe em pull_request e `ref` em push. Usar o primeiro que
-# houver poe os dois eventos da mesma branch no mesmo grupo, evitando que um
-# push com PR aberto dispare duas execucoes identicas.
+# Precisa ser `ref_name`, nao `ref`: em push, `github.ref` vem como
+# "refs/heads/minha-branch", enquanto `head_ref` em pull_request vem como
+# "minha-branch". Com `ref` as duas strings diferem, os grupos nao batem e o
+# push com PR aberto dispara duas execucoes identicas. `ref_name` ja vem sem
+# o prefixo, entao os dois eventos caem no mesmo grupo.
 concurrency:
-  group: ci-${{ github.head_ref || github.ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
