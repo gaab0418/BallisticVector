@@ -1,5 +1,9 @@
 extends Control
 
+# -- Icones reutilizados (const preload evita recarregar o recurso) --
+const ICON_COIN := preload("res://assets/sprites/icons/coin.png")
+const ICON_GEAR_WHITE := preload("res://assets/sprites/icons/gear_white.png")
+
 # ── Recursos de munição ──────────────────────────────────────────────
 var ammo_enf: AmmoData
 var ammo_perf: AmmoData
@@ -29,9 +33,9 @@ var shop_money_label: Label
 var shop_label_enf: Label
 var shop_label_perf: Label
 var shop_label_repair: Label
-var base_labels: Dictionary = {}     # base_id -> Label (progresso)
-var base_sprites: Dictionary = {}    # base_id -> TextureRect (sprite)
-var base_flag_icons: Dictionary = {} # base_id -> TextureRect (bandeira)
+var base_labels: Dictionary = {}  # base_id -> Label (progresso)
+var base_sprites: Dictionary = {}  # base_id -> TextureRect (sprite)
+var base_flag_icons: Dictionary = {}  # base_id -> TextureRect (bandeira)
 
 var selected_base_id: String = ""
 
@@ -61,8 +65,14 @@ func _ready() -> void:
 	tex_castle_wide = load("res://assets/sprites/cartography/Default/castleWide.png") as Texture2D
 	tex_tower_tall = load("res://assets/sprites/cartography/Default/towerTall.png") as Texture2D
 	tex_flag = load("res://assets/sprites/cartography/Default/flag.png") as Texture2D
-	tex_btn_grey = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png") as Texture2D
-	tex_btn_yellow = load("res://assets/sprites/ui_pack/Yellow/Default/button_rectangle_depth_flat.png") as Texture2D
+	tex_btn_grey = (
+		load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
+		as Texture2D
+	)
+	tex_btn_yellow = (
+		load("res://assets/sprites/ui_pack/Yellow/Default/button_rectangle_depth_flat.png")
+		as Texture2D
+	)
 	tex_map_bg = load("res://assets/sprites/game_map_fase_selecao.png") as Texture2D
 
 	_build_background()
@@ -81,6 +91,7 @@ func _ready() -> void:
 # ═════════════════════════════════════════════════════════════════════
 #  CONSTRUÇÃO DA UI
 # ═════════════════════════════════════════════════════════════════════
+
 
 func _build_background() -> void:
 	var bg := TextureRect.new()
@@ -126,7 +137,7 @@ func _build_hud_panel() -> void:
 	panel.add_child(money_container)
 
 	var coin_icon = TextureRect.new()
-	coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	coin_icon.texture = ICON_COIN
 	coin_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	coin_icon.custom_minimum_size = Vector2(24, 24)
@@ -466,7 +477,7 @@ func _build_shop_panel() -> void:
 	money_bg.add_child(shop_money_container)
 
 	var shop_coin_icon = TextureRect.new()
-	shop_coin_icon.texture = load("res://assets/sprites/icons/coin.png")
+	shop_coin_icon.texture = ICON_COIN
 	shop_coin_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	shop_coin_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	shop_coin_icon.custom_minimum_size = Vector2(24, 24)
@@ -481,15 +492,11 @@ func _build_shop_panel() -> void:
 	shop_money_container.add_child(shop_money_label)
 
 	# ── Item Enferrujada ─────────────────────────────────────────────
-	var row_enf := _build_shop_item_row(
-		ammo_enf, 5, "_on_buy_enferrujada"
-	)
+	var row_enf := _build_shop_item_row(ammo_enf, 5, "_on_buy_enferrujada")
 	vbox.add_child(row_enf)
 
 	# ── Item Perfurante ──────────────────────────────────────────────
-	var row_perf := _build_shop_item_row(
-		ammo_perf, 3, "_on_buy_perfurante"
-	)
+	var row_perf := _build_shop_item_row(ammo_perf, 3, "_on_buy_perfurante")
 	vbox.add_child(row_perf)
 
 	# ── Item Kit de Reparo ───────────────────────────────────────────
@@ -515,7 +522,7 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> Pa
 	card_style.content_margin_right = 15.0
 	card_style.content_margin_bottom = 15.0
 	card.add_theme_stylebox_override("panel", card_style)
-	
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 15)
 	card.add_child(row)
@@ -546,7 +553,7 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> Pa
 		shop_label_enf = label
 	else:
 		shop_label_perf = label
-		
+
 	# Adiciona stock_label como um meta para facilitar a atualização
 	label.set_meta("stock_label", stock_label)
 
@@ -564,7 +571,9 @@ func _build_shop_item_row(ammo: AmmoData, qty: int, callback_name: String) -> Pa
 	price_label.add_theme_color_override("font_color", Color(0.5, 0.35, 0.12))
 	right_vbox.add_child(price_label)
 
-	var buy_btn := _create_texture_button("Comprar", tex_btn_yellow if tex_btn_yellow else tex_btn_grey, Color(0.15, 0.1, 0.05))
+	var buy_btn := _create_texture_button(
+		"Comprar", tex_btn_yellow if tex_btn_yellow else tex_btn_grey, Color(0.15, 0.1, 0.05)
+	)
 	buy_btn.custom_minimum_size = Vector2(110, 36)
 	buy_btn.pressed.connect(Callable(self, callback_name))
 	right_vbox.add_child(buy_btn)
@@ -576,7 +585,7 @@ func _build_bottom_buttons() -> void:
 	# ── Botão Loja (canto inferior esquerdo) ─────────────────────────
 	var shop_btn := _create_texture_button("Loja", tex_btn_grey, Color(0.15, 0.08, 0.0))
 	shop_btn.name = "ShopButton"
-	shop_btn.icon = load("res://assets/sprites/icons/gear_white.png")
+	shop_btn.icon = ICON_GEAR_WHITE
 	shop_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	shop_btn.expand_icon = true
 	shop_btn.anchors_preset = Control.PRESET_BOTTOM_LEFT
@@ -614,6 +623,7 @@ func _build_bottom_buttons() -> void:
 #  HELPERS
 # ═════════════════════════════════════════════════════════════════════
 
+
 func _create_texture_button(text: String, tex: Texture2D, font_color: Color) -> Button:
 	var btn := Button.new()
 	btn.text = text
@@ -648,6 +658,7 @@ func _create_texture_button(text: String, tex: Texture2D, font_color: Color) -> 
 #  ATUALIZAÇÃO DA UI
 # ═════════════════════════════════════════════════════════════════════
 
+
 func _refresh_all() -> void:
 	_update_money_display()
 	_update_base_visuals()
@@ -672,10 +683,11 @@ func _update_base_visuals() -> void:
 		if base_labels.has(base_id):
 			if complete:
 				base_labels[base_id].text = base_name + "\n✓ Completa"
-				base_labels[base_id].add_theme_color_override(
-					"font_color", Color(0.4, 0.75, 0.3))
+				base_labels[base_id].add_theme_color_override("font_color", Color(0.4, 0.75, 0.3))
 			else:
-				base_labels[base_id].text = base_name + "\nFase " + str(cleared + 1) + "/" + str(total)
+				base_labels[base_id].text = (
+					base_name + "\nFase " + str(cleared + 1) + "/" + str(total)
+				)
 
 		# Modular sprite para cinza se completa
 		if base_sprites.has(base_id):
@@ -706,7 +718,7 @@ func _update_shop_ui() -> void:
 		if shop_label_perf.has_meta("stock_label"):
 			var sl: Label = shop_label_perf.get_meta("stock_label")
 			sl.text = "(" + str(count_perf) + "/" + str(ammo_perf.max_ammo) + ")"
-			
+
 	if shop_label_repair:
 		var armor_pct = int(Global.player_armor / Global.max_player_armor * 100.0)
 		shop_label_repair.text = "(Blindagem: " + str(armor_pct) + "%)"
@@ -715,6 +727,7 @@ func _update_shop_ui() -> void:
 # ═════════════════════════════════════════════════════════════════════
 #  CALLBACKS — BASES
 # ═════════════════════════════════════════════════════════════════════
+
 
 func _on_base_hover(_base_id: String) -> void:
 	AudioManager.play_sfx("res://assets/audio/menu_hover_.ogg")
@@ -781,6 +794,7 @@ func _on_cancel_popup() -> void:
 #  CALLBACKS — LOJA
 # ═════════════════════════════════════════════════════════════════════
 
+
 func _on_shop_open() -> void:
 	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
 	_update_shop_ui()
@@ -829,12 +843,12 @@ func _buy_ammo_batch(ammo: AmmoData, qty: int) -> void:
 	Global.money -= actual_cost
 	Global.ammo_inventory[ammo.ammo_name] = current_count + actual_qty
 	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
-	
+
 	if ammo.ammo_name == "Enferrujada":
 		_flash_success_label(shop_label_enf)
 	else:
 		_flash_success_label(shop_label_perf)
-		
+
 	_update_shop_ui()
 
 
@@ -856,9 +870,11 @@ func _flash_success_label(label: Label) -> void:
 #  CALLBACKS — NAVEGAÇÃO
 # ═════════════════════════════════════════════════════════════════════
 
+
 func _on_back_pressed() -> void:
 	AudioManager.play_sfx("res://assets/audio/menu_back.ogg")
 	get_tree().change_scene_to_file("res://scenes/menu_play/menu_play.tscn")
+
 
 func _build_repair_kit_row() -> PanelContainer:
 	var card := PanelContainer.new()
@@ -878,13 +894,13 @@ func _build_repair_kit_row() -> PanelContainer:
 	card_style.content_margin_right = 15.0
 	card_style.content_margin_bottom = 15.0
 	card.add_theme_stylebox_override("panel", card_style)
-	
+
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 15)
 	card.add_child(row)
 
 	var icon = TextureRect.new()
-	icon.texture = load("res://assets/sprites/icons/gear_white.png")
+	icon.texture = ICON_GEAR_WHITE
 	icon.custom_minimum_size = Vector2(32, 32)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -897,7 +913,7 @@ func _build_repair_kit_row() -> PanelContainer:
 	name_lbl.add_theme_font_override("font", font_bold)
 	name_lbl.add_theme_font_size_override("font_size", 20)
 	center_vbox.add_child(name_lbl)
-	
+
 	shop_label_repair = Label.new()
 	shop_label_repair.text = "(Blindagem: 100%)"
 	shop_label_repair.add_theme_font_override("font", font_regular)
@@ -912,14 +928,15 @@ func _build_repair_kit_row() -> PanelContainer:
 	price_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	price_lbl.add_theme_font_override("font", font_bold)
 	right_vbox.add_child(price_lbl)
-	
+
 	var buy_btn = _create_texture_button("Comprar", tex_btn_yellow, Color(0.15, 0.08, 0.0))
 	buy_btn.custom_minimum_size = Vector2(100, 36)
 	buy_btn.pressed.connect(_on_buy_repair_kit)
 	right_vbox.add_child(buy_btn)
 	row.add_child(right_vbox)
-	
+
 	return card
+
 
 func _on_buy_repair_kit() -> void:
 	if Global.money >= 75 and Global.player_armor < Global.max_player_armor:

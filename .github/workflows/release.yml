@@ -1,0 +1,111 @@
+name: Release
+
+# Dois canais de entrega:
+#   push na main  -> pre-release rolante de tag fixa `staging`, sobrescrita a
+#                    cada push, para sempre existir um link com o ultimo build.
+#   tag v*        -> release estavel, com notas geradas a partir dos commits.
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  # Permite disparar o build sob demanda em qualquer branch. Como o job
+  # `publish` exige main ou tag v*, um disparo manual valida a exportacao
+  # sem publicar nada.
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Repete a validacao do CI de proposito: garante que nem um push direto na
+  # main publique um build quebrado.
+  validate:
+    name: Validar
+    uses: ./.github/workflows/ci.yml
+
+  build:
+    name: Exportar Windows
+    needs: validate
+    runs-on: ubuntu-latest
+
+    env:
+      PRESET: PAC_BallisticVector
+      OUTPUT: PAC_BallisticVector.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Instalar Godot
+        uses: ./.github/actions/setup-godot
+
+      - name: Importar recursos
+        run: godot --headless --import
+
+      # O caminho passado na linha de comando tem precedencia sobre o
+      # `export_path` do preset (que aponta para ../Entregavel/, fora do
+      # repositorio). Assim o export_presets.cfg nao precisa ser alterado e o
+      # fluxo local de exportacao continua funcionando como antes.
+      - name: Exportar release
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          godot --headless --export-release "${PRESET}" "${PWD}/build/${OUTPUT}"
+
+          # O Godot pode encerrar com codigo 0 mesmo sem gerar o binario.
+          if [ ! -f "build/${OUTPUT}" ]; then
+            echo "::error::O export nao produziu build/${OUTPUT}."
+            exit 1
+          fi
+          echo "Build gerado: $(du -h "build/${OUTPUT}" | cut -f1)"
+
+      - name: Publicar artefato
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-build
+          path: build/${{ env.OUTPUT }}
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publicar
+    needs: build
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Baixar artefato
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-build
+          path: build
+
+      - name: Publicar staging (pre-release rolante)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: staging
+          target_commitish: ${{ github.sha }}
+          name: Staging - ultimo build da main
+          prerelease: true
+          make_latest: false
+          files: build/PAC_BallisticVector.exe
+          body: |
+            Build automatico da branch `main`. Sobrescrito a cada push.
+
+            - Commit: ${{ github.sha }}
+            - Gerado em: ${{ github.event.head_commit.timestamp }}
+
+            Para uma versao estavel, use a release mais recente com tag `v*`.
+
+      - name: Publicar release estavel
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v3
+        with:
+          generate_release_notes: true
+          files: build/PAC_BallisticVector.exe

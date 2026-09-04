@@ -1,0 +1,78 @@
+name: Setup Godot
+description: >-
+  Instala o Godot headless para Linux e os export templates correspondentes,
+  usando cache. A versao e pinada em um unico lugar (input `version`).
+
+inputs:
+  version:
+    description: >-
+      Versao no formato do release oficial do Godot, como aparece na tag do
+      repositorio godotengine/godot (exemplos: 4.6.3-stable, 4.7.2-stable).
+    required: false
+    default: 4.6.3-stable
+
+runs:
+  using: composite
+  steps:
+    - name: Resolver caminhos da versao
+      shell: bash
+      run: |
+        set -euo pipefail
+        version='${{ inputs.version }}'
+
+        # O diretorio de templates usa ponto no lugar do hifen:
+        # 4.6-stable  ->  4.6.stable
+        echo "GODOT_VERSION=${version}"                              >> "$GITHUB_ENV"
+        echo "GODOT_TEMPLATE_DIR=${version/-/.}"                     >> "$GITHUB_ENV"
+        echo "GODOT_HOME=${HOME}/godot"                              >> "$GITHUB_ENV"
+        echo "GODOT_TEMPLATES=${HOME}/.local/share/godot/export_templates" >> "$GITHUB_ENV"
+
+    - name: Restaurar cache do Godot
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/godot
+          ~/.local/share/godot/export_templates
+        key: godot-${{ inputs.version }}-linux-x86_64
+
+    - name: Baixar engine e export templates
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        base="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}"
+
+        echo "::group::Engine"
+        curl --fail --silent --show-error --location \
+          --output /tmp/godot.zip \
+          "${base}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+        unzip -q /tmp/godot.zip -d /tmp/godot-bin
+        mkdir -p "${GODOT_HOME}"
+        mv "/tmp/godot-bin/Godot_v${GODOT_VERSION}_linux.x86_64" "${GODOT_HOME}/godot"
+        echo "::endgroup::"
+
+        echo "::group::Export templates"
+        curl --fail --silent --show-error --location \
+          --output /tmp/templates.tpz \
+          "${base}/Godot_v${GODOT_VERSION}_export_templates.tpz"
+        unzip -q /tmp/templates.tpz -d /tmp/templates
+        mkdir -p "${GODOT_TEMPLATES}/${GODOT_TEMPLATE_DIR}"
+        mv /tmp/templates/templates/* "${GODOT_TEMPLATES}/${GODOT_TEMPLATE_DIR}/"
+        echo "::endgroup::"
+
+    - name: Publicar o Godot no PATH
+      shell: bash
+      run: |
+        set -euo pipefail
+        chmod +x "${GODOT_HOME}/godot"
+        echo "${GODOT_HOME}" >> "$GITHUB_PATH"
+
+    - name: Conferir instalacao
+      shell: bash
+      run: |
+        set -euo pipefail
+        godot --version
+        test -d "${GODOT_TEMPLATES}/${GODOT_TEMPLATE_DIR}" \
+          || { echo "::error::Templates ausentes em ${GODOT_TEMPLATES}/${GODOT_TEMPLATE_DIR}"; exit 1; }
+        echo "Templates instalados: $(ls -1 "${GODOT_TEMPLATES}/${GODOT_TEMPLATE_DIR}" | wc -l) arquivos"

@@ -33,31 +33,33 @@ static var use_skin_a: bool = true
 # --- Preload do script do projétil ---
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 
+
 func _ready() -> void:
 	randomize()
-	
+
 	# Criar e configurar o Sprite2D
 	sprite = Sprite2D.new()
 	sprite.name = "Body"
-	
+
 	# Alternar rigorosamente a skin entre A e B
 	if use_skin_a:
 		sprite.texture = TEXTURE_A
 	else:
 		sprite.texture = TEXTURE_B
-	
+
 	# Inverte a flag para o próximo avião que for instanciado
 	use_skin_a = not use_skin_a
-	
+
 	# Escala fixa padrão solicitada
 	sprite.scale = Vector2(0.2, 0.2)
-	
+
 	add_child(sprite)
 
 	# Intervalo de disparo com variação aleatória
 	shoot_timer = randf_range(1.0, shoot_interval)
 	# Direção inicial aleatória
 	move_dir = [-1.0, 1.0].pick_random()
+
 
 func _process(delta: float) -> void:
 	# === Movimento horizontal ===
@@ -83,7 +85,10 @@ func _process(delta: float) -> void:
 		for poly in polygons:
 			if poly is PackedVector2Array and poly.size() >= 3:
 				var lower_point = check_pos + Vector2(0, 20)
-				if Geometry2D.is_point_in_polygon(check_pos, poly) or Geometry2D.is_point_in_polygon(lower_point, poly):
+				if (
+					Geometry2D.is_point_in_polygon(check_pos, poly)
+					or Geometry2D.is_point_in_polygon(lower_point, poly)
+				):
 					move_dir *= -1.0
 					position.x += move_dir * 2.0
 					break
@@ -153,10 +158,10 @@ func take_damage(amount: int) -> void:
 func _flash_white() -> void:
 	if sprite:
 		sprite.modulate = Color(3.0, 3.0, 3.0, 1.0)
-		
+
 		# Espera 0.15 segundos na mesma linha
 		await get_tree().create_timer(0.15).timeout
-		
+
 		# Só devolve a cor se o sprite ainda existir (se ele não morreu)
 		if is_instance_valid(sprite):
 			sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)
