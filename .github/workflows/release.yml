@@ -1,8 +1,8 @@
 name: Release
 
 # Dois canais de entrega:
-#   push na main  -> pre-release rolante de tag fixa `staging`, sobrescrita a
-#                    cada push, para sempre existir um link com o ultimo build.
+#   push na main  -> pre-release rolante de tag `staging`, sobrescrita a cada
+#                    push, para sempre existir um link com o ultimo build.
 #   tag v*        -> release estavel, com notas geradas a partir dos commits.
 on:
   push:
@@ -27,13 +27,9 @@ jobs:
     uses: ./.github/workflows/ci.yml
 
   build:
-    name: Exportar Windows
+    name: Exportar Windows e Linux
     needs: validate
     runs-on: ubuntu-latest
-
-    env:
-      PRESET: PAC_BallisticVector
-      OUTPUT: PAC_BallisticVector.exe
 
     steps:
       - name: Checkout
@@ -45,28 +41,46 @@ jobs:
       - name: Importar recursos
         run: godot --headless --import
 
+      # Os dois presets sao exportados no mesmo job de proposito: uma matrix
+      # repetiria o download do Godot e o import a toa, e o mesmo .tpz ja
+      # contem os templates das duas plataformas.
+      #
       # O caminho passado na linha de comando tem precedencia sobre o
       # `export_path` do preset (que aponta para ../Entregavel/, fora do
-      # repositorio). Assim o export_presets.cfg nao precisa ser alterado e o
-      # fluxo local de exportacao continua funcionando como antes.
-      - name: Exportar release
+      # repositorio), deixando o fluxo local de exportacao intacto.
+      - name: Exportar builds
         run: |
           set -euo pipefail
           mkdir -p build
-          godot --headless --export-release "${PRESET}" "${PWD}/build/${OUTPUT}"
 
-          # O Godot pode encerrar com codigo 0 mesmo sem gerar o binario.
-          if [ ! -f "build/${OUTPUT}" ]; then
-            echo "::error::O export nao produziu build/${OUTPUT}."
-            exit 1
-          fi
-          echo "Build gerado: $(du -h "build/${OUTPUT}" | cut -f1)"
+          exportar() {
+            preset="$1"
+            saida="$2"
+            echo "::group::${preset} -> ${saida}"
+            godot --headless --export-release "${preset}" "${PWD}/build/${saida}"
 
-      - name: Publicar artefato
+            # O Godot pode encerrar com codigo 0 mesmo sem gerar o binario.
+            if [ ! -f "build/${saida}" ]; then
+              echo "::error::O export do preset '${preset}' nao produziu build/${saida}."
+              exit 1
+            fi
+            echo "gerado: $(du -h "build/${saida}" | cut -f1)"
+            echo "::endgroup::"
+          }
+
+          exportar "PAC_BallisticVector"       "PAC_BallisticVector.exe"
+          exportar "PAC_BallisticVector_Linux" "PAC_BallisticVector.x86_64"
+
+          chmod +x build/PAC_BallisticVector.x86_64
+          ls -lh build/
+
+      - name: Publicar artefatos
         uses: actions/upload-artifact@v7
         with:
-          name: windows-build
-          path: build/${{ env.OUTPUT }}
+          name: builds
+          path: |
+            build/PAC_BallisticVector.exe
+            build/PAC_BallisticVector.x86_64
           if-no-files-found: error
           retention-days: 14
 
@@ -79,10 +93,10 @@ jobs:
       contents: write
 
     steps:
-      - name: Baixar artefato
+      - name: Baixar artefatos
         uses: actions/download-artifact@v8
         with:
-          name: windows-build
+          name: builds
           path: build
 
       - name: Publicar staging (pre-release rolante)
@@ -94,12 +108,24 @@ jobs:
           name: Staging - ultimo build da main
           prerelease: true
           make_latest: false
-          files: build/PAC_BallisticVector.exe
+          files: |
+            build/PAC_BallisticVector.exe
+            build/PAC_BallisticVector.x86_64
           body: |
             Build automatico da branch `main`. Sobrescrito a cada push.
 
             - Commit: ${{ github.sha }}
             - Gerado em: ${{ github.event.head_commit.timestamp }}
+
+            **Windows:** baixe `PAC_BallisticVector.exe` e execute.
+
+            **Linux:** baixe `PAC_BallisticVector.x86_64`. O bit de execucao
+            nao sobrevive ao download, entao libere antes de rodar:
+
+            ```
+            chmod +x PAC_BallisticVector.x86_64
+            ./PAC_BallisticVector.x86_64
+            ```
 
             Para uma versao estavel, use a release mais recente com tag `v*`.
 
@@ -108,4 +134,6 @@ jobs:
         uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
-          files: build/PAC_BallisticVector.exe
+          files: |
+            build/PAC_BallisticVector.exe
+            build/PAC_BallisticVector.x86_64
