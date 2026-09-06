@@ -19,6 +19,10 @@ func update_volumes() -> void:
 
 
 func _ready() -> void:
+	# O audio nunca pausa junto com o jogo: a tela de ajuda pausa a arvore inteira, e sem
+	# isto a BGM cortaria e os cliques do proprio overlay ficariam mudos.
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
 	bgm_player = AudioStreamPlayer.new()
 	bgm_player.bus = "Master"
 	bgm_player.finished.connect(_on_bgm_finished)

@@ -21,19 +21,33 @@ var hud_canvas: CanvasLayer
 var ammo_label: Label
 var ammo_icon: Control
 var ammo_name_label: Label
-var power_label: Label
 var armor_bar: ProgressBar
 var stage_label: Label
+var parabola_hud: Control
+var help_overlay: CanvasLayer
+var help_btn: Button
 var next_stage_btn: Button
 var return_btn: Button
 var quit_btn: Button
 
 # === Configurações ===
-const PLAYER_SPEED: float = 300.0  # Velocidade vertical do jogador
 const ROTATION_SPEED: float = 1.5  # Velocidade de rotação do canhão (rad/s)
-const ROTATION_STEP: float = 0.15  # Passo de rotação por clique nos botões (rad)
-const MAX_CANNON_ANGLE: float = 1.225  # Ângulo máximo para cima (~69°)
-const MIN_CANNON_ANGLE: float = -1.2  # Ângulo máximo para baixo
+# Em Godot 2D o eixo Y cresce para baixo, entao rotation POSITIVA aponta o cano para BAIXO.
+const MAX_CANNON_ANGLE: float = 1.225  # Limite apontando para baixo (~70°)
+const MIN_CANNON_ANGLE: float = -1.2  # Limite apontando para cima (~69°)
+
+# === Engrenagens da HUD (as variáveis da parábola) ===
+const GEAR_COUNT: int = 3
+const GEAR_ANGULO: int = 0
+const GEAR_FORCA: int = 1
+const GEAR_GRAVIDADE: int = 2
+const FINE_STEP_MULT: float = 0.2  # passo fino do Shift, o mesmo que o jogo já usava
+const POWER_RATE: float = 0.5  # fração de força por segundo de tecla
+const MIN_POWER: float = 0.05
+const GRAVITY_RATE: float = 250.0  # px/s² por segundo de tecla
+const MIN_GRAVITY: float = 100.0  # 2 m/s² — a Lua
+const MAX_GRAVITY: float = 1250.0  # 25 m/s² — Júpiter
+const GEAR_SPIN_SPEED: float = 3.0  # rad/s de giro visual da engrenagem
 
 # === Sistema de Munição (Resources) ===
 var ammo_types: Array[AmmoData] = []
@@ -41,10 +55,15 @@ var current_ammo_index: int = 0
 var ammo_counts: Array[int] = []  # Quantidade restante de cada tipo
 
 # === Variáveis de estado ===
-var is_rotating_left: bool = false
-var is_rotating_right: bool = false
 var _tab_was_pressed: bool = false
 var current_power: float = 1.0
+# Gravidade em px/s² desta arena. Comeca na da municao e a engrenagem ajusta a partir dai.
+# NUNCA escrever em ammo.gravity: Resource e cacheado pelo Godot e o valor vazaria para as
+# fases seguintes, que sao carregadas com reload_current_scene().
+var gravity_override: float = 500.0
+var selected_gear: int = GEAR_ANGULO
+var _at_limit: bool = false  # borda do limite, para o som de erro tocar uma vez só
+var _help_was_pressed: bool = false
 
 # === Sistema de inimigos ===
 var active_enemies: Array = []  # Lista de inimigos vivos na cena
@@ -55,6 +74,8 @@ var _obstacle_polygons_cache: Array = []
 
 # === Preload dos scripts ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
+const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
+const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
 const AirplaneScript = preload("res://scenes/arena/airplane_enemy.gd")
 
 # === Configuração de inimigos por fase ===
@@ -79,13 +100,14 @@ func _ready() -> void:
 
 	# Carregar munições dos Resources
 	_load_ammo_types()
+	gravity_override = _get_current_ammo().gravity
 
 	_setup_ui()
 	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 	# Inicializar HUD
 	_update_hud()
-	_update_power_hud()
+	_refresh_parabola_hud()
 	_update_aim_line()
 	_update_armor_hud()
 	_update_stage_label()
@@ -194,37 +216,16 @@ func _create_boss(boss_hp: int) -> Node2D:
 #  LOOP PRINCIPAL (_process)
 # =============================================================================
 func _process(delta: float) -> void:
+	# Fora do early-return de propósito: a ajuda abre mesmo com a fase já limpa.
+	_poll_help_hotkey()
+
 	# Não processar input se a fase foi limpa
 	if stage_cleared:
 		return
 
-	# === Controle de Força (setas cima/baixo) ===
-	var power_dir: float = 0.0
-	if Input.is_action_pressed("ui_up"):
-		power_dir += 1.0
-	if Input.is_action_pressed("ui_down"):
-		power_dir -= 1.0
-
-	if power_dir != 0.0:
-		current_power += power_dir * 0.5 * delta
-		current_power = clamp(current_power, 0.05, 1.0)
-		_update_power_hud()
-		_update_aim_line()
-
-	# === Rotação do canhão (setas esquerda/direita ou botões) ===
-	var rot_dir: float = 0.0
-	if Input.is_action_pressed("ui_left") or is_rotating_left:
-		rot_dir -= 1.0
-	if Input.is_action_pressed("ui_right") or is_rotating_right:
-		rot_dir += 1.0
-
-	if rot_dir != 0.0:
-		var ammo = _get_current_ammo()
-		var speed_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-		var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
-		cannon.rotation += rot_dir * (ROTATION_SPEED * speed_mult * impulse_compensation) * delta
-		cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
-		_update_aim_line()
+	# === Engrenagens: cima/baixo escolhem, esquerda/direita giram ===
+	_poll_gear_selection()
+	_poll_gear_rotation(delta)
 
 	# === Disparo com espaço ===
 	if Input.is_action_just_pressed("ui_accept"):
@@ -234,6 +235,126 @@ func _process(delta: float) -> void:
 	if Input.is_key_pressed(KEY_TAB) == false and _tab_was_pressed:
 		_on_switch_ammo()
 	_tab_was_pressed = Input.is_key_pressed(KEY_TAB)
+
+
+# =============================================================================
+#  ENGRENAGENS (seleção e ajuste das variáveis da parábola)
+# =============================================================================
+
+
+## Cima/baixo trocam a engrenagem selecionada. Edge-triggered de propósito: com
+## is_action_pressed, segurar a seta varreria as três engrenagens em poucos frames.
+func _poll_gear_selection() -> void:
+	var step: int = 0
+	if Input.is_action_just_pressed("ui_up"):
+		step = -1
+	elif Input.is_action_just_pressed("ui_down"):
+		step = 1
+	if step == 0:
+		return
+
+	selected_gear = wrapi(selected_gear + step, 0, GEAR_COUNT)
+	_at_limit = false
+	AudioManager.play_sfx("res://assets/audio/menu_hover_.ogg")
+	if parabola_hud:
+		parabola_hud.set_selected(selected_gear)
+
+
+## Esquerda/direita giram a engrenagem selecionada, de forma contínua e escalada por
+## delta. Com Ângulo selecionado (o padrão) isto é exatamente a mira de sempre.
+func _poll_gear_rotation(delta: float) -> void:
+	var dir: float = 0.0
+	if Input.is_action_pressed("ui_right"):
+		dir += 1.0
+	if Input.is_action_pressed("ui_left"):
+		dir -= 1.0
+
+	if is_zero_approx(dir):
+		_at_limit = false
+		return
+
+	var mult: float = FINE_STEP_MULT if Input.is_key_pressed(KEY_SHIFT) else 1.0
+
+	if _adjust_selected_gear(dir, delta, mult):
+		_at_limit = false
+		if parabola_hud:
+			parabola_hud.spin_selected(selected_gear, dir * mult * delta * GEAR_SPIN_SPEED)
+		_refresh_parabola_hud()
+		_update_aim_line()
+		return
+
+	# No limite a engrenagem trava (não recebe spin) e o valor pisca. O som toca uma vez
+	# só: o AudioManager tem um único sfx_player e repetir a 60 Hz cortaria todo o resto.
+	if parabola_hud:
+		parabola_hud.flash_selected(selected_gear)
+	if not _at_limit:
+		_at_limit = true
+		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+
+
+## Devolve true se o valor realmente mudou; false significa que bateu no limite.
+func _adjust_selected_gear(dir: float, delta: float, mult: float) -> bool:
+	match selected_gear:
+		GEAR_FORCA:
+			return _adjust_power(dir, delta, mult)
+		GEAR_GRAVIDADE:
+			return _adjust_gravity(dir, delta, mult)
+		_:
+			return _adjust_angle(dir, delta, mult)
+
+
+## Réplica da conta que o jogo já fazia — mesma ROTATION_SPEED, mesma compensação por
+## impulso, mesmo passo fino — para mirar continuar idêntico ao de antes desta HUD.
+## Direita aumenta cannon.rotation, que em Godot 2D abaixa o cano e reduz a elevação.
+func _adjust_angle(dir: float, delta: float, mult: float) -> bool:
+	var ammo = _get_current_ammo()
+	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
+	var before: float = cannon.rotation
+	cannon.rotation += dir * (ROTATION_SPEED * mult * impulse_compensation) * delta
+	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
+	return not is_equal_approx(cannon.rotation, before)
+
+
+func _adjust_power(dir: float, delta: float, mult: float) -> bool:
+	var before: float = current_power
+	current_power = clamp(current_power + dir * POWER_RATE * mult * delta, MIN_POWER, 1.0)
+	return not is_equal_approx(current_power, before)
+
+
+func _adjust_gravity(dir: float, delta: float, mult: float) -> bool:
+	var before: float = gravity_override
+	var target: float = gravity_override + dir * GRAVITY_RATE * mult * delta
+	gravity_override = clamp(target, MIN_GRAVITY, MAX_GRAVITY)
+	return not is_equal_approx(gravity_override, before)
+
+
+# =============================================================================
+#  TELA DE AJUDA
+# =============================================================================
+
+
+## Mesmo idioma de detecção de borda do Tab, para não ter que criar uma seção [input]
+## no project.godot só por causa de uma tecla.
+func _poll_help_hotkey() -> void:
+	if Input.is_key_pressed(KEY_H) == false and _help_was_pressed:
+		_on_help_pressed()
+	_help_was_pressed = Input.is_key_pressed(KEY_H)
+
+
+func _on_help_pressed() -> void:
+	if help_overlay == null or help_overlay.visible:
+		return
+	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	help_overlay.open()
+	get_tree().paused = true
+
+
+func _on_help_closed() -> void:
+	AudioManager.play_sfx("res://assets/audio/menu_back.ogg")
+	# Deferido de propósito: despausar agora faria o _process rodar ainda neste frame,
+	# lendo o mesmo estado de teclado — e polling não é bloqueado por
+	# set_input_as_handled(). Sem isto, fechar com Esc podia disparar o canhão.
+	get_tree().set_deferred("paused", false)
 
 
 # =============================================================================
@@ -253,13 +374,14 @@ func _update_aim_line() -> void:
 
 	var dt: float = 0.02  # Passo de simulação
 	var steps: int = 200  # Passos suficientes para cobrir toda a tela
+	var g: float = gravity_override
 
 	# Primeiro ponto (ponta do cano em local)
 	points.append(cannon.to_local(sim_pos))
 
 	for i in range(steps):
 		# Gravidade age no Y global (igual ao projétil)
-		sim_vel.y += ammo.gravity * dt
+		sim_vel.y += g * dt
 		sim_pos += sim_vel * dt
 
 		# Parar se saiu lateralmente ou por baixo da tela
@@ -314,7 +436,7 @@ func _fire_projectile() -> void:
 
 	# Configurar o projétil com dados do Resource
 	projectile.velocity = fire_direction * (ammo.impulse * current_power)
-	projectile.gravity = ammo.gravity
+	projectile.gravity = gravity_override
 	projectile.precision = ammo.precision
 	projectile.bullet_color = ammo.color
 	projectile.damage = ammo.damage
@@ -471,9 +593,15 @@ func _update_hud() -> void:
 		ammo_name_label.text = ammo.ammo_name
 
 
-func _update_power_hud() -> void:
-	if power_label:
-		power_label.text = "Forca: " + str(round(current_power * 100)) + "%"
+## A elevação é -rad_to_deg porque em Godot 2D o Y cresce para baixo: rotation negativa
+## é o cano apontado para cima, que para o jogador é ângulo positivo.
+func _refresh_parabola_hud() -> void:
+	if parabola_hud == null:
+		return
+	var ammo = _get_current_ammo()
+	parabola_hud.set_state(
+		-rad_to_deg(cannon.rotation), ammo.impulse * current_power, gravity_override, current_power
+	)
 
 
 func _update_armor_hud() -> void:
@@ -495,43 +623,12 @@ func _update_stage_label() -> void:
 
 func _on_switch_ammo() -> void:
 	current_ammo_index = (current_ammo_index + 1) % ammo_types.size()
+	# gravity e um stat de AmmoData: cada bala cai do seu jeito, entao o ajuste nao carrega.
+	gravity_override = _get_current_ammo().gravity
 	_update_hud()
-	_update_aim_line()
-
-
-func _on_rotate_left() -> void:
-	var ammo = _get_current_ammo()
-	var step_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
-	cannon.rotation -= (ROTATION_STEP * step_mult * impulse_compensation)
-	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
-	_update_aim_line()
-
-
-func _on_rotate_right() -> void:
-	var ammo = _get_current_ammo()
-	var step_mult: float = 0.2 if Input.is_key_pressed(KEY_SHIFT) else 1.0
-	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
-	cannon.rotation += (ROTATION_STEP * step_mult * impulse_compensation)
-	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
-	_update_aim_line()
-
-
-func _on_fire() -> void:
-	_fire_projectile()
-
-
-func _on_power_up() -> void:
-	current_power += 0.05
-	current_power = clamp(current_power, 0.05, 1.0)
-	_update_power_hud()
-	_update_aim_line()
-
-
-func _on_power_down() -> void:
-	current_power -= 0.05
-	current_power = clamp(current_power, 0.05, 1.0)
-	_update_power_hud()
+	_refresh_parabola_hud()
+	if parabola_hud:
+		parabola_hud.flash_gravity()
 	_update_aim_line()
 
 
@@ -607,6 +704,23 @@ func _setup_ui() -> void:
 	left_vbox.add_child(controls_lbl)
 
 	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"),
+			"Escolher\nengrenagem"
+		)
+	)
+	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"),
+			"Girar\nengrenagem"
+		)
+	)
+	left_vbox.add_child(
+		_create_prompt(
+			preload("res://assets/sprites/keyboard_mouse/keyboard_shift.png"), "Ajuste fino"
+		)
+	)
+	left_vbox.add_child(
 		_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar")
 	)
 	left_vbox.add_child(
@@ -615,25 +729,11 @@ func _setup_ui() -> void:
 		)
 	)
 	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"), "Mirar"
-		)
-	)
-	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"), "Forca"
-		)
+		_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_h.png"), "Ajuda")
 	)
 
 	var hs = HSeparator.new()
 	left_vbox.add_child(hs)
-
-	power_label = Label.new()
-	power_label.text = "Forca: 100%"
-	power_label.add_theme_font_override("font", font)
-	power_label.add_theme_font_size_override("font_size", 22)
-	power_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left_vbox.add_child(power_label)
 
 	quit_btn = Button.new()
 	quit_btn.text = "Desistir"
@@ -657,6 +757,7 @@ func _setup_ui() -> void:
 	quit_btn.icon = ICON_EXIT
 	quit_btn.expand_icon = true
 	quit_btn.add_theme_constant_override("icon_max_width", 24)
+	quit_btn.focus_mode = Control.FOCUS_NONE
 	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	quit_btn.pressed.connect(_on_quit)
 	left_vbox.add_child(quit_btn)
@@ -739,6 +840,38 @@ func _setup_ui() -> void:
 	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	hud_canvas.add_child(stage_label)
 
+	# HUD das variáveis da parábola. Ocupa x 256..944: o vão livre entre o painel esquerdo
+	# (termina em 240) e o rótulo da fase (começa em 950), centrado nesse vão.
+	parabola_hud = ParabolaHudScript.new()
+	parabola_hud.position = Vector2(256, 8)
+	parabola_hud.size = Vector2(688, 104)
+	hud_canvas.add_child(parabola_hud)
+	parabola_hud.setup(font, _create_steampunk_panel())
+
+	# Botão de ajuda — canto superior direito, abaixo do rótulo da fase
+	help_btn = Button.new()
+	help_btn.text = "?"
+	help_btn.add_theme_font_override("font", font)
+	help_btn.add_theme_font_size_override("font_size", 32)
+	help_btn.add_theme_stylebox_override("normal", normal_style)
+	help_btn.add_theme_stylebox_override("hover", hover_style)
+	help_btn.add_theme_stylebox_override("pressed", pressed_style)
+	help_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	help_btn.position = Vector2(1204, 70)
+	help_btn.size = Vector2(56, 56)
+	# Sem isto, clicar aqui daria foco ao botão: as setas virariam navegação de foco e o
+	# Espaço passaria a acionar o botão além de disparar o canhão.
+	help_btn.focus_mode = Control.FOCUS_NONE
+	help_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	help_btn.pressed.connect(_on_help_pressed)
+	hud_canvas.add_child(help_btn)
+
+	# CanvasLayer próprio, fora do hud_canvas, para desenhar por cima de toda a HUD
+	help_overlay = HelpOverlayScript.new()
+	add_child(help_overlay)
+	help_overlay.setup(font, _create_steampunk_panel())
+	help_overlay.closed.connect(_on_help_closed)
+
 	# Next Stage Btn
 	next_stage_btn = Button.new()
 	next_stage_btn.text = "-> Proxima Fase"
@@ -751,6 +884,7 @@ func _setup_ui() -> void:
 	next_stage_btn.position = Vector2(1000, 330)
 	next_stage_btn.size = Vector2(250, 50)
 	next_stage_btn.visible = false
+	next_stage_btn.focus_mode = Control.FOCUS_NONE
 	next_stage_btn.pressed.connect(_on_next_stage)
 	hud_canvas.add_child(next_stage_btn)
 
@@ -766,6 +900,7 @@ func _setup_ui() -> void:
 	return_btn.icon = ICON_EXIT
 	return_btn.expand_icon = true
 	return_btn.add_theme_constant_override("icon_max_width", 24)
+	return_btn.focus_mode = Control.FOCUS_NONE
 	return_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	return_btn.pressed.connect(_on_return_to_map)
 	left_vbox.add_child(return_btn)
