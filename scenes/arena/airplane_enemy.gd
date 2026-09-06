@@ -22,33 +22,44 @@ var projectile_gravity: float = 300.0
 var projectile_impulse: float = 350.0
 
 # --- Visual ---
-var body_rect: ColorRect = null
-var original_color: Color = Color(0.85, 0.35, 0.15, 1.0)
+var sprite: Sprite2D = null
+
+const TEXTURE_A = preload("res://assets/sprites/airplane_enemy_01.png")
+const TEXTURE_B = preload("res://assets/sprites/airplane_enemy_02.png")
+
+# Alternador estático: garante alternância estrita entre avião 1 e 2
+static var use_skin_a: bool = true
 
 # --- Preload do script do projétil ---
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 
+
 func _ready() -> void:
 	randomize()
-	# Criar o visual do avião (retângulo colorido)
-	body_rect = ColorRect.new()
-	body_rect.name = "Body"
-	body_rect.size = Vector2(40, 20)
-	body_rect.position = Vector2(-20, -10)  # Centralizar
-	body_rect.color = original_color
-	add_child(body_rect)
 
-	# Asa superior (detalhe visual)
-	var wing = ColorRect.new()
-	wing.size = Vector2(20, 6)
-	wing.position = Vector2(-10, -16)
-	wing.color = original_color.darkened(0.2)
-	add_child(wing)
+	# Criar e configurar o Sprite2D
+	sprite = Sprite2D.new()
+	sprite.name = "Body"
+
+	# Alternar rigorosamente a skin entre A e B
+	if use_skin_a:
+		sprite.texture = TEXTURE_A
+	else:
+		sprite.texture = TEXTURE_B
+
+	# Inverte a flag para o próximo avião que for instanciado
+	use_skin_a = not use_skin_a
+
+	# Escala fixa padrão solicitada
+	sprite.scale = Vector2(0.2, 0.2)
+
+	add_child(sprite)
 
 	# Intervalo de disparo com variação aleatória
 	shoot_timer = randf_range(1.0, shoot_interval)
 	# Direção inicial aleatória
 	move_dir = [-1.0, 1.0].pick_random()
+
 
 func _process(delta: float) -> void:
 	# === Movimento horizontal ===
@@ -62,19 +73,23 @@ func _process(delta: float) -> void:
 		position.x = min_x
 		move_dir = 1.0
 
+	# Espelhar o sprite de acordo com a direção do movimento
+	if sprite:
+		sprite.flip_h = (move_dir < 0)
+
 	# Checagem geométrica para não bater nas montanhas
 	var arena = get_parent()
 	if arena and arena.has_method("get_obstacle_polygons"):
 		var polygons = arena.get_obstacle_polygons()
-		# Projetar a posição futura para checar antes de bater (olhar ~0.5s a frente)
 		var check_pos = global_position + Vector2(move_speed * move_dir * 0.5, 0)
 		for poly in polygons:
 			if poly is PackedVector2Array and poly.size() >= 3:
-				# Checar se a parte de baixo ou o meio do avião vai entrar no polígono
 				var lower_point = check_pos + Vector2(0, 20)
-				if Geometry2D.is_point_in_polygon(check_pos, poly) or Geometry2D.is_point_in_polygon(lower_point, poly):
+				if (
+					Geometry2D.is_point_in_polygon(check_pos, poly)
+					or Geometry2D.is_point_in_polygon(lower_point, poly)
+				):
 					move_dir *= -1.0
-					# Afastar um pouquinho para evitar que fique preso
 					position.x += move_dir * 2.0
 					break
 
@@ -94,9 +109,7 @@ func _shoot_at_player() -> void:
 	if not arena:
 		return
 
-	# Calcular direção e velocidade para atingir o jogador
 	var target_pos = player_ref.global_position
-	# Imprecisão grande — aviões NÃO acertam com facilidade
 	target_pos.x += randf_range(-200.0, 200.0)
 	target_pos.y += randf_range(-150.0, 150.0)
 
@@ -105,32 +118,25 @@ func _shoot_at_player() -> void:
 	if dist < 10.0:
 		return
 
-	# Cálculo balístico simplificado:
-	# Usamos o tempo estimado de voo para calcular a velocidade necessária
 	var flight_time = dist / projectile_impulse
 	flight_time = clamp(flight_time, 0.5, 3.0)
 
-	# Velocidade horizontal necessária
 	var vx = diff.x / flight_time
-	# Velocidade vertical com compensação de gravidade
 	var vy = (diff.y - 0.5 * projectile_gravity * flight_time * flight_time) / flight_time
 
-	# Adicionar perturbação aleatória na velocidade final (±15%)
 	vx *= randf_range(0.85, 1.15)
 	vy *= randf_range(0.85, 1.15)
 
-	# Criar o projétil
 	var projectile = ProjectileScript.new()
 	projectile.position = global_position
 	projectile.velocity = Vector2(vx, vy)
 	projectile.gravity = projectile_gravity
-	projectile.precision = -0.3  # Precisão ruim = bastante wobble no voo
-	projectile.bullet_color = Color(1.0, 0.3, 0.1, 1.0)  # Vermelho-laranja
+	projectile.precision = -0.3
+	projectile.bullet_color = Color(1.0, 0.3, 0.1, 1.0)
 	projectile.damage = 8
 	projectile.is_enemy_projectile = true
 	projectile.player_node = player_ref
 
-	# Passar os polígonos de obstáculos (obtidos do arena)
 	if arena.has_method("get_obstacle_polygons"):
 		projectile.obstacle_polygons = arena.get_obstacle_polygons()
 
@@ -142,7 +148,6 @@ func take_damage(amount: int) -> void:
 	hp -= amount
 	_flash_white()
 	if hp <= 0:
-		# Notificar o arena antes de morrer
 		var arena = get_parent()
 		if arena and arena.has_method("on_enemy_destroyed"):
 			arena.on_enemy_destroyed(self)
@@ -151,13 +156,12 @@ func take_damage(amount: int) -> void:
 
 # --- Efeito de flash branco ao ser atingido ---
 func _flash_white() -> void:
-	if body_rect:
-		body_rect.color = Color(1, 1, 1, 1)
-		# Restaurar cor após 0.15 segundos
-		var timer = get_tree().create_timer(0.15)
-		var rect_ref = body_rect
-		var restore_color = original_color
-		timer.timeout.connect(func():
-			if is_instance_valid(rect_ref):
-				rect_ref.color = restore_color
-		)
+	if sprite:
+		sprite.modulate = Color(3.0, 3.0, 3.0, 1.0)
+
+		# Espera 0.15 segundos na mesma linha
+		await get_tree().create_timer(0.15).timeout
+
+		# Só devolve a cor se o sprite ainda existir (se ele não morreu)
+		if is_instance_valid(sprite):
+			sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)

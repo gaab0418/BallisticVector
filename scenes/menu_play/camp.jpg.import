@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://idvkoli582fr"
-path="res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"
+uid="uid://canm6yyhyyshb"
+path="res://.godot/imported/camp.jpg-610e881f6c4236eabed65cc8842c3c9b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/airplane_enemy.png"
-dest_files=["res://.godot/imported/airplane_enemy.png-c8a59abc53b3be7103959241dbfa1c9c.ctex"]
+source_file="res://scenes/menu_play/camp.jpg"
+dest_files=["res://.godot/imported/camp.jpg-610e881f6c4236eabed65cc8842c3c9b.ctex"]
 
 [params]
 

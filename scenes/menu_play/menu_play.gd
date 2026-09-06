@@ -1,346 +1,268 @@
 extends Control
-## Menu de boas-vindas steampunk / cartográfico.
-## Toda a UI é construída programaticamente no _ready().
 
-# ── Caminhos de assets ──────────────────────────────────────────────
-const FONT_BOLD_PATH := "res://assets/fonts/Caveat/static/Caveat-Bold.ttf"
-const FONT_REGULAR_PATH := "res://assets/fonts/Caveat/static/Caveat-Regular.ttf"
-const BTN_TEXTURE_PATH := "res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png"
-const BGM_MENU_PATH := "res://assets/audio/musica_fundo.wav"
-const SFX_HOVER_PATH := "res://assets/audio/menu_hover_.ogg"
-const SFX_CLICK_PLAY_PATH := "res://assets/audio/menu_welcome_click.ogg"
+var spawn_timer: float = 0.0
+const BACKGROUND_PLANE = preload("res://assets/sprites/airplane_enemy_01.png")
 
-# ── Paleta steampunk / pergaminho ───────────────────────────────────
-const COLOR_PARCHMENT := Color(0.82, 0.75, 0.62, 1.0)
-const COLOR_PARCHMENT_INNER := Color(0.78, 0.71, 0.58, 1.0)
-const COLOR_BORDER := Color(0.35, 0.25, 0.15, 1.0)
-const COLOR_TITLE := Color(0.25, 0.18, 0.12, 1.0)
-const COLOR_SUBTITLE := Color(0.40, 0.30, 0.20, 1.0)
-const COLOR_BTN_LABEL := Color(0.20, 0.14, 0.08, 1.0)
-const COLOR_VERSION := Color(0.45, 0.35, 0.25, 0.6)
-const COLOR_OUTLINE := Color(0.15, 0.10, 0.05, 0.5)
-const COLOR_DECOR_LINE := Color(0.50, 0.38, 0.25, 0.35)
+# Pré-carregando os efeitos sonoros da sua pasta assets/audio
+const SFX_HOVER = preload("res://assets/audio/menu_hover_.ogg")
+const SFX_CLICK = preload("res://assets/audio/menu_click.ogg")
+const MUSIC_BG = preload("res://assets/audio/musica_fundo.wav")
 
-# ── Referências construídas no _ready ───────────────────────────────
-var title_label: Label
-var subtitle_label: Label
-var play_button: TextureButton
-var btn_label: Label
-var version_label: Label
-var decor_top: ColorRect
-var decor_bot: ColorRect
+@onready var background: TextureRect = $Background
+@onready var tank: Sprite2D = $Tank
 
-var settings_btn: TextureButton
-var settings_panel: PanelContainer
-var master_slider: HSlider
-var bgm_slider: HSlider
-var sfx_slider: HSlider
-var close_settings_btn: TextureButton
+var music_player: AudioStreamPlayer
 
 
 func _ready() -> void:
-	# Carregar fontes
-	var font_bold := SystemFont.new()
-	font_bold.font_names = ["Georgia", "Times New Roman", "Serif"]
-	var font_regular := SystemFont.new()
-	font_regular.font_names = ["Georgia", "Times New Roman", "Serif"]
-
-	# ── 1. Fundo pergaminho ─────────────────────────────────────────
-	var bg := ColorRect.new()
-	bg.color = COLOR_PARCHMENT
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-
-	# ── 2. Painel interno com borda steampunk ───────────────────────
-	var inner_panel := Panel.new()
-	inner_panel.set_anchors_preset(Control.PRESET_FULL_RECT)
-	inner_panel.offset_left = 32.0
-	inner_panel.offset_top = 32.0
-	inner_panel.offset_right = -32.0
-	inner_panel.offset_bottom = -32.0
-
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = COLOR_PARCHMENT_INNER
-	panel_style.border_color = COLOR_BORDER
-	panel_style.border_width_left = 3
-	panel_style.border_width_top = 3
-	panel_style.border_width_right = 3
-	panel_style.border_width_bottom = 3
-	panel_style.corner_radius_top_left = 8
-	panel_style.corner_radius_top_right = 8
-	panel_style.corner_radius_bottom_left = 8
-	panel_style.corner_radius_bottom_right = 8
-	panel_style.shadow_color = Color(0.0, 0.0, 0.0, 0.15)
-	panel_style.shadow_size = 6
-	inner_panel.add_theme_stylebox_override("panel", panel_style)
-	add_child(inner_panel)
-
-	# ── 3. Linhas decorativas horizontais (filigrana simples) ───────
-	decor_top = _create_decor_line(80.0)
-	add_child(decor_top)
-
-	decor_bot = _create_decor_line(640.0)
-	add_child(decor_bot)
-
-	# ── 4. Título "Ballistic Vector" ───────────────────────────────
-	title_label = Label.new()
-	title_label.text = "Ballistic Vector"
-	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	title_label.offset_top = 140.0
-	title_label.offset_left = -400.0
-	title_label.offset_right = 400.0
-	title_label.add_theme_font_override("font", font_bold)
-	title_label.add_theme_font_size_override("font_size", 72)
-	title_label.add_theme_color_override("font_color", COLOR_TITLE)
-	title_label.add_theme_constant_override("outline_size", 4)
-	title_label.add_theme_color_override("font_outline_color", COLOR_OUTLINE)
-	title_label.modulate.a = 0.0  # começa invisível para fade-in
-	add_child(title_label)
-
-	# ── 5. Subtítulo ────────────────────────────────────────────────
-	subtitle_label = Label.new()
-	subtitle_label.text = "Um jogo de estratégia balística"
-	subtitle_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	subtitle_label.offset_top = 225.0
-	subtitle_label.offset_left = -400.0
-	subtitle_label.offset_right = 400.0
-	subtitle_label.add_theme_font_override("font", font_regular)
-	subtitle_label.add_theme_font_size_override("font_size", 24)
-	subtitle_label.add_theme_color_override("font_color", COLOR_SUBTITLE)
-	subtitle_label.modulate.a = 0.0
-	add_child(subtitle_label)
-
-	# ── 6. Botão JOGAR (TextureButton + Label) ─────────────────────
-	var btn_texture: Texture2D = load(BTN_TEXTURE_PATH)
-
-	play_button = TextureButton.new()
-	play_button.texture_normal = btn_texture
-	play_button.ignore_texture_size = true
-	play_button.stretch_mode = TextureButton.STRETCH_SCALE
-	play_button.custom_minimum_size = Vector2(280, 80)
-	play_button.set_anchors_preset(Control.PRESET_CENTER)
-	play_button.offset_left = -140.0
-	play_button.offset_top = 40.0
-	play_button.offset_right = 140.0
-	play_button.offset_bottom = 120.0
-	play_button.modulate.a = 0.0
-	play_button.mouse_entered.connect(_on_play_hover)
-	play_button.pressed.connect(_on_play_pressed)
-	add_child(play_button)
-
-	btn_label = Label.new()
-	btn_label.text = "JOGAR"
-	btn_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	btn_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	btn_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	btn_label.add_theme_font_override("font", font_bold)
-	btn_label.add_theme_font_size_override("font_size", 36)
-	btn_label.add_theme_color_override("font_color", COLOR_BTN_LABEL)
-	btn_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	play_button.add_child(btn_label)
-
-	# ── 7. Versão / crédito ─────────────────────────────────────────
-	version_label = Label.new()
-	version_label.text = "v0.3 — PAC #1"
-	version_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	version_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	version_label.offset_left = -200.0
-	version_label.offset_top = -29.0
-	version_label.offset_right = -16.0
-	version_label.offset_bottom = 1.0
-	version_label.add_theme_font_override("font", font_regular)
-	version_label.add_theme_font_size_override("font_size", 14)
-	version_label.add_theme_color_override("font_color", COLOR_VERSION)
-	add_child(version_label)
-
-	# ── 8. Iniciar música de fundo ──────────────────────────────────
-	AudioManager.play_bgm(BGM_MENU_PATH)
-
-	# ── 8.5. Menu de Configurações ──────────────────────────────────
-	_build_settings_ui(font_bold, font_regular)
-
-	# ── 9. Animação de entrada (fade-in escalonado) ─────────────────
-	_play_intro_animation()
+	_setup_background_scaling()
+	_setup_audio()
+	_setup_ui()
+	randomize()
 
 
-# ── Animação de entrada ─────────────────────────────────────────────
-func _play_intro_animation() -> void:
-	var tween := create_tween()
-	tween.set_ease(Tween.EASE_OUT)
-	tween.set_trans(Tween.TRANS_CUBIC)
+func _setup_background_scaling() -> void:
+	if background:
+		background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		background.stretch_mode = TextureRect.STRETCH_SCALE
+		background.size = Vector2(1280, 720)
+		background.position = Vector2(0, 0)
 
-	# Título aparece primeiro
-	tween.tween_property(title_label, "modulate:a", 1.0, 0.8).from(0.0)
-	# Subtítulo quase junto (paralelo com delay)
-	tween.parallel().tween_property(subtitle_label, "modulate:a", 1.0, 0.6).from(0.0).set_delay(0.2)
-	# Botão aparece bem mais cedo (paralelo com delay)
-	tween.parallel().tween_property(play_button, "modulate:a", 1.0, 0.6).from(0.0).set_delay(0.4)
+	if tank:
+		tank.position = Vector2(580, 500)
+		tank.scale = Vector2(0.9, 0.9)
 
 
-# ── Callbacks de UI ─────────────────────────────────────────────────
-func _on_play_hover() -> void:
-	AudioManager.play_sfx(SFX_HOVER_PATH)
-	# Micro-animação de escala no hover
-	var tween := create_tween()
-	tween.tween_property(play_button, "scale", Vector2(1.05, 1.05), 0.1)
-	tween.tween_property(play_button, "scale", Vector2(1.0, 1.0), 0.1)
+func _setup_audio() -> void:
+	# Cria e roda a música de fundo em loop automaticamente
+	music_player = AudioStreamPlayer.new()
+	music_player.stream = MUSIC_BG
+	music_player.autoplay = true
+	# Se o seu barramento se chamar "Music" ou "Master", o som vai sair perfeitamente
+	if AudioServer.get_bus_index("Music") != -1:
+		music_player.bus = "Music"
+	add_child(music_player)
 
 
-func _on_play_pressed() -> void:
-	AudioManager.play_sfx(SFX_CLICK_PLAY_PATH)
-	# Desabilitar botão para evitar duplo-clique
-	play_button.disabled = true
-	# Pequena pausa para o SFX tocar antes de trocar de cena
-	await get_tree().create_timer(0.5).timeout
-	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+func _process(delta: float) -> void:
+	spawn_timer -= delta
+	if spawn_timer <= 0.0:
+		_spawn_background_plane()
+		spawn_timer = randf_range(5.0, 10.0)
 
 
-# ── Helpers ─────────────────────────────────────────────────────────
-func _create_decor_line(y_position: float) -> ColorRect:
-	var line := ColorRect.new()
-	line.color = COLOR_DECOR_LINE
-	line.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	line.offset_left = 80.0
-	line.offset_right = -80.0
-	line.offset_top = y_position
-	line.offset_bottom = y_position + 2.0
-	return line
+func _spawn_background_plane() -> void:
+	var plane = Sprite2D.new()
+	plane.texture = BACKGROUND_PLANE
+	plane.scale = Vector2(0.015, 0.015)
+	plane.modulate = Color(0.2, 0.2, 0.2, 0.7)
+	plane.position = Vector2(-100, randf_range(80, 220))
+	add_child(plane)
+
+	var tween = create_tween()
+	var travel_time = randf_range(15.0, 25.0)
+	tween.tween_property(plane, "position:x", 1400.0, travel_time)
+	tween.tween_callback(plane.queue_free)
 
 
-# ── Configurações UI ───────────────────────────────────────────────
-func _build_settings_ui(font_bold: Font, font_regular: Font) -> void:
-	var settings_bg = PanelContainer.new()
-	var sbg_style = StyleBoxFlat.new()
-	sbg_style.bg_color = Color(0.2, 0.2, 0.2, 0.8)
-	sbg_style.corner_radius_top_left = 8
-	sbg_style.corner_radius_top_right = 8
-	sbg_style.corner_radius_bottom_left = 8
-	sbg_style.corner_radius_bottom_right = 8
-	sbg_style.content_margin_left = 15
-	sbg_style.content_margin_top = 15
-	sbg_style.content_margin_right = 15
-	sbg_style.content_margin_bottom = 15
-	settings_bg.add_theme_stylebox_override("panel", sbg_style)
-	settings_bg.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	settings_bg.offset_left = -94.0
-	settings_bg.offset_top = 16.0
-	settings_bg.offset_right = -16.0
-	settings_bg.offset_bottom = 94.0
-	add_child(settings_bg)
+func _setup_ui() -> void:
+	var hud_canvas = CanvasLayer.new()
+	add_child(hud_canvas)
 
-	settings_btn = TextureButton.new()
-	settings_btn.texture_normal = load("res://assets/sprites/icons/gear_white.png")
-	settings_btn.ignore_texture_size = true
-	settings_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	settings_btn.custom_minimum_size = Vector2(48, 48)
-	settings_btn.pressed.connect(_on_settings_pressed)
-	settings_bg.add_child(settings_btn)
+	var panel = PanelContainer.new()
+	var panel_style = StyleBoxFlat.new()
+	panel_style.bg_color = Color(0.05, 0.04, 0.03, 0.65)
+	panel_style.corner_radius_top_left = 12
+	panel_style.corner_radius_top_right = 12
+	panel_style.corner_radius_bottom_left = 12
+	panel_style.corner_radius_bottom_right = 12
+	panel_style.content_margin_left = 24
+	panel_style.content_margin_right = 24
+	panel_style.content_margin_top = 24
+	panel_style.content_margin_bottom = 24
+	panel.add_theme_stylebox_override("panel", panel_style)
+	panel.position = Vector2(50, 75)
+	hud_canvas.add_child(panel)
 
-	settings_panel = PanelContainer.new()
-	settings_panel.set_anchors_preset(Control.PRESET_CENTER)
-	settings_panel.offset_left = -200.0
-	settings_panel.offset_top = -150.0
-	settings_panel.offset_right = 200.0
-	settings_panel.offset_bottom = 150.0
-	settings_panel.visible = false
-	settings_panel.z_index = 100
-	
-	var sp_style := StyleBoxFlat.new()
-	sp_style.bg_color = COLOR_PARCHMENT_INNER
-	sp_style.border_color = COLOR_BORDER
-	sp_style.border_width_left = 3
-	sp_style.border_width_top = 3
-	sp_style.border_width_right = 3
-	sp_style.border_width_bottom = 3
-	sp_style.corner_radius_top_left = 8
-	sp_style.corner_radius_top_right = 8
-	sp_style.corner_radius_bottom_left = 8
-	sp_style.corner_radius_bottom_right = 8
-	sp_style.shadow_color = Color(0.0, 0.0, 0.0, 0.3)
-	sp_style.shadow_size = 10
-	sp_style.content_margin_left = 40
-	sp_style.content_margin_top = 30
-	sp_style.content_margin_right = 40
-	sp_style.content_margin_bottom = 30
-	settings_panel.add_theme_stylebox_override("panel", sp_style)
-	add_child(settings_panel)
-	
-	var vbox := VBoxContainer.new()
-	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	var vbox = VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 18)
+	panel.add_child(vbox)
+
+	var title = Label.new()
+	title.text = "BALLISTIC VECTOR"
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	title.add_theme_color_override("font_outline_color", Color(0.1, 0.08, 0.05))
+	title.add_theme_constant_override("outline_size", 8)
+	vbox.add_child(title)
+
+	var spacer = Control.new()
+	spacer.custom_minimum_size = Vector2(0, 5)
+	vbox.add_child(spacer)
+
+	var btn_play = _create_tactical_button("MAPA DE GUERRA")
+	btn_play.pressed.connect(
+		func():
+			_play_sfx(SFX_CLICK)
+			get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+	)
+	vbox.add_child(btn_play)
+
+	var btn_audio = _create_tactical_button("CONFIGURAÇÕES DE ÁUDIO")
+	btn_audio.pressed.connect(
+		func():
+			_play_sfx(SFX_CLICK)
+			_open_audio_settings(hud_canvas)
+	)
+	vbox.add_child(btn_audio)
+
+	var btn_quit = _create_tactical_button("ABANDONAR POSTO")
+	btn_quit.pressed.connect(
+		func():
+			_play_sfx(SFX_CLICK)
+			get_tree().quit()
+	)
+	vbox.add_child(btn_quit)
+
+
+func _create_tactical_button(text: String) -> Button:
+	var btn = Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(280, 50)
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.add_theme_font_size_override("font_size", 16)
+
+	# Efeito sonoro de hover (quando o mouse passa em cima)
+	btn.mouse_entered.connect(func(): _play_sfx(SFX_HOVER))
+
+	var normal = StyleBoxFlat.new()
+	normal.bg_color = Color(0.22, 0.18, 0.13, 0.95)
+	normal.border_width_left = 3
+	normal.border_width_top = 3
+	normal.border_width_right = 3
+	normal.border_width_bottom = 3
+	normal.border_color = Color(0.55, 0.42, 0.22, 1.0)
+	normal.corner_radius_top_left = 6
+	normal.corner_radius_top_right = 6
+	normal.corner_radius_bottom_left = 6
+	normal.corner_radius_bottom_right = 6
+	normal.shadow_color = Color(0, 0, 0, 0.5)
+	normal.shadow_size = 6
+
+	var hover = normal.duplicate()
+	hover.bg_color = Color(0.35, 0.28, 0.18, 1.0)
+	hover.border_color = Color(0.85, 0.68, 0.35, 1.0)
+
+	var pressed = normal.duplicate()
+	pressed.bg_color = Color(0.15, 0.12, 0.08, 1.0)
+	pressed.border_color = Color(0.4, 0.3, 0.15, 1.0)
+
+	btn.add_theme_stylebox_override("normal", normal)
+	btn.add_theme_stylebox_override("hover", hover)
+	btn.add_theme_stylebox_override("pressed", pressed)
+
+	btn.add_theme_color_override("font_color", Color(0.9, 0.85, 0.75))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 0.98, 0.9))
+
+	return btn
+
+
+func _play_sfx(stream: AudioStream) -> void:
+	var sfx = AudioStreamPlayer.new()
+	sfx.stream = stream
+	# Se o barramento SFX existir, usa ele; senão, toca no Master para garantir o som
+	if AudioServer.get_bus_index("SFX") != -1:
+		sfx.bus = "SFX"
+	else:
+		sfx.bus = "Master"
+	add_child(sfx)
+	sfx.play()
+	sfx.finished.connect(sfx.queue_free)
+
+
+func _open_audio_settings(parent_canvas: CanvasLayer) -> void:
+	var popup_bg = ColorRect.new()
+	popup_bg.color = Color(0, 0, 0, 0.6)
+	popup_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	parent_canvas.add_child(popup_bg)
+
+	var window = PanelContainer.new()
+	var win_style = StyleBoxFlat.new()
+	win_style.bg_color = Color(0.15, 0.12, 0.1, 0.98)
+	win_style.border_width_left = 2
+	win_style.border_width_top = 2
+	win_style.border_width_right = 2
+	win_style.border_width_bottom = 2
+	win_style.border_color = Color(0.6, 0.45, 0.25, 1.0)
+	win_style.corner_radius_top_left = 8
+	win_style.corner_radius_top_right = 8
+	win_style.corner_radius_bottom_left = 8
+	win_style.corner_radius_bottom_right = 8
+	win_style.content_margin_left = 24
+	win_style.content_margin_right = 24
+	win_style.content_margin_top = 24
+	win_style.content_margin_bottom = 24
+	window.add_theme_stylebox_override("panel", win_style)
+	window.custom_minimum_size = Vector2(400, 250)
+	window.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	popup_bg.add_child(window)
+
+	var vbox = VBoxContainer.new()
 	vbox.add_theme_constant_override("separation", 16)
-	settings_panel.add_child(vbox)
-	
-	var settings_title := Label.new()
-	settings_title.text = "Configurações"
-	settings_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	settings_title.add_theme_font_override("font", font_bold)
-	settings_title.add_theme_font_size_override("font_size", 32)
-	settings_title.add_theme_color_override("font_color", COLOR_TITLE)
-	vbox.add_child(settings_title)
-	
-	master_slider = _create_slider_row(vbox, "Volume Geral", AudioManager.master_volume, font_regular)
-	master_slider.value_changed.connect(_on_master_volume_changed)
-	
-	bgm_slider = _create_slider_row(vbox, "Música (BGM)", AudioManager.bgm_volume, font_regular)
-	bgm_slider.value_changed.connect(_on_bgm_volume_changed)
-	
-	sfx_slider = _create_slider_row(vbox, "Efeitos (SFX)", AudioManager.sfx_volume, font_regular)
-	sfx_slider.value_changed.connect(_on_sfx_volume_changed)
-	
-	close_settings_btn = TextureButton.new()
-	close_settings_btn.texture_normal = load("res://assets/sprites/ui_pack/Grey/Default/icon_cross.png")
-	close_settings_btn.ignore_texture_size = true
-	close_settings_btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	close_settings_btn.custom_minimum_size = Vector2(32, 32)
-	close_settings_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	close_settings_btn.pressed.connect(_on_close_settings_pressed)
-	vbox.add_child(close_settings_btn)
+	window.add_child(vbox)
+
+	var lbl_title = Label.new()
+	lbl_title.text = "AJUSTES DE ÁUDIO"
+	lbl_title.add_theme_font_size_override("font_size", 20)
+	lbl_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	vbox.add_child(lbl_title)
+
+	vbox.add_child(_create_slider_row("Volume Geral", "Master"))
+	vbox.add_child(_create_slider_row("Efeitos Sonoros", "SFX"))
+	vbox.add_child(_create_slider_row("Trilha Sonora", "Music"))
+
+	var btn_close = _create_tactical_button("VOLTAR AO COMANDO")
+	btn_close.custom_minimum_size = Vector2(352, 44)
+	btn_close.pressed.connect(
+		func():
+			_play_sfx(SFX_CLICK)
+			popup_bg.queue_free()
+	)
+	vbox.add_child(btn_close)
 
 
-func _create_slider_row(parent: Control, lbl_text: String, start_val: float, font: Font) -> HSlider:
-	var hbox := HBoxContainer.new()
-	var lbl := Label.new()
-	lbl.text = lbl_text
-	lbl.add_theme_font_override("font", font)
-	lbl.add_theme_color_override("font_color", COLOR_TITLE)
-	lbl.custom_minimum_size = Vector2(140, 0)
-	hbox.add_child(lbl)
-	
-	var slider := HSlider.new()
-	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+func _create_slider_row(label_text: String, bus_name: String) -> Control:
+	var container = VBoxContainer.new()
+	container.add_theme_constant_override("separation", 4)
+
+	var lbl = Label.new()
+	lbl.text = label_text
+	lbl.add_theme_font_size_override("font_size", 14)
+	lbl.add_theme_color_override("font_color", Color(0.8, 0.75, 0.65))
+	container.add_child(lbl)
+
+	var slider = HSlider.new()
+	slider.min_value = 0.0
 	slider.max_value = 1.0
-	slider.step = 0.1
-	slider.value = start_val
-	hbox.add_child(slider)
-	
-	parent.add_child(hbox)
-	return slider
+	slider.step = 0.05
 
+	# Se o barramento não existir no projeto, ele usa o Master para evitar erro e controlar o volume
+	var target_bus = bus_name
+	if AudioServer.get_bus_index(target_bus) == -1:
+		target_bus = "Master"
 
-func _on_settings_pressed() -> void:
-	AudioManager.play_sfx(SFX_CLICK_PLAY_PATH)
-	settings_panel.visible = true
+	var idx = AudioServer.get_bus_index(target_bus)
+	if idx != -1:
+		slider.value = db_to_linear(AudioServer.get_bus_volume_db(idx))
+	else:
+		slider.value = 0.8
 
-func _on_close_settings_pressed() -> void:
-	AudioManager.play_sfx(SFX_CLICK_PLAY_PATH)
-	settings_panel.visible = false
+	slider.value_changed.connect(
+		func(val):
+			var current_idx = AudioServer.get_bus_index(target_bus)
+			if current_idx != -1:
+				AudioServer.set_bus_volume_db(current_idx, linear_to_db(val))
+	)
+	container.add_child(slider)
 
-func _on_master_volume_changed(value: float) -> void:
-	AudioManager.master_volume = value
-	AudioManager.update_volumes()
-	_play_slider_sfx()
-
-func _on_bgm_volume_changed(value: float) -> void:
-	AudioManager.bgm_volume = value
-	AudioManager.update_volumes()
-	_play_slider_sfx()
-
-func _on_sfx_volume_changed(value: float) -> void:
-	AudioManager.sfx_volume = value
-	AudioManager.update_volumes()
-	_play_slider_sfx()
-
-func _play_slider_sfx() -> void:
-	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	return container
