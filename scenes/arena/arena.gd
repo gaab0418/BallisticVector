@@ -2,6 +2,7 @@ extends Node2D
 
 # === Icones reutilizados (const preload evita recarregar o recurso) ===
 const ICON_EXIT := preload("res://assets/sprites/icons/exit.png")
+const ICON_GEAR := preload("res://assets/sprites/icons/gear_white.png")
 
 # =============================================================================
 #  Arena de Combate — arena.gd
@@ -26,6 +27,8 @@ var stage_label: Label
 var parabola_hud: Control
 var help_overlay: CanvasLayer
 var help_btn: Button
+var menu_btn: Button
+var menu_panel: PanelContainer
 var next_stage_btn: Button
 var return_btn: Button
 var quit_btn: Button
@@ -48,6 +51,9 @@ const GRAVITY_RATE: float = 250.0  # px/s² por segundo de tecla
 const MIN_GRAVITY: float = 100.0  # 2 m/s² — a Lua
 const MAX_GRAVITY: float = 1250.0  # 25 m/s² — Júpiter
 const GEAR_SPIN_SPEED: float = 3.0  # rad/s de giro visual da engrenagem
+# Duas voltas de mouse varrem a faixa inteira: devagar o bastante para dar precisão,
+# rápido o bastante para não cansar a mão.
+const DRAG_TURNS_FULL_RANGE: float = 2.0
 
 # === Sistema de Munição (Resources) ===
 var ammo_types: Array[AmmoData] = []
@@ -242,31 +248,39 @@ func _process(delta: float) -> void:
 # =============================================================================
 
 
-## Cima/baixo trocam a engrenagem selecionada. Edge-triggered de propósito: com
-## is_action_pressed, segurar a seta varreria as três engrenagens em poucos frames.
+## Esquerda/direita trocam a engrenagem selecionada, acompanhando a ordem em que elas
+## aparecem na HUD. Edge-triggered de propósito: com is_action_pressed, segurar a seta
+## varreria as três em poucos frames.
 func _poll_gear_selection() -> void:
 	var step: int = 0
-	if Input.is_action_just_pressed("ui_up"):
+	if Input.is_action_just_pressed("ui_left"):
 		step = -1
-	elif Input.is_action_just_pressed("ui_down"):
+	elif Input.is_action_just_pressed("ui_right"):
 		step = 1
 	if step == 0:
 		return
 
-	selected_gear = wrapi(selected_gear + step, 0, GEAR_COUNT)
+	_select_gear(wrapi(selected_gear + step, 0, GEAR_COUNT))
+
+
+func _select_gear(index: int) -> void:
+	if index == selected_gear:
+		return
+	selected_gear = index
 	_at_limit = false
 	AudioManager.play_sfx("res://assets/audio/menu_hover_.ogg")
 	if parabola_hud:
 		parabola_hud.set_selected(selected_gear)
 
 
-## Esquerda/direita giram a engrenagem selecionada, de forma contínua e escalada por
-## delta. Com Ângulo selecionado (o padrão) isto é exatamente a mira de sempre.
+## Cima/baixo giram a engrenagem selecionada, de forma contínua e escalada por delta.
+## dir positivo sempre significa "o número da HUD aumenta" — para o ângulo isso é o cano
+## subindo, o que casa com a tecla.
 func _poll_gear_rotation(delta: float) -> void:
 	var dir: float = 0.0
-	if Input.is_action_pressed("ui_right"):
+	if Input.is_action_pressed("ui_up"):
 		dir += 1.0
-	if Input.is_action_pressed("ui_left"):
+	if Input.is_action_pressed("ui_down"):
 		dir -= 1.0
 
 	if is_zero_approx(dir):
@@ -292,40 +306,76 @@ func _poll_gear_rotation(delta: float) -> void:
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
 
 
-## Devolve true se o valor realmente mudou; false significa que bateu no limite.
+## Passo por segundo de tecla. Devolve true se o valor mudou; false = bateu no limite.
+## A conta do ângulo é a mesma de sempre (ROTATION_SPEED e compensação por impulso),
+## só que com o sinal invertido: elevar o cano é diminuir cannon.rotation.
 func _adjust_selected_gear(dir: float, delta: float, mult: float) -> bool:
 	match selected_gear:
 		GEAR_FORCA:
-			return _adjust_power(dir, delta, mult)
+			return _set_power(current_power + dir * POWER_RATE * mult * delta)
 		GEAR_GRAVIDADE:
-			return _adjust_gravity(dir, delta, mult)
+			return _set_gravity(gravity_override + dir * GRAVITY_RATE * mult * delta)
 		_:
-			return _adjust_angle(dir, delta, mult)
+			var ammo = _get_current_ammo()
+			var comp: float = 500.0 / max(ammo.impulse, 10.0)
+			return _set_angle(cannon.rotation - dir * ROTATION_SPEED * mult * comp * delta)
 
 
-## Réplica da conta que o jogo já fazia — mesma ROTATION_SPEED, mesma compensação por
-## impulso, mesmo passo fino — para mirar continuar idêntico ao de antes desta HUD.
-## Direita aumenta cannon.rotation, que em Godot 2D abaixa o cano e reduz a elevação.
-func _adjust_angle(dir: float, delta: float, mult: float) -> bool:
-	var ammo = _get_current_ammo()
-	var impulse_compensation: float = 500.0 / max(ammo.impulse, 10.0)
+## Passo em fração da faixa total, usado pelo arrasto de mouse.
+func _adjust_selected_gear_by(frac: float) -> bool:
+	match selected_gear:
+		GEAR_FORCA:
+			return _set_power(current_power + frac * (1.0 - MIN_POWER))
+		GEAR_GRAVIDADE:
+			return _set_gravity(gravity_override + frac * (MAX_GRAVITY - MIN_GRAVITY))
+		_:
+			return _set_angle(cannon.rotation - frac * (MAX_CANNON_ANGLE - MIN_CANNON_ANGLE))
+
+
+func _set_angle(value: float) -> bool:
 	var before: float = cannon.rotation
-	cannon.rotation += dir * (ROTATION_SPEED * mult * impulse_compensation) * delta
-	cannon.rotation = clamp(cannon.rotation, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
+	cannon.rotation = clamp(value, MIN_CANNON_ANGLE, MAX_CANNON_ANGLE)
 	return not is_equal_approx(cannon.rotation, before)
 
 
-func _adjust_power(dir: float, delta: float, mult: float) -> bool:
+func _set_power(value: float) -> bool:
 	var before: float = current_power
-	current_power = clamp(current_power + dir * POWER_RATE * mult * delta, MIN_POWER, 1.0)
+	current_power = clamp(value, MIN_POWER, 1.0)
 	return not is_equal_approx(current_power, before)
 
 
-func _adjust_gravity(dir: float, delta: float, mult: float) -> bool:
+func _set_gravity(value: float) -> bool:
 	var before: float = gravity_override
-	var target: float = gravity_override + dir * GRAVITY_RATE * mult * delta
-	gravity_override = clamp(target, MIN_GRAVITY, MAX_GRAVITY)
+	gravity_override = clamp(value, MIN_GRAVITY, MAX_GRAVITY)
 	return not is_equal_approx(gravity_override, before)
+
+
+## Agarrar a engrenagem com o mouse também a seleciona, senão o jogador arrastaria uma
+## e veria outra mudar.
+func _on_gear_grabbed(index: int) -> void:
+	_select_gear(index)
+
+
+## Girar o mouse em volta da engrenagem move a variável, como uma manivela. Sentido
+## horário aumenta o número, igual à seta para cima.
+func _on_gear_dragged(index: int, delta_rad: float) -> void:
+	if stage_cleared or index != selected_gear:
+		return
+
+	if _adjust_selected_gear_by(delta_rad / (TAU * DRAG_TURNS_FULL_RANGE)):
+		_at_limit = false
+		if parabola_hud:
+			# A engrenagem acompanha o cursor exatamente, sem fator de escala.
+			parabola_hud.spin_selected(selected_gear, delta_rad)
+		_refresh_parabola_hud()
+		_update_aim_line()
+		return
+
+	if parabola_hud:
+		parabola_hud.flash_selected(selected_gear)
+	if not _at_limit:
+		_at_limit = true
+		AudioManager.play_sfx("res://assets/audio/erro.ogg")
 
 
 # =============================================================================
@@ -636,6 +686,51 @@ func _on_quit() -> void:
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
 
 
+## Botão quadrado só com ícone, usado pelo menu e pela ajuda.
+func _create_icon_button(font: Font, styles: Array, icon: Texture2D, handler: Callable) -> Button:
+	var btn := Button.new()
+	btn.add_theme_font_override("font", font)
+	btn.add_theme_stylebox_override("normal", styles[0])
+	btn.add_theme_stylebox_override("hover", styles[1])
+	btn.add_theme_stylebox_override("pressed", styles[2])
+	btn.icon = icon
+	btn.expand_icon = true
+	btn.add_theme_constant_override("icon_max_width", 32)
+	btn.custom_minimum_size = Vector2(56, 56)
+	btn.size = Vector2(56, 56)
+	# Sem isto o clique dá foco ao botão, e aí as setas viram navegação de foco e o
+	# Espaço aciona o botão focado além de disparar o canhão.
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(handler)
+	return btn
+
+
+func _create_menu_button(font: Font, styles: Array, text: String, handler: Callable) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.add_theme_font_override("font", font)
+	btn.add_theme_font_size_override("font_size", 20)
+	btn.add_theme_stylebox_override("normal", styles[0])
+	btn.add_theme_stylebox_override("hover", styles[1])
+	btn.add_theme_stylebox_override("pressed", styles[2])
+	btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
+	btn.icon = ICON_EXIT
+	btn.expand_icon = true
+	btn.add_theme_constant_override("icon_max_width", 24)
+	btn.focus_mode = Control.FOCUS_NONE
+	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	btn.pressed.connect(handler)
+	return btn
+
+
+func _on_toggle_menu() -> void:
+	if menu_panel == null:
+		return
+	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	menu_panel.visible = not menu_panel.visible
+
+
 func _create_steampunk_panel() -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
@@ -653,27 +748,6 @@ func _create_steampunk_panel() -> StyleBoxFlat:
 	return style
 
 
-func _create_prompt(icon_tex: Texture2D, text: String) -> HBoxContainer:
-	var hb = HBoxContainer.new()
-	var tex_rect = TextureRect.new()
-	tex_rect.texture = icon_tex
-	tex_rect.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
-	tex_rect.custom_minimum_size = Vector2(48, 48)
-	tex_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-
-	var lbl = Label.new()
-	lbl.text = text
-	var sys_font = SystemFont.new()
-	sys_font.font_names = ["Georgia", "Times New Roman", "Serif"]
-	lbl.add_theme_font_override("font", sys_font)
-	lbl.add_theme_font_size_override("font_size", 20)
-	lbl.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
-
-	hb.add_child(tex_rect)
-	hb.add_child(lbl)
-	return hb
-
-
 func _setup_ui() -> void:
 	hud_canvas = CanvasLayer.new()
 	hud_canvas.name = "HUD"
@@ -682,61 +756,6 @@ func _setup_ui() -> void:
 	var font = SystemFont.new()
 	font.font_names = ["Georgia", "Times New Roman", "Serif"]
 
-	# Painel Esquerdo (Controles e Força)
-	var left_panel = PanelContainer.new()
-	left_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
-	left_panel.position = Vector2(20, 20)
-	left_panel.size = Vector2(220, 300)
-	hud_canvas.add_child(left_panel)
-
-	var left_vbox = VBoxContainer.new()
-	left_vbox.add_theme_constant_override("separation", 15)
-	left_vbox.position = Vector2(10, 10)
-	left_vbox.size = Vector2(200, 280)
-	left_panel.add_child(left_vbox)
-
-	var controls_lbl = Label.new()
-	controls_lbl.text = "Controles"
-	controls_lbl.add_theme_font_override("font", font)
-	controls_lbl.add_theme_font_size_override("font_size", 24)
-	controls_lbl.add_theme_color_override("font_color", Color(0.8, 0.6, 0.2))
-	controls_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left_vbox.add_child(controls_lbl)
-
-	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png"),
-			"Escolher\nengrenagem"
-		)
-	)
-	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png"),
-			"Girar\nengrenagem"
-		)
-	)
-	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_shift.png"), "Ajuste fino"
-		)
-	)
-	left_vbox.add_child(
-		_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_space.png"), "Atirar")
-	)
-	left_vbox.add_child(
-		_create_prompt(
-			preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png"), "Trocar Municao"
-		)
-	)
-	left_vbox.add_child(
-		_create_prompt(preload("res://assets/sprites/keyboard_mouse/keyboard_h.png"), "Ajuda")
-	)
-
-	var hs = HSeparator.new()
-	left_vbox.add_child(hs)
-
-	quit_btn = Button.new()
-	quit_btn.text = "Desistir"
 	var btn_tex = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
 	var normal_style = StyleBoxTexture.new()
 	normal_style.texture = btn_tex
@@ -748,19 +767,29 @@ func _setup_ui() -> void:
 	hover_style.modulate_color = Color(1.1, 1.05, 0.95)
 	var pressed_style = normal_style.duplicate()
 	pressed_style.modulate_color = Color(0.85, 0.8, 0.75)
-	quit_btn.add_theme_stylebox_override("normal", normal_style)
-	quit_btn.add_theme_stylebox_override("hover", hover_style)
-	quit_btn.add_theme_stylebox_override("pressed", pressed_style)
-	quit_btn.add_theme_font_override("font", font)
-	quit_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	quit_btn.add_theme_font_size_override("font_size", 20)
-	quit_btn.icon = ICON_EXIT
-	quit_btn.expand_icon = true
-	quit_btn.add_theme_constant_override("icon_max_width", 24)
-	quit_btn.focus_mode = Control.FOCUS_NONE
-	quit_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	quit_btn.pressed.connect(_on_quit)
-	left_vbox.add_child(quit_btn)
+	var btn_styles: Array = [normal_style, hover_style, pressed_style]
+
+	# Menu (canto superior esquerdo). A lista de controles saiu daqui: ela agora vive
+	# inteira na tela de ajuda, num lugar so, em vez de ocupar meia lateral da tela.
+	menu_btn = _create_icon_button(font, btn_styles, ICON_GEAR, _on_toggle_menu)
+	menu_btn.position = Vector2(20, 20)
+	hud_canvas.add_child(menu_btn)
+
+	menu_panel = PanelContainer.new()
+	menu_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
+	menu_panel.position = Vector2(20, 130)
+	menu_panel.visible = false
+	hud_canvas.add_child(menu_panel)
+
+	var menu_vbox = VBoxContainer.new()
+	menu_vbox.add_theme_constant_override("separation", 10)
+	menu_panel.add_child(menu_vbox)
+
+	return_btn = _create_menu_button(font, btn_styles, "Voltar ao Mapa", _on_return_to_map)
+	menu_vbox.add_child(return_btn)
+
+	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit)
+	menu_vbox.add_child(quit_btn)
 
 	# Painel Inferior (Munição e Vida)
 	var bottom_panel = PanelContainer.new()
@@ -835,18 +864,20 @@ func _setup_ui() -> void:
 	stage_label.add_theme_font_override("font", font)
 	stage_label.add_theme_font_size_override("font_size", 24)
 	stage_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
-	stage_label.position = Vector2(950, 20)
-	stage_label.size = Vector2(300, 40)
-	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	stage_label.position = Vector2(20, 84)
+	stage_label.size = Vector2(270, 36)
+	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	hud_canvas.add_child(stage_label)
 
-	# HUD das variáveis da parábola. Ocupa x 256..944: o vão livre entre o painel esquerdo
-	# (termina em 240) e o rótulo da fase (começa em 950), centrado nesse vão.
+	# HUD das variáveis da parábola, centrada de verdade: x 296..984 em 1280 de largura.
+	# Só coube no meio porque o painel de controles saiu da lateral esquerda.
 	parabola_hud = ParabolaHudScript.new()
-	parabola_hud.position = Vector2(256, 8)
-	parabola_hud.size = Vector2(688, 104)
+	parabola_hud.position = Vector2(296, 8)
+	parabola_hud.size = Vector2(688, 128)
 	hud_canvas.add_child(parabola_hud)
 	parabola_hud.setup(font, _create_steampunk_panel())
+	parabola_hud.gear_grabbed.connect(_on_gear_grabbed)
+	parabola_hud.gear_dragged.connect(_on_gear_dragged)
 
 	# Botão de ajuda — canto superior direito, abaixo do rótulo da fase
 	help_btn = Button.new()
@@ -857,8 +888,11 @@ func _setup_ui() -> void:
 	help_btn.add_theme_stylebox_override("hover", hover_style)
 	help_btn.add_theme_stylebox_override("pressed", pressed_style)
 	help_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	help_btn.position = Vector2(1204, 70)
-	help_btn.size = Vector2(56, 56)
+	help_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	help_btn.offset_left = -84.0
+	help_btn.offset_top = 20.0
+	help_btn.offset_right = -20.0
+	help_btn.offset_bottom = 84.0
 	# Sem isto, clicar aqui daria foco ao botão: as setas virariam navegação de foco e o
 	# Espaço passaria a acionar o botão além de disparar o canhão.
 	help_btn.focus_mode = Control.FOCUS_NONE
@@ -887,20 +921,3 @@ func _setup_ui() -> void:
 	next_stage_btn.focus_mode = Control.FOCUS_NONE
 	next_stage_btn.pressed.connect(_on_next_stage)
 	hud_canvas.add_child(next_stage_btn)
-
-	# Return Btn (same style as quit btn)
-	return_btn = Button.new()
-	return_btn.text = "Voltar ao Mapa"
-	return_btn.add_theme_font_override("font", font)
-	return_btn.add_theme_font_size_override("font_size", 20)
-	return_btn.add_theme_stylebox_override("normal", normal_style)
-	return_btn.add_theme_stylebox_override("hover", hover_style)
-	return_btn.add_theme_stylebox_override("pressed", pressed_style)
-	return_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	return_btn.icon = ICON_EXIT
-	return_btn.expand_icon = true
-	return_btn.add_theme_constant_override("icon_max_width", 24)
-	return_btn.focus_mode = Control.FOCUS_NONE
-	return_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	return_btn.pressed.connect(_on_return_to_map)
-	left_vbox.add_child(return_btn)

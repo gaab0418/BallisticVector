@@ -32,8 +32,9 @@ engrenagem e a gira para alterar aquele valor, vendo a linha de mira responder n
 
 | Tecla / Ação | Função |
 | :--- | :--- |
-| **Seta Cima / Seta Baixo** | Escolhe qual engrenagem está selecionada (ângulo, força ou gravidade). |
-| **Seta Esquerda / Seta Direita** | Gira a engrenagem selecionada, aumentando ou diminuindo o seu valor. Com o ângulo selecionado — o padrão — isto é a mira de sempre. |
+| **Seta Esquerda / Seta Direita** | Escolhe qual engrenagem está selecionada, seguindo a ordem em que elas aparecem na HUD. |
+| **Seta Cima / Seta Baixo** | Gira a engrenagem selecionada, aumentando ou diminuindo o seu valor. Com o ângulo selecionado — o padrão — a seta para cima levanta o canhão. |
+| **Mouse (segurar e girar)** | Agarra a engrenagem e a gira como uma manivela: o valor acompanha o movimento circular do cursor em volta dela. Duas voltas percorrem a faixa inteira. |
 | **Shift (Segurar)** | Gira a engrenagem 5x mais devagar, para acertar o número exato. |
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
 | **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Cada munição traz a sua própria gravidade. |

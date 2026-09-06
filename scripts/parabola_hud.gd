@@ -8,6 +8,10 @@ extends PanelContainer
 ## não a simulação da mira — a simulação para na borda da tela e nos obstáculos, então
 ## mediria "distância até a montanha" em vez de alcance.
 
+## Repassados das células, já com o índice de qual engrenagem foi mexida.
+signal gear_dragged(index: int, delta_rad: float)
+signal gear_grabbed(index: int)
+
 const GearWidgetScript = preload("res://scripts/gear_widget.gd")
 
 # O jogo trabalha em pixels e a HUD fala em metros. Com 50 px/m os stats atuais caem
@@ -18,8 +22,9 @@ const GEAR_ANGULO: int = 0
 const GEAR_FORCA: int = 1
 const GEAR_GRAVIDADE: int = 2
 
-# Dimensionado para o valor mais largo, "10.0 m/s²" em corpo 30 (~126 px). Se a célula
-# ficar estreita demais, o PanelContainer cresce sozinho e invade o rótulo da fase.
+# Dimensionado para o mais largo entre o valor "10.0 m/s²" em corpo 30 (~126 px) e a
+# linha da engrenagem (26 + 66 + 26 + separações = 126). Se a célula ficar estreita
+# demais, o PanelContainer cresce sozinho e empurra o painel para fora do vão livre.
 const GEAR_WIDTH: float = 140.0
 const DERIVED_WIDTH: float = 100.0
 const COLOR_DERIVED := Color(0.7, 0.85, 0.9)
@@ -48,6 +53,9 @@ func setup(font: Font, panel_style: StyleBoxFlat) -> void:
 		var gear = GearWidgetScript.new()
 		row.add_child(gear)
 		gear.setup(font, title, GEAR_WIDTH)
+		var index: int = _gears.size()
+		gear.dragged.connect(_on_gear_dragged.bind(index))
+		gear.grabbed.connect(_on_gear_grabbed.bind(index))
 		_gears.append(gear)
 
 	row.add_child(VSeparator.new())
@@ -90,6 +98,14 @@ func flash_selected(index: int) -> void:
 func flash_gravity() -> void:
 	if _gears.size() > GEAR_GRAVIDADE:
 		_gears[GEAR_GRAVIDADE].flash(COLOR_AMBER)
+
+
+func _on_gear_dragged(delta_rad: float, index: int) -> void:
+	gear_dragged.emit(index, delta_rad)
+
+
+func _on_gear_grabbed(index: int) -> void:
+	gear_grabbed.emit(index)
 
 
 func _update_derived(angle_deg: float, v0_px: float, g_px: float) -> void:

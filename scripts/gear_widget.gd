@@ -1,19 +1,26 @@
 class_name GearWidget
 extends PanelContainer
 ## Uma célula da HUD de parábola: título pequeno em cima, valor grande no meio e uma
-## engrenagem pequena embaixo, ladeada pelas setas que a controlam.
+## engrenagem embaixo, que é ao mesmo tempo indicador e controle.
 ##
 ## A engrenagem gira enquanto o jogador segura a seta e trava quando o valor bate no
-## limite — a trava é o feedback de "não dá para ir mais longe".
+## limite — a trava é o feedback de "não dá para ir mais longe". Ela também pode ser
+## agarrada com o mouse: segurando o botão e girando em volta dela, o valor acompanha,
+## como uma manivela de verdade.
+
+## Emitido a cada movimento do arrasto, em radianos girados (positivo = horário).
+signal dragged(delta_rad: float)
+## Emitido quando o jogador agarra a engrenagem, para a HUD selecionar esta célula.
+signal grabbed
 
 const GEAR_TEXTURE = preload("res://assets/sprites/icons/gear_white.png")
-const ARROW_LEFT = preload("res://assets/sprites/keyboard_mouse/keyboard_arrow_left.png")
-const ARROW_RIGHT = preload("res://assets/sprites/keyboard_mouse/keyboard_arrow_right.png")
+const HINT_TEXTURE = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png")
 
-const GEAR_SIZE: float = 24.0
+const GEAR_SIZE: float = 46.0
 # Um quadrado girado ocupa lado * sqrt(2). Sem esta folga os cantos da engrenagem
-# encostariam nas setas ao girar.
-const GEAR_BOX: float = 34.0
+# seriam cortados ao girar.
+const GEAR_BOX: float = 66.0
+const HINT_SIZE: float = 26.0
 const FLASH_TIME: float = 0.35
 
 const COLOR_VALUE_ON := Color(1.0, 0.85, 0.3)
@@ -21,19 +28,20 @@ const COLOR_VALUE_OFF := Color(0.9, 0.8, 0.6)
 const COLOR_TITLE_ON := Color(0.9, 0.8, 0.6)
 const COLOR_TITLE_OFF := Color(0.75, 0.62, 0.42)
 const COLOR_GEAR_ON := Color(1.0, 0.85, 0.3)
-const COLOR_GEAR_OFF := Color(0.55, 0.45, 0.3)
+const COLOR_GEAR_OFF := Color(0.5, 0.42, 0.3)
 const COLOR_ALERT := Color(1.0, 0.2, 0.2)
-const COLOR_HINT := Color(1.0, 0.85, 0.3)
 
 var _title: Label
 var _value: Label
 var _gear: TextureRect
-var _arrow_l: TextureRect
-var _arrow_r: TextureRect
+var _hint: TextureRect
+var _slot: Control
 var _style_on: StyleBoxFlat
 var _style_off: StyleBoxFlat
 var _value_color: Color = COLOR_VALUE_OFF
 var _flash_tween: Tween
+var _dragging: bool = false
+var _drag_angle: float = 0.0
 
 
 func setup(font: Font, title_text: String, width: float) -> void:
@@ -83,9 +91,9 @@ func set_selected(on: bool) -> void:
 	_value.add_theme_color_override("font_color", _value_color)
 	_title.add_theme_color_override("font_color", COLOR_TITLE_ON if on else COLOR_TITLE_OFF)
 	_gear.modulate = COLOR_GEAR_ON if on else COLOR_GEAR_OFF
-	# As setas só aparecem na engrenagem ativa: ensinam qual tecla age ali, no lugar da ação.
-	_arrow_l.visible = on
-	_arrow_r.visible = on
+	# A dica de tecla só aparece na engrenagem ativa: mostra qual seta age ali, no
+	# lugar exato da ação, sem poluir as outras células.
+	_hint.visible = on
 
 
 func spin(amount: float) -> void:
@@ -106,47 +114,87 @@ func flash(color: Color = COLOR_ALERT) -> void:
 	)
 
 
+## Só inicia o arrasto. O resto vem de _input, porque o gui_input do slot para de
+## chegar assim que o cursor sai dos 66 px da engrenagem — e girar em volta dela
+## significa justamente sair.
+func _on_gear_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton):
+		return
+	if event.button_index != MOUSE_BUTTON_LEFT or not event.pressed:
+		return
+	_dragging = true
+	_drag_angle = _angle_from_gear(event.global_position)
+	grabbed.emit()
+
+
+func _input(event: InputEvent) -> void:
+	if not _dragging:
+		return
+	# Consulta o estado real do botão em vez de esperar o evento de soltar: se o jogador
+	# solta fora da janela, ou durante a pausa da tela de ajuda, esse evento nunca chega
+	# e o arrasto ficaria grudado no cursor.
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		_dragging = false
+		return
+	if not (event is InputEventMouseMotion):
+		return
+
+	var now: float = _angle_from_gear(event.global_position)
+	# wrapf para o salto de +PI para -PI ao cruzar a esquerda não virar um giro inteiro.
+	var step: float = wrapf(now - _drag_angle, -PI, PI)
+	_drag_angle = now
+	dragged.emit(step)
+
+
+## Ângulo do cursor em volta do centro da engrenagem. Cresce no sentido horário,
+## porque em Godot 2D o eixo Y aponta para baixo.
+func _angle_from_gear(global_pos: Vector2) -> float:
+	return (global_pos - _gear.get_global_rect().get_center()).angle()
+
+
 func _build_gear_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
+	row.add_theme_constant_override("separation", 4)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 
-	_arrow_l = _make_arrow(ARROW_LEFT)
-	row.add_child(_arrow_l)
+	_hint = TextureRect.new()
+	_hint.texture = HINT_TEXTURE
+	_hint.custom_minimum_size = Vector2(HINT_SIZE, HINT_SIZE)
+	_hint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_hint.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_hint.modulate = COLOR_GEAR_ON
+	_hint.visible = false
+	row.add_child(_hint)
 
-	# Wrapper solto para a engrenagem girar sem empurrar o layout do HBox.
-	var slot := Control.new()
-	slot.custom_minimum_size = Vector2(GEAR_BOX, GEAR_BOX)
-	row.add_child(slot)
+	# Control solto: o HBox dimensiona o slot, e a engrenagem gira dentro dele sem
+	# empurrar o layout a cada frame.
+	_slot = Control.new()
+	_slot.custom_minimum_size = Vector2(GEAR_BOX, GEAR_BOX)
+	_slot.mouse_filter = Control.MOUSE_FILTER_STOP
+	_slot.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	_slot.gui_input.connect(_on_gear_gui_input)
+	row.add_child(_slot)
 
 	_gear = TextureRect.new()
 	_gear.texture = GEAR_TEXTURE
 	_gear.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_gear.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_gear.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_gear.modulate = COLOR_GEAR_OFF
-	slot.add_child(_gear)
-	# Depois do add_child: o slot é um Control simples, não um container, então ele não
-	# mexe mais nestes valores — mas entrar na árvore pode reescrevê-los.
+	_slot.add_child(_gear)
+	# Depois do add_child: entrar na árvore pode reescrever estes valores.
 	_gear.size = Vector2(GEAR_SIZE, GEAR_SIZE)
 	_gear.position = Vector2((GEAR_BOX - GEAR_SIZE) * 0.5, (GEAR_BOX - GEAR_SIZE) * 0.5)
 	# Literal de propósito: size ainda pode ser (0, 0) antes do primeiro passo de layout,
 	# e pivot_offset = size / 2 giraria a engrenagem em torno do canto.
 	_gear.pivot_offset = Vector2(GEAR_SIZE * 0.5, GEAR_SIZE * 0.5)
 
-	_arrow_r = _make_arrow(ARROW_RIGHT)
-	row.add_child(_arrow_r)
+	# Espaçador espelhando a dica, para a engrenagem ficar centrada na célula com ou
+	# sem ela visível.
+	var spacer := Control.new()
+	spacer.custom_minimum_size = Vector2(HINT_SIZE, 0.0)
+	row.add_child(spacer)
 	return row
-
-
-func _make_arrow(tex: Texture2D) -> TextureRect:
-	var arrow := TextureRect.new()
-	arrow.texture = tex
-	arrow.custom_minimum_size = Vector2(18, 18)
-	arrow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	arrow.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	arrow.modulate = COLOR_HINT
-	arrow.visible = false
-	return arrow
 
 
 func _build_styles() -> void:

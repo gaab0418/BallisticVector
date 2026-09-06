@@ -18,6 +18,7 @@ const ICON_SHIFT = preload("res://assets/sprites/keyboard_mouse/keyboard_shift.p
 const ICON_SPACE = preload("res://assets/sprites/keyboard_mouse/keyboard_space.png")
 const ICON_TAB = preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png")
 const ICON_ESCAPE = preload("res://assets/sprites/keyboard_mouse/keyboard_escape.png")
+const ICON_MOUSE = preload("res://assets/sprites/keyboard_mouse/mouse_left.png")
 
 const PANEL_SIZE := Vector2(1080, 620)
 const SCROLL_SIZE := Vector2(1020, 460)
@@ -108,9 +109,10 @@ func _build_keys_column() -> VBoxContainer:
 	col.add_child(_make_label("As teclas", 20, COLOR_SUBTITLE, false))
 
 	col.add_child(
-		_make_key_row(ICON_ARROWS_V, "Cima e Baixo\nescolhem qual engrenagem você vai girar")
+		_make_key_row(ICON_ARROWS_H, "Esquerda e Direita\nescolhem qual engrenagem você vai girar")
 	)
-	col.add_child(_make_key_row(ICON_ARROWS_H, "Esquerda e Direita\ngiram a engrenagem escolhida"))
+	col.add_child(_make_key_row(ICON_ARROWS_V, "Cima e Baixo\ngiram a engrenagem escolhida"))
+	col.add_child(_make_key_row(ICON_MOUSE, "Mouse\nsegure na engrenagem e gire em volta dela"))
 	col.add_child(
 		_make_key_row(ICON_SHIFT, "Shift + seta\ngira devagarinho, para acertar o número exato")
 	)
