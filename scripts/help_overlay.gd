@@ -42,18 +42,22 @@ func setup(font: Font, panel_style: StyleBoxFlat) -> void:
 
 	var backdrop := ColorRect.new()
 	backdrop.color = Color(0.05, 0.03, 0.0, 0.82)
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Segura o clique para não vazar nos botões da HUD que ficam atrás.
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(backdrop)
+	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	# Container que garante o alinhamento centralizado independente da resolução
+	var center := CenterContainer.new()
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	backdrop.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 	var window := PanelContainer.new()
 	panel_style.set_content_margin_all(24)
 	window.add_theme_stylebox_override("panel", panel_style)
 	window.custom_minimum_size = PANEL_SIZE
-	window.size = PANEL_SIZE
-	window.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	backdrop.add_child(window)
+	center.add_child(window)
 
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
@@ -90,9 +94,14 @@ func _input(event: InputEvent) -> void:
 func _build_columns() -> ScrollContainer:
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = SCROLL_SIZE
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 
 	var columns := HBoxContainer.new()
+	# Força o container de colunas a esticar até a borda direita do ScrollContainer
+	columns.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	columns.add_theme_constant_override("separation", 24)
 	scroll.add_child(columns)
 
