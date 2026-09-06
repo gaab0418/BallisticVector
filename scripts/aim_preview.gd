@@ -25,7 +25,15 @@ const BOUND_RIGHT: float = 1300.0
 const BOUND_LEFT: float = -50.0
 const BOUND_BOTTOM: float = 740.0
 
-const COLOR_FAN := Color(1.0, 0.35, 0.25, 0.3)
+# O leque varia de ~2.000 px² (Perfurante fraca) a ~334.000 px² (Enferrujada no
+# talo, com a armadura zerada) — mais de um terço da tela. Com alpha fixo, ou o
+# leque pequeno some ou o grande vira uma mancha que engole o cenário. O alpha então
+# é inversamente proporcional à área, o que mantém a "quantidade de tinta" na tela
+# aproximadamente constante: o leque grande fica sutil e o pequeno continua legível.
+const FAN_INK: float = 25000.0
+const FAN_ALPHA_MIN: float = 0.05
+const FAN_ALPHA_MAX: float = 0.26
+const COLOR_FAN := Color(1.0, 0.35, 0.25, 0.26)
 const COLOR_EDGE := Color(1.0, 0.5, 0.35, 0.65)
 const EDGE_WIDTH: float = 1.5
 
@@ -35,6 +43,7 @@ var _edge_high: Line2D
 var _aim_line: Line2D
 var _cannon: Node2D
 var _obstacles: Array = []
+var _fan_area: float = 0.0
 
 
 ## `aim_line` é a Line2D central que já existe na cena; o preview passa a mantê-la.
@@ -84,6 +93,10 @@ func update_preview(
 	_edge_low.points = _to_local(low)
 	_edge_high.points = _to_local(high)
 	_fan.polygon = _to_local(_envelope(origin, angle, speed, gravity, spread))
+	var alpha: float = FAN_ALPHA_MAX
+	if _fan_area > 0.0:
+		alpha = clampf(FAN_INK / _fan_area, FAN_ALPHA_MIN, FAN_ALPHA_MAX)
+	_fan.color = Color(COLOR_FAN.r, COLOR_FAN.g, COLOR_FAN.b, alpha)
 
 
 ## O envelope da família de trajetórias, montado COLUNA A COLUNA EM X.
@@ -125,6 +138,8 @@ func _envelope(
 
 	var upper: PackedVector2Array = PackedVector2Array()
 	var lower: PackedVector2Array = PackedVector2Array()
+	var column_width: float = (x_end - origin.x) / float(ENVELOPE_COLUMNS)
+	_fan_area = 0.0
 	# Um cursor por trajetória: as colunas avançam em x e os pontos também, então a
 	# varredura inteira é linear em vez de uma busca por coluna.
 	var cursors: Array = []
@@ -146,6 +161,7 @@ func _envelope(
 			break
 		upper.append(Vector2(x, top))
 		lower.append(Vector2(x, bottom))
+		_fan_area += (bottom - top) * column_width
 
 	if upper.size() < 2:
 		return PackedVector2Array()

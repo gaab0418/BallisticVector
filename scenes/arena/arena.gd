@@ -30,6 +30,7 @@ var help_overlay: CanvasLayer
 var help_btn: Button
 var menu_btn: Button
 var menu_panel: PanelContainer
+var cone_btn: Button
 var next_stage_btn: Button
 var return_btn: Button
 var quit_btn: Button
@@ -446,7 +447,7 @@ func _update_aim_line() -> void:
 		cannon.global_rotation,
 		ammo.impulse * current_power,
 		gravity_override,
-		_current_spread()
+		_current_spread() if Global.show_aim_cone else 0.0
 	)
 
 
@@ -703,7 +704,9 @@ func _create_icon_button(font: Font, styles: Array, icon: Texture2D, handler: Ca
 	return btn
 
 
-func _create_menu_button(font: Font, styles: Array, text: String, handler: Callable) -> Button:
+func _create_menu_button(
+	font: Font, styles: Array, text: String, handler: Callable, icon: Texture2D = null
+) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.add_theme_font_override("font", font)
@@ -712,13 +715,28 @@ func _create_menu_button(font: Font, styles: Array, text: String, handler: Calla
 	btn.add_theme_stylebox_override("hover", styles[1])
 	btn.add_theme_stylebox_override("pressed", styles[2])
 	btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	btn.icon = ICON_EXIT
-	btn.expand_icon = true
-	btn.add_theme_constant_override("icon_max_width", 24)
+	if icon != null:
+		btn.icon = icon
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 24)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.pressed.connect(handler)
 	return btn
+
+
+## A preferência vive no Global, junto de dinheiro e progresso, então atravessa as
+## trocas de cena e vale para a sessão inteira.
+func _on_toggle_cone() -> void:
+	Global.show_aim_cone = not Global.show_aim_cone
+	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	_update_cone_btn()
+	_update_aim_line()
+
+
+func _update_cone_btn() -> void:
+	if cone_btn:
+		cone_btn.text = "Cone: Ligado" if Global.show_aim_cone else "Cone: Desligado"
 
 
 func _on_toggle_menu() -> void:
@@ -782,10 +800,18 @@ func _setup_ui() -> void:
 	menu_vbox.add_theme_constant_override("separation", 10)
 	menu_panel.add_child(menu_vbox)
 
-	return_btn = _create_menu_button(font, btn_styles, "Voltar ao Mapa", _on_return_to_map)
+	cone_btn = _create_menu_button(font, btn_styles, "", _on_toggle_cone)
+	_update_cone_btn()
+	menu_vbox.add_child(cone_btn)
+
+	menu_vbox.add_child(HSeparator.new())
+
+	return_btn = _create_menu_button(
+		font, btn_styles, "Voltar ao Mapa", _on_return_to_map, ICON_EXIT
+	)
 	menu_vbox.add_child(return_btn)
 
-	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit)
+	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit, ICON_EXIT)
 	menu_vbox.add_child(quit_btn)
 
 	# Painel Inferior (Munição e Vida)
