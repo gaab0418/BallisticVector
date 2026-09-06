@@ -9,9 +9,6 @@ var player_armor: float = 100.0
 var max_player_armor: float = 100.0
 var current_base_id: String = "Base_A"
 var current_stage: int = 0
-# Preferência de exibição do leque de incerteza da mira. Vive aqui, junto do resto do
-# estado de sessão, para sobreviver às trocas de cena entre arena e mapa de guerra.
-var show_aim_cone: bool = true
 
 # ── Progressão das bases ─────────────────────────────────────────────
 var bases: Dictionary = {

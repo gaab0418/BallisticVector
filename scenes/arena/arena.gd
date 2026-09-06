@@ -30,7 +30,6 @@ var help_overlay: CanvasLayer
 var help_btn: Button
 var menu_btn: Button
 var menu_panel: PanelContainer
-var cone_btn: Button
 var next_stage_btn: Button
 var return_btn: Button
 var quit_btn: Button
@@ -61,9 +60,9 @@ const DRAG_TURNS_FULL_RANGE: float = 2.0
 # Boca do cano, em coordenadas locais do Cannon. Era literal em dois lugares.
 const BARREL_TIP := Vector2(50, 0)
 # Era 0.12, com o resto do erro vindo de um tremor por frame no projétil. O tremor saiu
-# (ver projectile.gd) e o fator subiu para concentrar toda a imprecisão no ângulo: assim
-# o leque desenhado é o envelope exato dos tiros possíveis, e não uma aproximação.
-# Calibrado para reproduzir a dispersão total que o jogo tinha antes.
+# (ver projectile.gd) e o fator subiu para concentrar toda a imprecisão no ângulo, que é
+# a única fonte previsível o bastante para virar o "± N m" da HUD. Calibrado para
+# reproduzir a dispersão total que o jogo tinha antes.
 const IMPRECISION_FACTOR: float = 0.14
 const ARMOR_PENALTY_MAX: float = 0.15
 
@@ -428,9 +427,8 @@ func _on_help_closed() -> void:
 # =============================================================================
 #  LINHA DE MIRA
 # =============================================================================
-## Desvio máximo para cada lado, em radianos. É a MESMA conta que _fire_projectile usa —
-## é isso que faz o leque desenhado ser o envelope real dos tiros possíveis, e não uma
-## ilustração aproximada.
+## Desvio máximo para cada lado, em radianos. Fonte única: o disparo real e o "± N m"
+## exibido na HUD saem daqui, então o número mostrado é o erro que de fato acontece.
 func _current_spread() -> float:
 	var ammo = _get_current_ammo()
 	var armor_ratio: float = Global.player_armor / Global.max_player_armor
@@ -446,8 +444,7 @@ func _update_aim_line() -> void:
 		cannon.to_global(BARREL_TIP),
 		cannon.global_rotation,
 		ammo.impulse * current_power,
-		gravity_override,
-		_current_spread() if Global.show_aim_cone else 0.0
+		gravity_override
 	)
 
 
@@ -470,8 +467,8 @@ func _fire_projectile() -> void:
 
 	projectile.position = cannon.to_global(BARREL_TIP)
 
-	# O desvio sai do mesmo _current_spread() que desenha o leque, então o tiro nunca cai
-	# fora da faixa que o jogador viu na tela.
+	# Mesmo _current_spread() que alimenta o "± N m" da HUD: o erro possível do tiro é o
+	# erro que o jogador leu na tela antes de atirar.
 	var angle_deviation = randf_range(-1.0, 1.0) * _current_spread()
 	var fire_direction = Vector2.RIGHT.rotated(cannon.global_rotation + angle_deviation)
 
@@ -517,8 +514,8 @@ func on_player_hit(dmg: int) -> void:
 	Global.player_armor -= dmg
 	Global.player_armor = max(Global.player_armor, 0.0)
 	_update_armor_hud()
-	# A armadura entra em _current_spread(): levar dano alarga o leque na hora, em vez de
-	# piorar a mira em silêncio como acontecia antes.
+	# A armadura entra em _current_spread(): levar dano aumenta o "± N m" na hora, em vez
+	# de piorar a mira em silêncio como acontecia antes.
 	_refresh_parabola_hud()
 	_update_aim_line()
 	_flash_player()
@@ -725,20 +722,6 @@ func _create_menu_button(
 	return btn
 
 
-## A preferência vive no Global, junto de dinheiro e progresso, então atravessa as
-## trocas de cena e vale para a sessão inteira.
-func _on_toggle_cone() -> void:
-	Global.show_aim_cone = not Global.show_aim_cone
-	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
-	_update_cone_btn()
-	_update_aim_line()
-
-
-func _update_cone_btn() -> void:
-	if cone_btn:
-		cone_btn.text = "Cone: Ligado" if Global.show_aim_cone else "Cone: Desligado"
-
-
 func _on_toggle_menu() -> void:
 	if menu_panel == null:
 		return
@@ -799,12 +782,6 @@ func _setup_ui() -> void:
 	var menu_vbox = VBoxContainer.new()
 	menu_vbox.add_theme_constant_override("separation", 10)
 	menu_panel.add_child(menu_vbox)
-
-	cone_btn = _create_menu_button(font, btn_styles, "", _on_toggle_cone)
-	_update_cone_btn()
-	menu_vbox.add_child(cone_btn)
-
-	menu_vbox.add_child(HSeparator.new())
 
 	return_btn = _create_menu_button(
 		font, btn_styles, "Voltar ao Mapa", _on_return_to_map, ICON_EXIT
