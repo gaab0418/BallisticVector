@@ -23,9 +23,9 @@ const BOUND_RIGHT: float = 1300.0
 const BOUND_LEFT: float = -50.0
 const BOUND_BOTTOM: float = 740.0
 
-const COLOR_FAN := Color(1.0, 0.35, 0.25, 0.13)
-const COLOR_EDGE := Color(1.0, 0.45, 0.3, 0.35)
-const EDGE_WIDTH: float = 1.0
+const COLOR_FAN := Color(1.0, 0.35, 0.25, 0.3)
+const COLOR_EDGE := Color(1.0, 0.5, 0.35, 0.65)
+const EDGE_WIDTH: float = 1.5
 
 var _fan: Polygon2D
 var _edge_low: Line2D

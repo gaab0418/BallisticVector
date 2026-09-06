@@ -21,6 +21,10 @@ const GEAR_SIZE: float = 46.0
 # seriam cortados ao girar.
 const GEAR_BOX: float = 66.0
 const HINT_SIZE: float = 26.0
+# Raio, a partir do centro da engrenagem, em que o arrasto circular para de responder.
+# A engrenagem tem 46 px (raio 23), então ainda sobra a borda dela inteira e todo o lado
+# de fora para girar — que é onde o gesto é preciso de qualquer forma.
+const DRAG_DEAD_ZONE: float = 16.0
 const FLASH_TIME: float = 0.35
 
 const COLOR_VALUE_ON := Color(1.0, 0.85, 0.3)
@@ -123,7 +127,8 @@ func _on_gear_gui_input(event: InputEvent) -> void:
 	if event.button_index != MOUSE_BUTTON_LEFT or not event.pressed:
 		return
 	_dragging = true
-	_drag_angle = _angle_from_gear(event.global_position)
+	# Cresce no sentido horário, porque em Godot 2D o eixo Y aponta para baixo.
+	_drag_angle = (event.global_position - _gear.get_global_rect().get_center()).angle()
 	grabbed.emit()
 
 
@@ -139,17 +144,22 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventMouseMotion):
 		return
 
-	var now: float = _angle_from_gear(event.global_position)
+	var offset: Vector2 = event.global_position - _gear.get_global_rect().get_center()
+	var now: float = offset.angle()
 	# wrapf para o salto de +PI para -PI ao cruzar a esquerda não virar um giro inteiro.
 	var step: float = wrapf(now - _drag_angle, -PI, PI)
+	# O ângulo de referência acompanha o cursor mesmo dentro da zona morta. Se não
+	# acompanhasse, sair da zona produziria de uma vez todo o giro acumulado lá dentro.
 	_drag_angle = now
+
+	# Perto do centro o ângulo é instável: a poucos pixels dele, mover o mouse um pixel
+	# vira dezenas de graus, e a engrenagem dispara sozinha. Dentro da zona morta o
+	# arrasto continua ativo, mas nada gira até o cursor voltar para uma distância em que
+	# a direção signifique alguma coisa.
+	if offset.length() < DRAG_DEAD_ZONE:
+		return
+
 	dragged.emit(step)
-
-
-## Ângulo do cursor em volta do centro da engrenagem. Cresce no sentido horário,
-## porque em Godot 2D o eixo Y aponta para baixo.
-func _angle_from_gear(global_pos: Vector2) -> float:
-	return (global_pos - _gear.get_global_rect().get_center()).angle()
 
 
 func _build_gear_row() -> HBoxContainer:
