@@ -131,7 +131,6 @@ func _shoot_at_player() -> void:
 	projectile.position = global_position
 	projectile.velocity = Vector2(vx, vy)
 	projectile.gravity = projectile_gravity
-	projectile.precision = -0.3
 	projectile.bullet_color = Color(1.0, 0.3, 0.1, 1.0)
 	projectile.damage = 8
 	projectile.is_enemy_projectile = true

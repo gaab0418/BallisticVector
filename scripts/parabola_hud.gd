@@ -33,6 +33,7 @@ const COLOR_DERIVED_TITLE := Color(0.75, 0.62, 0.42)
 const COLOR_AMBER := Color(1.0, 0.85, 0.3)
 
 var _gears: Array = []
+var _range_title: Label
 var _range_value: Label
 var _height_value: Label
 var _font: Font
@@ -60,15 +61,19 @@ func setup(font: Font, panel_style: StyleBoxFlat) -> void:
 
 	row.add_child(VSeparator.new())
 
-	_range_value = _add_derived(row, "Alcance")
-	_height_value = _add_derived(row, "Altura máx.")
+	var range_pair: Array = _add_derived(row, "Alcance")
+	_range_title = range_pair[0]
+	_range_value = range_pair[1]
+	_height_value = _add_derived(row, "Altura máx.")[1]
 
 	set_selected(GEAR_ANGULO)
 
 
 ## angle_deg é a elevação (positiva com o cano apontado para cima), v0_px e gravity_px
 ## estão nas unidades cruas do motor e power é a fração 0..1 usada no título da Força.
-func set_state(angle_deg: float, v0_px: float, gravity_px: float, power: float) -> void:
+func set_state(
+	angle_deg: float, v0_px: float, gravity_px: float, power: float, spread_rad: float
+) -> void:
 	if _gears.size() < 3:
 		return
 	_gears[GEAR_ANGULO].set_value_text("%d°" % roundi(angle_deg))
@@ -76,6 +81,7 @@ func set_state(angle_deg: float, v0_px: float, gravity_px: float, power: float) 
 	_gears[GEAR_FORCA].set_title_text("Força · %d%%" % roundi(power * 100.0))
 	_gears[GEAR_GRAVIDADE].set_value_text("%.1f m/s²" % (gravity_px / PX_PER_METER))
 	_update_derived(angle_deg, v0_px, gravity_px)
+	_update_spread(angle_deg, v0_px, gravity_px, spread_rad)
 
 
 func set_selected(index: int) -> void:
@@ -124,12 +130,45 @@ func _update_derived(angle_deg: float, v0_px: float, g_px: float) -> void:
 	_set_derived_text(_height_value, "%d m" % roundi(height_px / PX_PER_METER), COLOR_DERIVED)
 
 
+## Alcance analítico para uma elevação qualquer. Fora de (0, 90) o tiro não descreve o
+## arco que a fórmula descreve, e o alcance vira zero para efeito de faixa.
+func _range_for(angle_deg: float, v0_px: float, g_px: float) -> float:
+	if angle_deg <= 0.0 or angle_deg >= 90.0 or g_px <= 0.0:
+		return 0.0
+	var rad: float = deg_to_rad(angle_deg)
+	return v0_px * v0_px * sin(2.0 * rad) / g_px
+
+
+## Escreve a incerteza no título do Alcance. O desvio é assimétrico — a 45° qualquer
+## erro de ângulo só encurta o tiro —, então mostramos o maior dos dois lados, que é o
+## que o jogador precisa saber para não errar o alvo.
+func _update_spread(angle_deg: float, v0_px: float, g_px: float, spread_rad: float) -> void:
+	if _range_title == null:
+		return
+	var spread_deg: float = rad_to_deg(spread_rad)
+	if spread_deg <= 0.01 or angle_deg <= 0.0:
+		_range_title.text = "Alcance"
+		return
+
+	var center: float = _range_for(angle_deg, v0_px, g_px)
+	var low: float = _range_for(angle_deg - spread_deg, v0_px, g_px)
+	var high: float = _range_for(angle_deg + spread_deg, v0_px, g_px)
+	# 45° é o máximo da função: se estiver dentro do intervalo, é lá que o alcance topa.
+	var best: float = center
+	if angle_deg - spread_deg < 45.0 and angle_deg + spread_deg > 45.0:
+		best = _range_for(45.0, v0_px, g_px)
+	var worst: float = min(low, high)
+	var delta_px: float = max(abs(best - center), abs(center - worst))
+	_range_title.text = "Alcance ±%d m" % roundi(delta_px / PX_PER_METER)
+
+
 func _set_derived_text(label: Label, text_value: String, color: Color) -> void:
 	label.text = text_value
 	label.add_theme_color_override("font_color", color)
 
 
-func _add_derived(row: HBoxContainer, title_text: String) -> Label:
+## Devolve [titulo, valor] — o título do Alcance é reescrito com a dispersão.
+func _add_derived(row: HBoxContainer, title_text: String) -> Array:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 2)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -151,4 +190,4 @@ func _add_derived(row: HBoxContainer, title_text: String) -> Label:
 	value.add_theme_color_override("font_color", COLOR_DERIVED)
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(value)
-	return value
+	return [title, value]

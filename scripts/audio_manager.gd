@@ -6,8 +6,14 @@ var bgm_player: AudioStreamPlayer
 var sfx_player: AudioStreamPlayer
 var current_bgm_path: String = ""
 
+# Volume com que o jogo abre, aplicado no BUS — que é de onde os sliders do menu leem e
+# para onde eles escrevem. As três variáveis abaixo NÃO entram nesta conta: elas são o
+# mix relativo entre música e efeitos, e multiplicá-las por 0.5 também atenuaria duas
+# vezes, deixando a trilha quase inaudível.
+const START_VOLUME: float = 0.5
+
 var master_volume: float = 1.0
-var bgm_volume: float = 0.5  # default
+var bgm_volume: float = 0.5  # a trilha entra mais baixa que os efeitos, de propósito
 var sfx_volume: float = 1.0
 
 
@@ -22,6 +28,11 @@ func _ready() -> void:
 	# O audio nunca pausa junto com o jogo: a tela de ajuda pausa a arvore inteira, e sem
 	# isto a BGM cortaria e os cliques do proprio overlay ficariam mudos.
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+	# O projeto não tem bus layout próprio, então só existe o Master; o laço cobre
+	# qualquer bus que venha a ser criado depois.
+	for bus in range(AudioServer.bus_count):
+		AudioServer.set_bus_volume_db(bus, linear_to_db(START_VOLUME))
 
 	bgm_player = AudioStreamPlayer.new()
 	bgm_player.bus = "Master"

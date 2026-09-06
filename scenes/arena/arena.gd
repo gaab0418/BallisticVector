@@ -25,6 +25,7 @@ var ammo_name_label: Label
 var armor_bar: ProgressBar
 var stage_label: Label
 var parabola_hud: Control
+var aim_preview: Node2D
 var help_overlay: CanvasLayer
 var help_btn: Button
 var menu_btn: Button
@@ -55,6 +56,16 @@ const GEAR_SPIN_SPEED: float = 3.0  # rad/s de giro visual da engrenagem
 # rápido o bastante para não cansar a mão.
 const DRAG_TURNS_FULL_RANGE: float = 2.0
 
+# === Precisão do disparo ===
+# Boca do cano, em coordenadas locais do Cannon. Era literal em dois lugares.
+const BARREL_TIP := Vector2(50, 0)
+# Era 0.12, com o resto do erro vindo de um tremor por frame no projétil. O tremor saiu
+# (ver projectile.gd) e o fator subiu para concentrar toda a imprecisão no ângulo, que é
+# a única fonte previsível o bastante para virar o "± N m" da HUD. Calibrado para
+# reproduzir a dispersão total que o jogo tinha antes.
+const IMPRECISION_FACTOR: float = 0.14
+const ARMOR_PENALTY_MAX: float = 0.15
+
 # === Sistema de Munição (Resources) ===
 var ammo_types: Array[AmmoData] = []
 var current_ammo_index: int = 0
@@ -82,6 +93,7 @@ var _obstacle_polygons_cache: Array = []
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
 const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
+const AimPreviewScript = preload("res://scripts/aim_preview.gd")
 const AirplaneScript = preload("res://scenes/arena/airplane_enemy.gd")
 
 # === Configuração de inimigos por fase ===
@@ -107,6 +119,11 @@ func _ready() -> void:
 	# Carregar munições dos Resources
 	_load_ammo_types()
 	gravity_override = _get_current_ammo().gravity
+
+	aim_preview = AimPreviewScript.new()
+	cannon.add_child(aim_preview)
+	aim_preview.setup(cannon, aim_line)
+	aim_preview.set_obstacles(_obstacle_polygons_cache)
 
 	_setup_ui()
 	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
@@ -410,48 +427,25 @@ func _on_help_closed() -> void:
 # =============================================================================
 #  LINHA DE MIRA
 # =============================================================================
-func _update_aim_line() -> void:
+## Desvio máximo para cada lado, em radianos. Fonte única: o disparo real e o "± N m"
+## exibido na HUD saem daqui, então o número mostrado é o erro que de fato acontece.
+func _current_spread() -> float:
 	var ammo = _get_current_ammo()
-	var points: PackedVector2Array = PackedVector2Array()
+	var armor_ratio: float = Global.player_armor / Global.max_player_armor
+	var armor_penalty: float = (1.0 - armor_ratio) * ARMOR_PENALTY_MAX
+	return (1.0 - ammo.precision) * IMPRECISION_FACTOR + armor_penalty
 
-	# Ponto de partida: ponta do cano em global
-	var barrel_tip_global: Vector2 = cannon.to_global(Vector2(50, 0))
 
-	# Velocidade inicial em global (mesma do projétil real)
-	var fire_direction: Vector2 = Vector2.RIGHT.rotated(cannon.global_rotation)
-	var sim_vel: Vector2 = fire_direction * (ammo.impulse * current_power)
-	var sim_pos: Vector2 = barrel_tip_global
-
-	var dt: float = 0.02  # Passo de simulação
-	var steps: int = 200  # Passos suficientes para cobrir toda a tela
-	var g: float = gravity_override
-
-	# Primeiro ponto (ponta do cano em local)
-	points.append(cannon.to_local(sim_pos))
-
-	for i in range(steps):
-		# Gravidade age no Y global (igual ao projétil)
-		sim_vel.y += g * dt
-		sim_pos += sim_vel * dt
-
-		# Parar se saiu lateralmente ou por baixo da tela
-		if sim_pos.x > 1300 or sim_pos.x < -50 or sim_pos.y > 740:
-			break
-
-		# Parar se entrou em um obstáculo
-		var hit_obstacle = false
-		for poly in _obstacle_polygons_cache:
-			if Geometry2D.is_point_in_polygon(sim_pos, poly):
-				hit_obstacle = true
-				break
-		if hit_obstacle:
-			points.append(cannon.to_local(sim_pos))
-			break
-
-		# Converter ponto global para local do canhão (para a Line2D)
-		points.append(cannon.to_local(sim_pos))
-
-	aim_line.points = points
+func _update_aim_line() -> void:
+	if aim_preview == null:
+		return
+	var ammo = _get_current_ammo()
+	aim_preview.update_preview(
+		cannon.to_global(BARREL_TIP),
+		cannon.global_rotation,
+		ammo.impulse * current_power,
+		gravity_override
+	)
 
 
 # =============================================================================
@@ -471,23 +465,16 @@ func _fire_projectile() -> void:
 	# Criar o projétil usando o Script carregado
 	var projectile = ProjectileScript.new()
 
-	# Posição global da ponta do cano
-	var barrel_tip_local = Vector2(50, 0)
-	var barrel_tip_global = cannon.to_global(barrel_tip_local)
-	projectile.position = barrel_tip_global
+	projectile.position = cannon.to_global(BARREL_TIP)
 
-	# Penalidade de precisão baseada na armadura
-	var armor_penalty = (1.0 - Global.player_armor / Global.max_player_armor) * 0.15
-
-	# Direção do disparo (ângulo global do canhão + desvio de precisão)
-	var total_imprecision = (1.0 - ammo.precision) * 0.12 + armor_penalty
-	var angle_deviation = randf_range(-1.0, 1.0) * total_imprecision
+	# Mesmo _current_spread() que alimenta o "± N m" da HUD: o erro possível do tiro é o
+	# erro que o jogador leu na tela antes de atirar.
+	var angle_deviation = randf_range(-1.0, 1.0) * _current_spread()
 	var fire_direction = Vector2.RIGHT.rotated(cannon.global_rotation + angle_deviation)
 
 	# Configurar o projétil com dados do Resource
 	projectile.velocity = fire_direction * (ammo.impulse * current_power)
 	projectile.gravity = gravity_override
-	projectile.precision = ammo.precision
 	projectile.bullet_color = ammo.color
 	projectile.damage = ammo.damage
 	projectile.enemy_nodes = active_enemies.duplicate()
@@ -527,6 +514,10 @@ func on_player_hit(dmg: int) -> void:
 	Global.player_armor -= dmg
 	Global.player_armor = max(Global.player_armor, 0.0)
 	_update_armor_hud()
+	# A armadura entra em _current_spread(): levar dano aumenta o "± N m" na hora, em vez
+	# de piorar a mira em silêncio como acontecia antes.
+	_refresh_parabola_hud()
+	_update_aim_line()
 	_flash_player()
 
 	# Verificar game over
@@ -650,7 +641,11 @@ func _refresh_parabola_hud() -> void:
 		return
 	var ammo = _get_current_ammo()
 	parabola_hud.set_state(
-		-rad_to_deg(cannon.rotation), ammo.impulse * current_power, gravity_override, current_power
+		-rad_to_deg(cannon.rotation),
+		ammo.impulse * current_power,
+		gravity_override,
+		current_power,
+		_current_spread()
 	)
 
 
@@ -706,7 +701,9 @@ func _create_icon_button(font: Font, styles: Array, icon: Texture2D, handler: Ca
 	return btn
 
 
-func _create_menu_button(font: Font, styles: Array, text: String, handler: Callable) -> Button:
+func _create_menu_button(
+	font: Font, styles: Array, text: String, handler: Callable, icon: Texture2D = null
+) -> Button:
 	var btn := Button.new()
 	btn.text = text
 	btn.add_theme_font_override("font", font)
@@ -715,9 +712,10 @@ func _create_menu_button(font: Font, styles: Array, text: String, handler: Calla
 	btn.add_theme_stylebox_override("hover", styles[1])
 	btn.add_theme_stylebox_override("pressed", styles[2])
 	btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	btn.icon = ICON_EXIT
-	btn.expand_icon = true
-	btn.add_theme_constant_override("icon_max_width", 24)
+	if icon != null:
+		btn.icon = icon
+		btn.expand_icon = true
+		btn.add_theme_constant_override("icon_max_width", 24)
 	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	btn.pressed.connect(handler)
@@ -785,10 +783,12 @@ func _setup_ui() -> void:
 	menu_vbox.add_theme_constant_override("separation", 10)
 	menu_panel.add_child(menu_vbox)
 
-	return_btn = _create_menu_button(font, btn_styles, "Voltar ao Mapa", _on_return_to_map)
+	return_btn = _create_menu_button(
+		font, btn_styles, "Voltar ao Mapa", _on_return_to_map, ICON_EXIT
+	)
 	menu_vbox.add_child(return_btn)
 
-	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit)
+	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit, ICON_EXIT)
 	menu_vbox.add_child(quit_btn)
 
 	# Painel Inferior (Munição e Vida)

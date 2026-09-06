@@ -198,12 +198,36 @@ func _build_physics_column() -> VBoxContainer:
 		)
 	)
 
+	col.add_child(_make_label("Por que a bala erra a linha", 20, COLOR_SUBTITLE, false))
 	col.add_child(
 		_make_paragraph(
 			(
-				"A munição Enferrujada é velha e treme um pouquinho, então a bala foge um "
-				+ "pouco da linha desenhada. A Perfurante é certeira: use ela quando quiser "
-				+ "conferir se as contas batem."
+				"Nenhum canhão é perfeito. A linha mostra a pontaria, mas a bala sai sempre "
+				+ "um pouquinho torta — e o quanto ela entorta depende da munição."
+			),
+			19,
+			COLOR_TEXT
+		)
+	)
+	col.add_child(
+		_make_paragraph(
+			(
+				"A Enferrujada é velha e entorta bastante: atirar com ela é meio chute. A "
+				+ "Perfurante é certeira e vai quase exatamente onde a linha aponta. É por "
+				+ "isso que ela custa mais caro na loja.\n"
+				+ "Se o seu tanque levar dano, a pontaria piora ainda mais: canhão amassado "
+				+ "mira pior."
+			),
+			19,
+			COLOR_TEXT
+		)
+	)
+	col.add_child(
+		_make_paragraph(
+			(
+				"O ± ao lado de Alcance diz quantos metros o tiro pode errar. Quanto menor "
+				+ "esse número, mais perto a bala cai do que a conta prometeu — e ele cresce "
+				+ "quando você troca para uma munição pior ou quando o tanque leva dano."
 			),
 			19,
 			COLOR_DIM
