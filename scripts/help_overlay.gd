@@ -198,12 +198,36 @@ func _build_physics_column() -> VBoxContainer:
 		)
 	)
 
+	col.add_child(_make_label("A faixa em volta da linha", 20, COLOR_SUBTITLE, false))
 	col.add_child(
 		_make_paragraph(
 			(
-				"A munição Enferrujada é velha e treme um pouquinho, então a bala foge um "
-				+ "pouco da linha desenhada. A Perfurante é certeira: use ela quando quiser "
-				+ "conferir se as contas batem."
+				"Nenhum canhão é perfeito. Por isso, além da linha, aparece uma faixa clara "
+				+ "em volta dela: é ali dentro que a bala pode passar. A linha é a pontaria, "
+				+ "a faixa é a dúvida."
+			),
+			19,
+			COLOR_TEXT
+		)
+	)
+	col.add_child(
+		_make_paragraph(
+			(
+				"A munição Enferrujada é velha e abre bem essa faixa — atirar com ela é meio "
+				+ "chute. A Perfurante é certeira e a faixa quase some. É por isso que ela "
+				+ "custa mais caro na loja.\n"
+				+ "Se o seu tanque levar dano, a faixa abre mais ainda: canhão amassado mira "
+				+ "pior. Dá para ver isso acontecendo na tela."
+			),
+			19,
+			COLOR_TEXT
+		)
+	)
+	col.add_child(
+		_make_paragraph(
+			(
+				"O ± ao lado de Alcance diz quantos metros o tiro pode errar. Quanto menor "
+				+ "esse número, mais perto a bala cai do que a conta prometeu."
 			),
 			19,
 			COLOR_DIM

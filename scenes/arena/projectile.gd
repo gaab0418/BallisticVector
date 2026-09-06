@@ -3,7 +3,6 @@ extends Node2D
 # === Propriedades configuradas pelo arena.gd ao instanciar ===
 var velocity: Vector2 = Vector2.ZERO
 var gravity: float = 200.0
-var precision: float = -0.75  # 0.0 = máximo desvio, 1.0 = sem desvio
 var bullet_color: Color = Color(1.0, 0.85, 0.2, 1.0)  # Cor definida pelo AmmoData
 var damage: int = 1  # Dano causado ao acertar
 
@@ -47,12 +46,6 @@ func _process(delta: float) -> void:
 
 	# === Mover o projétil ===
 	position += velocity * delta
-
-	# === Aplicar desvio aleatório na POSIÇÃO (tremor/wobble) ===
-	# Quanto menor a precisão (pode ser negativo), maior o wobble
-	var wobble_strength: float = (1.0 - precision) * 40.0
-	position.x += randf_range(-wobble_strength, wobble_strength) * delta
-	position.y += randf_range(-wobble_strength, wobble_strength) * delta
 
 	# === Rotacionar o projétil na direção do movimento ===
 	rotation = velocity.angle()
