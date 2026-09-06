@@ -26,15 +26,25 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 
 ## ⌨️ Controles
 
-Durante o combate na **Arena**, utilize os seguintes comandos do teclado:
+Durante o combate na **Arena**, o topo central da tela mostra as variáveis da parábola —
+ângulo, força e gravidade — cada uma com a sua **engrenagem**. O jogador escolhe uma
+engrenagem e a gira para alterar aquele valor, vendo a linha de mira responder na hora.
 
 | Tecla / Ação | Função |
 | :--- | :--- |
-| **Seta Esquerda / Seta Direita** | Rotaciona o canhão para ajustar o ângulo do disparo. |
-| **Shift (Segurar)** | Reduz a velocidade de rotação do canhão para ajuste de precisão (5x mais lento). |
-| **Seta Cima / Seta Baixo** | Aumenta ou diminui a força (potência) de impulso do disparo. |
+| **Seta Esquerda / Seta Direita** | Escolhe qual engrenagem está selecionada, seguindo a ordem em que elas aparecem na HUD. |
+| **Seta Cima / Seta Baixo** | Gira a engrenagem selecionada, aumentando ou diminuindo o seu valor. Com o ângulo selecionado — o padrão — a seta para cima levanta o canhão. |
+| **Mouse (segurar e girar)** | Agarra a engrenagem e a gira como uma manivela: o valor acompanha o movimento circular do cursor em volta dela. Duas voltas percorrem a faixa inteira. |
+| **Shift (Segurar)** | Gira a engrenagem 5x mais devagar, para acertar o número exato. |
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
-| **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). |
+| **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Cada munição traz a sua própria gravidade. |
+| **Tecla H** ou botão **?** | Pausa o jogo e abre a tela de ajuda, com as teclas e a explicação da parábola. |
+| **Esc** | Fecha a tela de ajuda. |
+
+Ao lado das três engrenagens, a HUD calcula em tempo real o **alcance** e a **altura máxima**
+do tiro pelas fórmulas do lançamento oblíquo (`R = v²·sen(2θ)/g` e `H = v²·sen²θ/(2g)`),
+para que a criança veja a matemática reagir ao que ela está fazendo. Com o canhão apontado
+para baixo os dois viram um traço, porque a fórmula só vale com o tiro subindo.
 
 ---
 
