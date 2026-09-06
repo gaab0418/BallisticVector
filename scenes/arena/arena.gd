@@ -4,7 +4,6 @@ extends Node2D
 const ICON_EXIT := preload("res://assets/sprites/icons/exit.png")
 const ICON_GEAR := preload("res://assets/sprites/icons/gear_white.png")
 
-
 # =============================================================================
 #  Arena de Combate — arena.gd
 #  Gerencia o combate por turnos: canhão do jogador, inimigos dinâmicos,
@@ -732,7 +731,6 @@ func _on_toggle_menu() -> void:
 	menu_panel.visible = not menu_panel.visible
 
 
-
 func _create_steampunk_panel() -> StyleBoxFlat:
 	var style = StyleBoxFlat.new()
 	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
@@ -748,7 +746,6 @@ func _create_steampunk_panel() -> StyleBoxFlat:
 	style.shadow_color = Color(0, 0, 0, 0.5)
 	style.shadow_size = 4
 	return style
-
 
 
 func _setup_ui() -> void:
