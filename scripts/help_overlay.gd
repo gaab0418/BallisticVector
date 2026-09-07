@@ -9,9 +9,6 @@ extends CanvasLayer
 
 signal closed
 
-const BTN_TEXTURE = preload(
-	"res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png"
-)
 const ICON_ARROWS_V = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png")
 const ICON_ARROWS_H = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png")
 const ICON_SHIFT = preload("res://assets/sprites/keyboard_mouse/keyboard_shift.png")
@@ -20,28 +17,26 @@ const ICON_TAB = preload("res://assets/sprites/keyboard_mouse/keyboard_tab.png")
 const ICON_ESCAPE = preload("res://assets/sprites/keyboard_mouse/keyboard_escape.png")
 const ICON_MOUSE = preload("res://assets/sprites/keyboard_mouse/mouse_left.png")
 
-const PANEL_SIZE := Vector2(1080, 620)
-const SCROLL_SIZE := Vector2(1020, 460)
+const PANEL_SIZE := Vector2(900, 540)
+const SCROLL_SIZE := Vector2(840, 400)
 const KEYS_WIDTH: float = 340.0
 
-const COLOR_TITLE := Color(1.0, 0.85, 0.3)
-const COLOR_TEXT := Color(0.9, 0.8, 0.6)
-const COLOR_DIM := Color(0.7, 0.6, 0.42)
-const COLOR_SUBTITLE := Color(0.85, 0.68, 0.35)
+const COLOR_TITLE := UiTokens.AMBER
+const COLOR_TEXT := UiTokens.TEXT
+const COLOR_DIM := UiTokens.TEXT_MUTED
+const COLOR_SUBTITLE := UiTokens.BORDER_HOVER
 
-var _font: Font
 var _close_btn: Button
 
 
-func setup(font: Font, panel_style: StyleBoxFlat) -> void:
-	_font = font
+func setup(panel_style: StyleBoxFlat) -> void:
 	layer = 10
 	# Sem isto o overlay congelaria junto com o jogo e não daria nem para fechá-lo.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 
 	var backdrop := ColorRect.new()
-	backdrop.color = Color(0.05, 0.03, 0.0, 0.82)
+	backdrop.color = UiTokens.BACKDROP
 	# Segura o clique para não vazar nos botões da HUD que ficam atrás.
 	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(backdrop)
@@ -62,7 +57,9 @@ func setup(font: Font, panel_style: StyleBoxFlat) -> void:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 12)
 	window.add_child(box)
-	box.add_child(_make_label("Como jogar e o que é a parábola", 32, COLOR_TITLE, true))
+	box.add_child(
+		_make_label("Como jogar e o que é a parábola", UiTokens.FONT_XL, COLOR_TITLE, true)
+	)
 	box.add_child(_build_columns())
 	box.add_child(_build_close_button())
 
@@ -115,7 +112,7 @@ func _build_keys_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	col.custom_minimum_size = Vector2(KEYS_WIDTH, 0.0)
-	col.add_child(_make_label("As teclas", 20, COLOR_SUBTITLE, false))
+	col.add_child(_make_label("As teclas", UiTokens.FONT_LG, COLOR_SUBTITLE, false))
 
 	col.add_child(
 		_make_key_row(ICON_ARROWS_H, "Esquerda e Direita\nescolhem qual engrenagem você vai girar")
@@ -135,7 +132,7 @@ func _build_keys_column() -> VBoxContainer:
 		+ "Alcance = força × força × sen(2 × ângulo) ÷ gravidade\n"
 		+ "Altura = força × força × sen(ângulo) × sen(ângulo) ÷ (2 × gravidade)"
 	)
-	col.add_child(_make_paragraph(formula, 15, COLOR_DIM))
+	col.add_child(_make_paragraph(formula, UiTokens.FONT_SM, COLOR_DIM))
 	return col
 
 
@@ -143,7 +140,7 @@ func _build_physics_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col.add_child(_make_label("A parábola", 20, COLOR_SUBTITLE, false))
+	col.add_child(_make_label("A parábola", UiTokens.FONT_LG, COLOR_SUBTITLE, false))
 
 	col.add_child(
 		_make_paragraph(
@@ -152,12 +149,12 @@ func _build_physics_column() -> VBoxContainer:
 				+ "um instantinho lá no alto e depois cai. Esse caminho curvo se chama "
 				+ "parábola — é a linha vermelha que aparece na frente do canhão."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
 
-	col.add_child(_make_label("Por que a curva acontece?", 20, COLOR_SUBTITLE, false))
+	col.add_child(_make_label("Por que a curva acontece?", UiTokens.FONT_LG, COLOR_SUBTITLE, false))
 	col.add_child(
 		_make_paragraph(
 			(
@@ -165,12 +162,14 @@ func _build_physics_column() -> VBoxContainer:
 				+ "na mesma velocidade; para baixo, a gravidade puxa a bala o tempo todo, "
 				+ "sem parar. Junte as duas e nasce a curva."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
 
-	col.add_child(_make_label("Gire as engrenagens e veja", 20, COLOR_SUBTITLE, false))
+	col.add_child(
+		_make_label("Gire as engrenagens e veja", UiTokens.FONT_LG, COLOR_SUBTITLE, false)
+	)
 	col.add_child(
 		_make_paragraph(
 			(
@@ -181,7 +180,7 @@ func _build_physics_column() -> VBoxContainer:
 				+ "• Gravidade — 2 é como na Lua, 10 é como aqui na Terra e 25 é como em "
 				+ "Júpiter. Quanto maior, mais rápido a bala cai e mais curto fica o tiro."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
@@ -193,19 +192,21 @@ func _build_physics_column() -> VBoxContainer:
 				+ "altura ela subiria num campo plano, sem montanhas. Se o canhão apontar "
 				+ "para baixo aparece um traço, porque a conta só vale com o tiro subindo."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
 
-	col.add_child(_make_label("Por que a bala erra a linha", 20, COLOR_SUBTITLE, false))
+	col.add_child(
+		_make_label("Por que a bala erra a linha", UiTokens.FONT_LG, COLOR_SUBTITLE, false)
+	)
 	col.add_child(
 		_make_paragraph(
 			(
 				"Nenhum canhão é perfeito. A linha mostra a pontaria, mas a bala sai sempre "
 				+ "um pouquinho torta — e o quanto ela entorta depende da munição."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
@@ -218,7 +219,7 @@ func _build_physics_column() -> VBoxContainer:
 				+ "Se o seu tanque levar dano, a pontaria piora ainda mais: canhão amassado "
 				+ "mira pior."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_TEXT
 		)
 	)
@@ -229,7 +230,7 @@ func _build_physics_column() -> VBoxContainer:
 				+ "esse número, mais perto a bala cai do que a conta prometeu — e ele cresce "
 				+ "quando você troca para uma munição pior ou quando o tanque leva dano."
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_DIM
 		)
 	)
@@ -240,7 +241,7 @@ func _build_physics_column() -> VBoxContainer:
 				"Dica: abra esta tela no meio de um tiro. O jogo congela e você vê a bala "
 				+ "parada bem em cima da parábola!"
 			),
-			19,
+			UiTokens.FONT_MD,
 			COLOR_SUBTITLE
 		)
 	)
@@ -248,28 +249,10 @@ func _build_physics_column() -> VBoxContainer:
 
 
 func _build_close_button() -> Button:
-	_close_btn = Button.new()
-	_close_btn.text = "ENTENDI!"
+	# UiButton ja entrega o desenho do Theme, focus_mode NONE (com foco, o Espaço,
+	# que é o tiro, acionaria este botão e as setas virariam navegação) e o som.
+	_close_btn = UiButton.create("ENTENDI!", UiButton.Kind.PRIMARY)
 	_close_btn.custom_minimum_size = Vector2(0, 48)
-	_close_btn.add_theme_font_override("font", _font)
-	_close_btn.add_theme_font_size_override("font_size", 22)
-	_close_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-
-	var normal_style := StyleBoxTexture.new()
-	normal_style.texture = BTN_TEXTURE
-	normal_style.set_content_margin_all(10.0)
-	var hover_style: StyleBoxTexture = normal_style.duplicate()
-	hover_style.modulate_color = Color(1.1, 1.05, 0.95)
-	var pressed_style: StyleBoxTexture = normal_style.duplicate()
-	pressed_style.modulate_color = Color(0.85, 0.8, 0.75)
-	_close_btn.add_theme_stylebox_override("normal", normal_style)
-	_close_btn.add_theme_stylebox_override("hover", hover_style)
-	_close_btn.add_theme_stylebox_override("pressed", pressed_style)
-
-	# Com foco, o Espaço (que é o tiro) acionaria este botão e as setas virariam
-	# navegação de foco, matando as engrenagens.
-	_close_btn.focus_mode = Control.FOCUS_NONE
-	_close_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	_close_btn.pressed.connect(close)
 	return _close_btn
 
@@ -285,7 +268,7 @@ func _make_key_row(tex: Texture2D, text_value: String) -> HBoxContainer:
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	row.add_child(icon)
 
-	var label := _make_paragraph(text_value, 17, COLOR_TEXT)
+	var label := _make_paragraph(text_value, UiTokens.FONT_SM, COLOR_TEXT)
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(label)
 	return row
@@ -294,7 +277,6 @@ func _make_key_row(tex: Texture2D, text_value: String) -> HBoxContainer:
 func _make_label(text_value: String, size: int, color: Color, centered: bool) -> Label:
 	var label := Label.new()
 	label.text = text_value
-	label.add_theme_font_override("font", _font)
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
 	if centered:

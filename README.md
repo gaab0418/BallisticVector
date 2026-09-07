@@ -17,7 +17,7 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 
 ### Principais Funcionalidades Implementadas:
 - **Mapa de Guerra Estratégico (`war_map.gd`)**: Uma interface inspirada em cartas náuticas/steampunk antigas onde o jogador escolhe qual base inimiga (Alpha, Bravo ou Charlie) quer atacar. Cada base possui 3 fases de dificuldade progressiva.
-- **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards detalhados, ícones recortados dinamicamente via `AtlasTexture` de mísseis reais e animações de feedback de compra.
+- **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Mira Preditiva Integrada (`arena.gd`)**: O canhão calcula em tempo real a trajetória parabólica futura do tiro através de um loop de simulação rápida e desenha uma linha tracejada (`AimLine`) que é interrompida exatamente no ponto de colisão com os obstáculos terrestres.
 - **IA Inimiga com Evasão Dinâmica (`airplane_enemy.gd`)**: Os aviões realizam patrulhas aéreas e bombardeiam o jogador, mas agora possuem sensores geométricos. Utilizando a API `Geometry2D` do Godot, os aviões detectam se a sua trajetória de voo colidirá com as montanhas e arremetem de volta para cima ou invertem a direção, evitando bater nos obstáculos.
@@ -39,7 +39,8 @@ engrenagem e a gira para alterar aquele valor, vendo a linha de mira responder n
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
 | **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Cada munição traz a sua própria gravidade. |
 | **Tecla H** ou botão **?** | Pausa o jogo e abre a tela de ajuda, com as teclas e a explicação da parábola. |
-| **Esc** | Fecha a tela de ajuda. |
+| **Esc** | Abre o menu de pausa. Com a ajuda ou o menu já aberto, fecha o que estiver na frente. |
+| **Botão de engrenagem** (canto superior esquerdo) | Abre o menu de pausa: continuar, ajustes de áudio, reiniciar a batalha ou voltar ao mapa de guerra. |
 
 Ao lado das três engrenagens, a HUD calcula em tempo real o **alcance** e a **altura máxima**
 do tiro pelas fórmulas do lançamento oblíquo (`R = v²·sen(2θ)/g` e `H = v²·sen²θ/(2g)`),
@@ -53,6 +54,24 @@ para baixo os dois viram um traço, porque a fórmula só vale com o tiro subind
 - **`AudioManager` (Singleton Autoload)**: Gerencia de forma persistente todo o fluxo sonoro entre as trocas de cenas. Utiliza a conexão de sinal `finished` do Godot para implementar loops perfeitos e contínuos de trilha sonora, contornando limitações de runtime.
 - **`Global` (Singleton Autoload)**: Mantém o registro do progresso de fases concluídas nas bases, o montante financeiro e o inventário de munições do jogador entre a Arena e o Mapa de Guerra.
 - **Mapeamento de Recursos (`AmmoData`)**: Criação de dados de munições baseados em `Resource`, permitindo alterar física, dano, custo e cores diretamente pelo inspetor do editor de forma modular.
+
+---
+
+## 🎨 Sistema de Interface
+
+Toda a UI compartilha um único sistema de estilo, em `scripts/ui/`:
+
+- **`ui_tokens.gd`**: fonte única de cores, escala tipográfica (seis corpos) e geometria. Nenhum literal de cor ou de tamanho de fonte deve existir fora dele.
+- **`ui_theme.gd`**: compila o `Theme` do jogo a partir dos tokens. O resultado é gravado em `assets/resources/ui_theme.tres` e registrado em `project.godot` como `gui/theme/custom`. **Ao mexer nos tokens, regenere:**
+
+```bash
+godot --headless --script res://tools/build_ui_theme.gd
+```
+
+> O tema precisa ser um recurso de projeto, e não algo aplicado pela árvore de nós, porque `CanvasLayer` **interrompe a herança de tema** — e menu, HUD e todos os modais deste jogo vivem em `CanvasLayer`.
+
+- **`ui_button.gd`**, **`ui_panel.gd`**, **`ui_modal.gd`**: componentes reutilizáveis. O `UiModal` centraliza com `CenterContainer` (e não `PRESET_CENTER`, que não acompanha a resolução) e concentra a pausa deferida.
+- **`arena_hud.gd`**, **`shop_panel.gd`**, **`pause_menu.gd`**: as telas montadas sobre esses componentes.
 
 ---
 

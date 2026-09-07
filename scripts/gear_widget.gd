@@ -16,24 +16,26 @@ signal grabbed
 const GEAR_TEXTURE = preload("res://assets/sprites/icons/gear_white.png")
 const HINT_TEXTURE = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png")
 
-const GEAR_SIZE: float = 46.0
+const GEAR_SIZE: float = 34.0
 # Um quadrado girado ocupa lado * sqrt(2). Sem esta folga os cantos da engrenagem
 # seriam cortados ao girar.
-const GEAR_BOX: float = 66.0
-const HINT_SIZE: float = 26.0
+const GEAR_BOX: float = 48.0
+const HINT_SIZE: float = 20.0
 # Raio, a partir do centro da engrenagem, em que o arrasto circular para de responder.
-# A engrenagem tem 46 px (raio 23), então ainda sobra a borda dela inteira e todo o lado
-# de fora para girar — que é onde o gesto é preciso de qualquer forma.
-const DRAG_DEAD_ZONE: float = 16.0
+# Acompanha GEAR_SIZE: com a engrenagem em 34 px (raio 17), os 16 px antigos matariam
+# quase toda a área de giro. Em 12 sobra a borda e todo o lado de fora — que é onde o
+# gesto é preciso de qualquer forma, porque a variação angular por pixel cresce com o
+# inverso do raio.
+const DRAG_DEAD_ZONE: float = 12.0
 const FLASH_TIME: float = 0.35
 
-const COLOR_VALUE_ON := Color(1.0, 0.85, 0.3)
-const COLOR_VALUE_OFF := Color(0.9, 0.8, 0.6)
-const COLOR_TITLE_ON := Color(0.9, 0.8, 0.6)
-const COLOR_TITLE_OFF := Color(0.75, 0.62, 0.42)
-const COLOR_GEAR_ON := Color(1.0, 0.85, 0.3)
+const COLOR_VALUE_ON := UiTokens.AMBER
+const COLOR_VALUE_OFF := UiTokens.TEXT
+const COLOR_TITLE_ON := UiTokens.TEXT
+const COLOR_TITLE_OFF := UiTokens.TEXT_MUTED
+const COLOR_GEAR_ON := UiTokens.AMBER
 const COLOR_GEAR_OFF := Color(0.5, 0.42, 0.3)
-const COLOR_ALERT := Color(1.0, 0.2, 0.2)
+const COLOR_ALERT := UiTokens.DANGER
 
 var _title: Label
 var _value: Label
@@ -48,7 +50,7 @@ var _dragging: bool = false
 var _drag_angle: float = 0.0
 
 
-func setup(font: Font, title_text: String, width: float) -> void:
+func setup(title_text: String, width: float) -> void:
 	custom_minimum_size = Vector2(width, 0.0)
 	_build_styles()
 	add_theme_stylebox_override("panel", _style_off)
@@ -60,16 +62,14 @@ func setup(font: Font, title_text: String, width: float) -> void:
 
 	_title = Label.new()
 	_title.text = title_text
-	_title.add_theme_font_override("font", font)
-	_title.add_theme_font_size_override("font_size", 15)
+	_title.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
 	_title.add_theme_color_override("font_color", COLOR_TITLE_OFF)
 	_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_title)
 
 	_value = Label.new()
 	_value.text = "--"
-	_value.add_theme_font_override("font", font)
-	_value.add_theme_font_size_override("font_size", 30)
+	_value.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
 	_value.add_theme_color_override("font_color", COLOR_VALUE_OFF)
 	_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(_value)
@@ -215,8 +215,8 @@ func _build_styles() -> void:
 	_style_off.border_color = Color(0, 0, 0, 0)
 	_style_on = StyleBoxFlat.new()
 	_style_on.bg_color = Color(0.35, 0.26, 0.12, 1.0)
-	_style_on.border_color = Color(1.0, 0.85, 0.3, 1.0)
+	_style_on.border_color = UiTokens.AMBER
 	for style in [_style_off, _style_on]:
-		style.set_border_width_all(3)
-		style.set_corner_radius_all(6)
+		style.set_border_width_all(UiTokens.BORDER_W)
+		style.set_corner_radius_all(UiTokens.RADIUS)
 		style.set_content_margin_all(4)

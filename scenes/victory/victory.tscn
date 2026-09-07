@@ -18,21 +18,35 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.1, 0.1, 0.1, 1)
+color = Color(0.07, 0.06, 0.04, 1)
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
-layout_mode = 0
-offset_left = 340.0
-offset_top = 250.0
-offset_right = 940.0
-offset_bottom = 470.0
-theme_override_constants/separation = 20
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="TitleLabel" type="Label" parent="VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Center"]
 layout_mode = 2
-text = "VITORIA! Todas as bases foram destruidas!"
+theme_override_constants/separation = 18
+
+[node name="TitleLabel" type="Label" parent="Center/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.85, 0.3, 1)
+theme_override_font_sizes/font_size = 34
+text = "VITÓRIA!"
 horizontal_alignment = 1
 
-[node name="BackButton" type="Button" parent="VBoxContainer"]
+[node name="SubtitleLabel" type="Label" parent="Center/VBoxContainer"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.75, 0.65, 1)
+text = "Todas as bases inimigas foram destruídas."
+horizontal_alignment = 1
+
+[node name="BackButton" type="Button" parent="Center/VBoxContainer"]
+custom_minimum_size = Vector2(280, 50)
+layout_mode = 2
+size_flags_horizontal = 4
 text = "Voltar ao Menu"
