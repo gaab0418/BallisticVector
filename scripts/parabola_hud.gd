@@ -22,27 +22,29 @@ const GEAR_ANGULO: int = 0
 const GEAR_FORCA: int = 1
 const GEAR_GRAVIDADE: int = 2
 
-# Dimensionado para o mais largo entre o valor "10.0 m/s²" em corpo 30 (~126 px) e a
-# linha da engrenagem (26 + 66 + 26 + separações = 126). Se a célula ficar estreita
+# Dimensionado para o mais largo entre o valor "10.0 m/s²" em corpo 20 (~84 px) e a
+# linha da engrenagem (20 + 48 + 20 + separações = 96). Se a célula ficar estreita
 # demais, o PanelContainer cresce sozinho e empurra o painel para fora do vão livre.
-const GEAR_WIDTH: float = 140.0
-const DERIVED_WIDTH: float = 100.0
+#
+# Os valores caíram de 140/100 porque a HUD estava desproporcional ao jogo: o painel
+# media 688 px de largura contra 169 px do tanque do jogador, que é um sprite de 676
+# px reduzido a 0.25. A HUD ficou em 1:1 enquanto o mundo encolheu por script.
+const GEAR_WIDTH: float = 100.0
+const DERIVED_WIDTH: float = 76.0
 const COLOR_DERIVED := Color(0.7, 0.85, 0.9)
 const COLOR_DERIVED_DIM := Color(0.55, 0.45, 0.3)
-const COLOR_DERIVED_TITLE := Color(0.75, 0.62, 0.42)
-const COLOR_AMBER := Color(1.0, 0.85, 0.3)
+const COLOR_DERIVED_TITLE := UiTokens.TEXT_MUTED
+const COLOR_AMBER := UiTokens.AMBER
 
 var _gears: Array = []
 var _range_title: Label
 var _range_value: Label
 var _height_value: Label
-var _font: Font
 
 
-func setup(font: Font, panel_style: StyleBoxFlat) -> void:
-	_font = font
+func setup(panel_style: StyleBoxFlat) -> void:
 	# O helper da arena não define margem interna; sem isto o conteúdo cola na borda.
-	panel_style.set_content_margin_all(8)
+	panel_style.set_content_margin_all(UiTokens.PAD_SM)
 	add_theme_stylebox_override("panel", panel_style)
 
 	var row := HBoxContainer.new()
@@ -53,7 +55,7 @@ func setup(font: Font, panel_style: StyleBoxFlat) -> void:
 	for title in ["Ângulo", "Força", "Gravidade"]:
 		var gear = GearWidgetScript.new()
 		row.add_child(gear)
-		gear.setup(font, title, GEAR_WIDTH)
+		gear.setup(title, GEAR_WIDTH)
 		var index: int = _gears.size()
 		gear.dragged.connect(_on_gear_dragged.bind(index))
 		gear.grabbed.connect(_on_gear_grabbed.bind(index))
@@ -177,16 +179,14 @@ func _add_derived(row: HBoxContainer, title_text: String) -> Array:
 
 	var title := Label.new()
 	title.text = title_text
-	title.add_theme_font_override("font", _font)
-	title.add_theme_font_size_override("font_size", 15)
+	title.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
 	title.add_theme_color_override("font_color", COLOR_DERIVED_TITLE)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
 	var value := Label.new()
 	value.text = "—"
-	value.add_theme_font_override("font", _font)
-	value.add_theme_font_size_override("font_size", 26)
+	value.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
 	value.add_theme_color_override("font_color", COLOR_DERIVED)
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(value)

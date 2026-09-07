@@ -1,8 +1,6 @@
 extends Node2D
 
 # === Icones reutilizados (const preload evita recarregar o recurso) ===
-const ICON_EXIT := preload("res://assets/sprites/icons/exit.png")
-const ICON_GEAR := preload("res://assets/sprites/icons/gear_white.png")
 
 # =============================================================================
 #  Arena de Combate — arena.gd
@@ -18,21 +16,10 @@ const ICON_GEAR := preload("res://assets/sprites/icons/gear_white.png")
 @onready var obstacles_node: Node2D = $Obstacles
 
 # === Variáveis de UI ===
-var hud_canvas: CanvasLayer
-var ammo_label: Label
-var ammo_icon: Control
-var ammo_name_label: Label
-var armor_bar: ProgressBar
-var stage_label: Label
-var parabola_hud: Control
+var hud: CanvasLayer
 var aim_preview: Node2D
 var help_overlay: CanvasLayer
-var help_btn: Button
-var menu_btn: Button
-var menu_panel: PanelContainer
-var next_stage_btn: Button
-var return_btn: Button
-var quit_btn: Button
+var pause_menu: CanvasLayer
 
 # === Configurações ===
 const ROTATION_SPEED: float = 1.5  # Velocidade de rotação do canhão (rad/s)
@@ -91,8 +78,9 @@ var _obstacle_polygons_cache: Array = []
 
 # === Preload dos scripts ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
-const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
+const ArenaHudScript = preload("res://scripts/ui/arena_hud.gd")
 const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
+const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const AimPreviewScript = preload("res://scripts/aim_preview.gd")
 const AirplaneScript = preload("res://scenes/arena/airplane_enemy.gd")
 
@@ -125,7 +113,7 @@ func _ready() -> void:
 	aim_preview.setup(cannon, aim_line)
 	aim_preview.set_obstacles(_obstacle_polygons_cache)
 
-	_setup_ui()
+	_build_hud()
 	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 	# Inicializar HUD
@@ -134,10 +122,6 @@ func _ready() -> void:
 	_update_aim_line()
 	_update_armor_hud()
 	_update_stage_label()
-
-	# Esconder botão de próxima fase inicialmente
-	if next_stage_btn:
-		next_stage_btn.visible = false
 
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
@@ -286,8 +270,7 @@ func _select_gear(index: int) -> void:
 	selected_gear = index
 	_at_limit = false
 	AudioManager.play_sfx("res://assets/audio/menu_hover_.ogg")
-	if parabola_hud:
-		parabola_hud.set_selected(selected_gear)
+	hud.parabola.set_selected(selected_gear)
 
 
 ## Cima/baixo giram a engrenagem selecionada, de forma contínua e escalada por delta.
@@ -308,16 +291,14 @@ func _poll_gear_rotation(delta: float) -> void:
 
 	if _adjust_selected_gear(dir, delta, mult):
 		_at_limit = false
-		if parabola_hud:
-			parabola_hud.spin_selected(selected_gear, dir * mult * delta * GEAR_SPIN_SPEED)
+		hud.parabola.spin_selected(selected_gear, dir * mult * delta * GEAR_SPIN_SPEED)
 		_refresh_parabola_hud()
 		_update_aim_line()
 		return
 
 	# No limite a engrenagem trava (não recebe spin) e o valor pisca. O som toca uma vez
 	# só: o AudioManager tem um único sfx_player e repetir a 60 Hz cortaria todo o resto.
-	if parabola_hud:
-		parabola_hud.flash_selected(selected_gear)
+	hud.parabola.flash_selected(selected_gear)
 	if not _at_limit:
 		_at_limit = true
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
@@ -381,15 +362,13 @@ func _on_gear_dragged(index: int, delta_rad: float) -> void:
 
 	if _adjust_selected_gear_by(delta_rad / (TAU * DRAG_TURNS_FULL_RANGE)):
 		_at_limit = false
-		if parabola_hud:
-			# A engrenagem acompanha o cursor exatamente, sem fator de escala.
-			parabola_hud.spin_selected(selected_gear, delta_rad)
+		# A engrenagem acompanha o cursor exatamente, sem fator de escala.
+		hud.parabola.spin_selected(selected_gear, delta_rad)
 		_refresh_parabola_hud()
 		_update_aim_line()
 		return
 
-	if parabola_hud:
-		parabola_hud.flash_selected(selected_gear)
+	hud.parabola.flash_selected(selected_gear)
 	if not _at_limit:
 		_at_limit = true
 		AudioManager.play_sfx("res://assets/audio/erro.ogg")
@@ -556,10 +535,10 @@ func _on_stage_cleared() -> void:
 	Global.money += 250
 
 	# Mostrar botão de próxima fase
-	if next_stage_btn:
-		if Global.current_stage >= 2:
-			next_stage_btn.text = "✓ Vitória!"
-		next_stage_btn.visible = true
+	if Global.current_stage >= 2:
+		hud.show_next_stage("Vitória!")
+	else:
+		hud.show_next_stage("Próxima Fase")
 
 
 # --- Botão "Próxima Fase" pressionado ---
@@ -623,24 +602,60 @@ func _flash_player() -> void:
 # =============================================================================
 
 
+## A HUD, a ajuda e a pausa sao tres CanvasLayer irmaos. A ajuda fica acima da
+## pausa porque e ela que pode ser aberta com a pausa ja no ar (pelo botao "?").
+func _build_hud() -> void:
+	hud = ArenaHudScript.new()
+	add_child(hud)
+	hud.parabola.gear_grabbed.connect(_on_gear_grabbed)
+	hud.parabola.gear_dragged.connect(_on_gear_dragged)
+	hud.help_pressed.connect(_on_help_pressed)
+	hud.next_stage_pressed.connect(_on_next_stage)
+	hud.pause_pressed.connect(_on_pause_pressed)
+
+	help_overlay = HelpOverlayScript.new()
+	add_child(help_overlay)
+	help_overlay.setup(UiPanel.create(UiPanel.Kind.MODAL))
+	help_overlay.closed.connect(_on_help_closed)
+
+	pause_menu = PauseMenuScript.new()
+	add_child(pause_menu)
+	pause_menu.layer = 9
+	pause_menu.restart_requested.connect(_on_restart_stage)
+	pause_menu.return_to_map_requested.connect(_on_return_to_map)
+
+
+func _on_pause_pressed() -> void:
+	if help_overlay and help_overlay.visible:
+		return
+	pause_menu.open()
+
+
+## Esc chega aqui so quando nenhum modal esta aberto: a ajuda e a pausa tratam a
+## acao em _input e chamam set_input_as_handled(), que roda antes do unhandled.
+## Sem isso os dois disputariam a mesma tecla.
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_on_pause_pressed()
+
+
+func _on_restart_stage() -> void:
+	get_tree().reload_current_scene()
+
+
 func _update_hud() -> void:
 	var ammo = _get_current_ammo()
-	if ammo_label:
-		ammo_label.text = "x" + str(ammo_counts[current_ammo_index])
-	if ammo_icon:
-		ammo_icon.ammo_color = ammo.color
-		ammo_icon.queue_redraw()
-	if ammo_name_label:
-		ammo_name_label.text = ammo.ammo_name
+	hud.set_ammo(ammo_counts[current_ammo_index], ammo.color, ammo.ammo_name)
 
 
 ## A elevação é -rad_to_deg porque em Godot 2D o Y cresce para baixo: rotation negativa
 ## é o cano apontado para cima, que para o jogador é ângulo positivo.
 func _refresh_parabola_hud() -> void:
-	if parabola_hud == null:
+	if hud == null:
 		return
 	var ammo = _get_current_ammo()
-	parabola_hud.set_state(
+	hud.parabola.set_state(
 		-rad_to_deg(cannon.rotation),
 		ammo.impulse * current_power,
 		gravity_override,
@@ -650,15 +665,15 @@ func _refresh_parabola_hud() -> void:
 
 
 func _update_armor_hud() -> void:
-	if armor_bar:
-		armor_bar.value = Global.player_armor
+	hud.set_armor(Global.player_armor, Global.max_player_armor)
 
 
+## Usa o nome de exibicao da base ("Base Alpha"), nao o id ("Base_A"): concatenar
+## "Base " ao id rendia "Base Base_A" na tela.
 func _update_stage_label() -> void:
-	if stage_label:
-		var base_id = Global.current_base_id if Global.current_base_id != "" else "?"
-		var stage_num = Global.current_stage + 1  # Mostrar 1-indexed
-		stage_label.text = "Base " + base_id + " - Fase " + str(stage_num) + "/3"
+	var data: Dictionary = Global.get_base_data(Global.current_base_id)
+	var base_name: String = data.get("name", "Base desconhecida")
+	hud.set_stage("%s — Fase %d/3" % [base_name, Global.current_stage + 1])
 
 
 # =============================================================================
@@ -672,252 +687,5 @@ func _on_switch_ammo() -> void:
 	gravity_override = _get_current_ammo().gravity
 	_update_hud()
 	_refresh_parabola_hud()
-	if parabola_hud:
-		parabola_hud.flash_gravity()
+	hud.parabola.flash_gravity()
 	_update_aim_line()
-
-
-func _on_quit() -> void:
-	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
-
-
-## Botão quadrado só com ícone, usado pelo menu e pela ajuda.
-func _create_icon_button(font: Font, styles: Array, icon: Texture2D, handler: Callable) -> Button:
-	var btn := Button.new()
-	btn.add_theme_font_override("font", font)
-	btn.add_theme_stylebox_override("normal", styles[0])
-	btn.add_theme_stylebox_override("hover", styles[1])
-	btn.add_theme_stylebox_override("pressed", styles[2])
-	btn.icon = icon
-	btn.expand_icon = true
-	btn.add_theme_constant_override("icon_max_width", 32)
-	btn.custom_minimum_size = Vector2(56, 56)
-	btn.size = Vector2(56, 56)
-	# Sem isto o clique dá foco ao botão, e aí as setas viram navegação de foco e o
-	# Espaço aciona o botão focado além de disparar o canhão.
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	btn.pressed.connect(handler)
-	return btn
-
-
-func _create_menu_button(
-	font: Font, styles: Array, text: String, handler: Callable, icon: Texture2D = null
-) -> Button:
-	var btn := Button.new()
-	btn.text = text
-	btn.add_theme_font_override("font", font)
-	btn.add_theme_font_size_override("font_size", 20)
-	btn.add_theme_stylebox_override("normal", styles[0])
-	btn.add_theme_stylebox_override("hover", styles[1])
-	btn.add_theme_stylebox_override("pressed", styles[2])
-	btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	if icon != null:
-		btn.icon = icon
-		btn.expand_icon = true
-		btn.add_theme_constant_override("icon_max_width", 24)
-	btn.focus_mode = Control.FOCUS_NONE
-	btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	btn.pressed.connect(handler)
-	return btn
-
-
-func _on_toggle_menu() -> void:
-	if menu_panel == null:
-		return
-	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
-	menu_panel.visible = not menu_panel.visible
-
-
-func _create_steampunk_panel() -> StyleBoxFlat:
-	var style = StyleBoxFlat.new()
-	style.bg_color = Color(0.2, 0.15, 0.1, 0.9)
-	style.border_width_left = 3
-	style.border_width_top = 3
-	style.border_width_right = 3
-	style.border_width_bottom = 3
-	style.border_color = Color(0.7, 0.5, 0.2, 1.0)
-	style.corner_radius_top_left = 8
-	style.corner_radius_top_right = 8
-	style.corner_radius_bottom_left = 8
-	style.corner_radius_bottom_right = 8
-	style.shadow_color = Color(0, 0, 0, 0.5)
-	style.shadow_size = 4
-	return style
-
-
-func _setup_ui() -> void:
-	hud_canvas = CanvasLayer.new()
-	hud_canvas.name = "HUD"
-	add_child(hud_canvas)
-
-	var font = SystemFont.new()
-	font.font_names = ["Georgia", "Times New Roman", "Serif"]
-
-	var btn_tex = load("res://assets/sprites/ui_pack/Grey/Default/button_rectangle_depth_flat.png")
-	var normal_style = StyleBoxTexture.new()
-	normal_style.texture = btn_tex
-	normal_style.content_margin_left = 12.0
-	normal_style.content_margin_top = 8.0
-	normal_style.content_margin_right = 12.0
-	normal_style.content_margin_bottom = 8.0
-	var hover_style = normal_style.duplicate()
-	hover_style.modulate_color = Color(1.1, 1.05, 0.95)
-	var pressed_style = normal_style.duplicate()
-	pressed_style.modulate_color = Color(0.85, 0.8, 0.75)
-	var btn_styles: Array = [normal_style, hover_style, pressed_style]
-
-	# Menu (canto superior esquerdo). A lista de controles saiu daqui: ela agora vive
-	# inteira na tela de ajuda, num lugar so, em vez de ocupar meia lateral da tela.
-	menu_btn = _create_icon_button(font, btn_styles, ICON_GEAR, _on_toggle_menu)
-	menu_btn.position = Vector2(20, 20)
-	hud_canvas.add_child(menu_btn)
-
-	menu_panel = PanelContainer.new()
-	menu_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
-	menu_panel.position = Vector2(20, 130)
-	menu_panel.visible = false
-	hud_canvas.add_child(menu_panel)
-
-	var menu_vbox = VBoxContainer.new()
-	menu_vbox.add_theme_constant_override("separation", 10)
-	menu_panel.add_child(menu_vbox)
-
-	return_btn = _create_menu_button(
-		font, btn_styles, "Voltar ao Mapa", _on_return_to_map, ICON_EXIT
-	)
-	menu_vbox.add_child(return_btn)
-
-	quit_btn = _create_menu_button(font, btn_styles, "Desistir", _on_quit, ICON_EXIT)
-	menu_vbox.add_child(quit_btn)
-
-	# Painel Inferior (Munição e Vida)
-	var bottom_panel = PanelContainer.new()
-	bottom_panel.add_theme_stylebox_override("panel", _create_steampunk_panel())
-	bottom_panel.position = Vector2(440, 620)
-	bottom_panel.size = Vector2(400, 80)
-	hud_canvas.add_child(bottom_panel)
-
-	var bottom_hbox = HBoxContainer.new()
-	bottom_hbox.add_theme_constant_override("separation", 20)
-	bottom_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_hbox.size = Vector2(400, 80)
-	bottom_panel.add_child(bottom_hbox)
-
-	var ammo_info_vbox = VBoxContainer.new()
-	ammo_info_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_hbox.add_child(ammo_info_vbox)
-
-	var ammo_hbox = HBoxContainer.new()
-	ammo_hbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	ammo_info_vbox.add_child(ammo_hbox)
-
-	ammo_icon = load("res://scripts/ammo_icon.gd").new()
-	ammo_icon.custom_minimum_size = Vector2(40, 40)
-	ammo_hbox.add_child(ammo_icon)
-
-	ammo_label = Label.new()
-	ammo_label.add_theme_font_override("font", font)
-	ammo_label.add_theme_font_size_override("font_size", 28)
-	ammo_hbox.add_child(ammo_label)
-
-	ammo_name_label = Label.new()
-	ammo_name_label.add_theme_font_override("font", font)
-	ammo_name_label.add_theme_font_size_override("font_size", 16)
-	ammo_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ammo_info_vbox.add_child(ammo_name_label)
-
-	var vs = VSeparator.new()
-	bottom_hbox.add_child(vs)
-
-	var hp_vbox = VBoxContainer.new()
-	hp_vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	hp_vbox.custom_minimum_size = Vector2(150, 0)
-	bottom_hbox.add_child(hp_vbox)
-
-	var hp_lbl = Label.new()
-	hp_lbl.text = "Armadura"
-	hp_lbl.add_theme_font_override("font", font)
-	hp_lbl.add_theme_font_size_override("font_size", 18)
-	hp_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hp_vbox.add_child(hp_lbl)
-
-	armor_bar = ProgressBar.new()
-	armor_bar.max_value = 100
-	armor_bar.value = 100
-	armor_bar.custom_minimum_size = Vector2(150, 20)
-
-	var sb_bg = StyleBoxFlat.new()
-	sb_bg.bg_color = Color(0.1, 0.1, 0.1, 0.8)
-	sb_bg.corner_radius_top_left = 5
-	sb_bg.corner_radius_bottom_right = 5
-	var sb_fg = StyleBoxFlat.new()
-	sb_fg.bg_color = Color(0.2, 0.6, 0.8, 1.0)
-	sb_fg.corner_radius_top_left = 5
-	sb_fg.corner_radius_bottom_right = 5
-	armor_bar.add_theme_stylebox_override("background", sb_bg)
-	armor_bar.add_theme_stylebox_override("fill", sb_fg)
-	hp_vbox.add_child(armor_bar)
-
-	# Stage Label
-	stage_label = Label.new()
-	stage_label.add_theme_font_override("font", font)
-	stage_label.add_theme_font_size_override("font_size", 24)
-	stage_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.6))
-	stage_label.position = Vector2(20, 84)
-	stage_label.size = Vector2(270, 36)
-	stage_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	hud_canvas.add_child(stage_label)
-
-	# HUD das variáveis da parábola, centrada de verdade: x 296..984 em 1280 de largura.
-	# Só coube no meio porque o painel de controles saiu da lateral esquerda.
-	parabola_hud = ParabolaHudScript.new()
-	parabola_hud.position = Vector2(296, 8)
-	parabola_hud.size = Vector2(688, 128)
-	hud_canvas.add_child(parabola_hud)
-	parabola_hud.setup(font, _create_steampunk_panel())
-	parabola_hud.gear_grabbed.connect(_on_gear_grabbed)
-	parabola_hud.gear_dragged.connect(_on_gear_dragged)
-
-	# Botão de ajuda — canto superior direito, abaixo do rótulo da fase
-	help_btn = Button.new()
-	help_btn.text = "?"
-	help_btn.add_theme_font_override("font", font)
-	help_btn.add_theme_font_size_override("font_size", 32)
-	help_btn.add_theme_stylebox_override("normal", normal_style)
-	help_btn.add_theme_stylebox_override("hover", hover_style)
-	help_btn.add_theme_stylebox_override("pressed", pressed_style)
-	help_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	help_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	help_btn.offset_left = -84.0
-	help_btn.offset_top = 20.0
-	help_btn.offset_right = -20.0
-	help_btn.offset_bottom = 84.0
-	# Sem isto, clicar aqui daria foco ao botão: as setas virariam navegação de foco e o
-	# Espaço passaria a acionar o botão além de disparar o canhão.
-	help_btn.focus_mode = Control.FOCUS_NONE
-	help_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	help_btn.pressed.connect(_on_help_pressed)
-	hud_canvas.add_child(help_btn)
-
-	# CanvasLayer próprio, fora do hud_canvas, para desenhar por cima de toda a HUD
-	help_overlay = HelpOverlayScript.new()
-	add_child(help_overlay)
-	help_overlay.setup(font, _create_steampunk_panel())
-	help_overlay.closed.connect(_on_help_closed)
-
-	# Next Stage Btn
-	next_stage_btn = Button.new()
-	next_stage_btn.text = "-> Proxima Fase"
-	next_stage_btn.add_theme_font_override("font", font)
-	next_stage_btn.add_theme_font_size_override("font_size", 22)
-	next_stage_btn.add_theme_stylebox_override("normal", normal_style)
-	next_stage_btn.add_theme_stylebox_override("hover", hover_style)
-	next_stage_btn.add_theme_stylebox_override("pressed", pressed_style)
-	next_stage_btn.add_theme_color_override("font_color", Color(0.15, 0.08, 0.0))
-	next_stage_btn.position = Vector2(1000, 330)
-	next_stage_btn.size = Vector2(250, 50)
-	next_stage_btn.visible = false
-	next_stage_btn.focus_mode = Control.FOCUS_NONE
-	next_stage_btn.pressed.connect(_on_next_stage)
-	hud_canvas.add_child(next_stage_btn)
