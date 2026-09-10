@@ -33,6 +33,9 @@ var shop: CanvasLayer
 var base_labels: Dictionary = {}  # base_id -> Label (progresso)
 var base_sprites: Dictionary = {}  # base_id -> TextureRect (sprite)
 var base_flag_icons: Dictionary = {}  # base_id -> TextureRect (bandeira)
+var base_glows: Dictionary = {}  # base_id -> TextureRect (aureola de hover)
+var base_tweens: Dictionary = {}  # base_id -> Tween (animação de hover em andamento)
+var tex_hover_glow: GradientTexture2D
 
 var selected_base_id: String = ""
 
@@ -141,12 +144,28 @@ func _build_hud_panel() -> void:
 	title.offset_bottom = 14.0
 
 
+func _build_hover_glow_texture() -> GradientTexture2D:
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(1.0, 0.85, 0.4, 0.95))
+	gradient.set_color(1, Color(1.0, 0.85, 0.4, 0.0))
+
+	var glow := GradientTexture2D.new()
+	glow.gradient = gradient
+	glow.fill = GradientTexture2D.FILL_RADIAL
+	glow.fill_from = Vector2(0.5, 0.5)
+	glow.fill_to = Vector2(1.0, 0.5)
+	glow.width = 256
+	glow.height = 256
+	return glow
+
+
 func _build_bases() -> void:
 	var sprite_map := {
 		"castle": tex_castle,
 		"castleWide": tex_castle_wide,
 		"towerTall": tex_tower_tall,
 	}
+	tex_hover_glow = _build_hover_glow_texture()
 
 	for cfg in BASE_CONFIGS:
 		var base_id: String = cfg["id"]
@@ -159,10 +178,25 @@ func _build_bases() -> void:
 		container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(container)
 
+		# Aureola que aparece atras do sprite no hover -- por baixo do modulate
+		# porque o sprite sozinho clareado quase nao se destaca do fundo do mapa.
+		var glow_size := Vector2(tex.get_width(), tex.get_height()) * 1.7
+		var glow := TextureRect.new()
+		glow.name = "HoverGlow"
+		glow.texture = tex_hover_glow
+		glow.stretch_mode = TextureRect.STRETCH_SCALE
+		glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		glow.size = glow_size
+		glow.position = Vector2(-glow_size.x * 0.5, -tex.get_height() * 0.5 - glow_size.y * 0.5)
+		glow.modulate = Color(1, 1, 1, 0)
+		container.add_child(glow)
+		base_glows[base_id] = glow
+
 		var sprite := TextureRect.new()
 		sprite.texture = tex
 		sprite.expand_mode = TextureRect.EXPAND_KEEP_SIZE
 		sprite.position = Vector2(-tex.get_width() * 0.5, -tex.get_height())
+		sprite.pivot_offset = Vector2(tex.get_width() * 0.5, tex.get_height())
 		sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		container.add_child(sprite)
 		base_sprites[base_id] = sprite
@@ -187,7 +221,8 @@ func _build_bases() -> void:
 		click_btn.size = click_btn.custom_minimum_size
 		click_btn.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 		click_btn.pressed.connect(_on_base_clicked.bind(base_id))
-		click_btn.mouse_entered.connect(_on_base_hover)
+		click_btn.mouse_entered.connect(_on_base_hover.bind(base_id))
+		click_btn.mouse_exited.connect(_on_base_unhover.bind(base_id))
 		container.add_child(click_btn)
 
 		var label := Label.new()
@@ -308,11 +343,38 @@ func _update_base_visuals() -> void:
 				label.add_theme_color_override("font_color", UiTokens.TEXT)
 
 		if base_sprites.has(base_id):
-			var tint := Color(0.6, 0.6, 0.6, 0.85) if complete else Color.WHITE
-			base_sprites[base_id].modulate = tint
+			base_sprites[base_id].modulate = _base_tint(base_id)
 
 		if base_flag_icons.has(base_id):
 			base_flag_icons[base_id].visible = complete
+
+
+func _base_tint(base_id: String, hovered: bool = false) -> Color:
+	var complete := Global.is_base_complete(base_id)
+	if hovered:
+		# Realce quente e forte, perceptivel mesmo sobre o tom acinzentado das
+		# bases ja conquistadas -- multiplicar o branco normal quase nao aparecia.
+		return Color(1.0, 0.82, 0.4, 0.95) if complete else Color(1.7, 1.45, 0.55, 1.0)
+	return Color(0.6, 0.6, 0.6, 0.85) if complete else Color.WHITE
+
+
+func _set_base_hover_visual(base_id: String, hovered: bool) -> void:
+	if not base_sprites.has(base_id):
+		return
+	var sprite: TextureRect = base_sprites[base_id]
+
+	if base_tweens.has(base_id) and is_instance_valid(base_tweens[base_id]):
+		base_tweens[base_id].kill()
+
+	var tween := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	base_tweens[base_id] = tween
+	tween.set_parallel(true)
+	tween.tween_property(sprite, "scale", Vector2(1.1, 1.1) if hovered else Vector2.ONE, 0.12)
+	tween.tween_property(sprite, "modulate", _base_tint(base_id, hovered), 0.12)
+
+	if base_glows.has(base_id):
+		var glow: TextureRect = base_glows[base_id]
+		tween.tween_property(glow, "modulate:a", 1.0 if hovered else 0.0, 0.12)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -320,8 +382,13 @@ func _update_base_visuals() -> void:
 # ═════════════════════════════════════════════════════════════════════
 
 
-func _on_base_hover() -> void:
+func _on_base_hover(base_id: String) -> void:
 	AudioManager.play_sfx(SFX_HOVER)
+	_set_base_hover_visual(base_id, true)
+
+
+func _on_base_unhover(base_id: String) -> void:
+	_set_base_hover_visual(base_id, false)
 
 
 func _on_base_clicked(base_id: String) -> void:
