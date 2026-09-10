@@ -1,5 +1,13 @@
 extends Node2D
 
+# === Sprites da municao: o do jogador aponta pra direita (sai do tanque em
+# direcao ao castelo), o do inimigo aponta pra esquerda (aviao atirando no
+# tanque). A rotacao segue a velocidade, entao cada um precisa de um offset
+# de "frente" diferente -- ver _sprite_forward_offset em _ready().
+const BULLET_TEX_RIGHT := preload("res://assets/sprites/ammo/bullet_right.png")
+const BULLET_TEX_LEFT := preload("res://assets/sprites/ammo/bullet_left.png")
+const BULLET_TARGET_WIDTH: float = 26.0
+
 # === Propriedades configuradas pelo arena.gd ao instanciar ===
 var velocity: Vector2 = Vector2.ZERO
 var gravity: float = 200.0
@@ -16,7 +24,10 @@ var is_enemy_projectile: bool = false  # true = projétil disparado por inimigo
 var obstacle_polygons: Array = []
 
 # === Visual ===
-var bullet_rect: ColorRect
+var bullet_sprite: Sprite2D
+# Angulo que soma-se a velocity.angle() pra a ponta do sprite acompanhar o
+# voo: 0 pro sprite que ja aponta pra +X, PI pro que aponta pra -X.
+var _sprite_forward_offset: float = 0.0
 
 # === Estado ===
 var lifetime: float = 0.0
@@ -27,12 +38,16 @@ const HIT_RADIUS_PLAYER: float = 40.0  # Raio de colisão contra jogador
 
 func _ready() -> void:
 	randomize()
-	# Criar o visual do projétil (retângulo pequeno)
-	bullet_rect = ColorRect.new()
-	bullet_rect.size = Vector2(10, 6)
-	bullet_rect.position = Vector2(-5, -3)  # Centralizar
-	bullet_rect.color = bullet_color
-	add_child(bullet_rect)
+	# Criar o visual do projétil: municao do jogador aponta pra direita,
+	# municao do inimigo aponta pra esquerda -- ver comentario no topo do arquivo.
+	bullet_sprite = Sprite2D.new()
+	bullet_sprite.texture = BULLET_TEX_LEFT if is_enemy_projectile else BULLET_TEX_RIGHT
+	bullet_sprite.modulate = bullet_color
+	_sprite_forward_offset = PI if is_enemy_projectile else 0.0
+	var tex_width: float = bullet_sprite.texture.get_width()
+	var scale_factor: float = BULLET_TARGET_WIDTH / tex_width
+	bullet_sprite.scale = Vector2(scale_factor, scale_factor)
+	add_child(bullet_sprite)
 
 
 func _process(delta: float) -> void:
@@ -48,7 +63,7 @@ func _process(delta: float) -> void:
 	position += velocity * delta
 
 	# === Rotacionar o projétil na direção do movimento ===
-	rotation = velocity.angle()
+	rotation = velocity.angle() - _sprite_forward_offset
 
 	# === Verificar se saiu da tela ===
 	if position.x > 1350 or position.x < -50 or position.y > 780 or position.y < -60:
