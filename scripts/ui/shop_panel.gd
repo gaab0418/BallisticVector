@@ -28,7 +28,7 @@ const BUY_SIZE := Vector2(110, 36)
 ## do war_map: no rotulo, na checagem e no desconto.
 const BATCH_ENFERRUJADA := 5
 const BATCH_PERFURANTE := 3
-const REPAIR_COST := 75
+const REPAIR_COST := 100
 const REPAIR_HEAL := 30.0
 
 var _ammo_enf: AmmoData

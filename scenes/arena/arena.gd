@@ -673,7 +673,8 @@ func _update_armor_hud() -> void:
 func _update_stage_label() -> void:
 	var data: Dictionary = Global.get_base_data(Global.current_base_id)
 	var base_name: String = data.get("name", "Base desconhecida")
-	hud.set_stage("%s — Fase %d/3" % [base_name, Global.current_stage + 1])
+	var total_stages: int = data.get("total_stages", 3)
+	hud.set_stage(base_name, Global.current_stage + 1, total_stages)
 
 
 # =============================================================================

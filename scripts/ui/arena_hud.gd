@@ -22,12 +22,15 @@ const AmmoIconScript = preload("res://scripts/ammo_icon.gd")
 const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
 
 const ICON_GEAR = preload("res://assets/sprites/icons/gear_white.png")
+const ICON_FLAG = preload("res://assets/sprites/cartography/Default/flag.png")
 
 const PAUSE_BTN_SIZE := Vector2(40, 40)
 const HELP_BTN_SIZE := Vector2(44, 44)
 const NEXT_BTN_SIZE := Vector2(190, 38)
 const AMMO_ICON_SIZE := Vector2(30, 30)
 const ARMOR_BAR_SIZE := Vector2(120, 14)
+const STAGE_BADGE_SIZE := Vector2(230, 56)
+const STAGE_FLAG_SIZE := Vector2(22, 22)
 const MARGIN := 16.0
 
 var parabola: Control
@@ -36,7 +39,8 @@ var _ammo_label: Label
 var _ammo_icon: Control
 var _ammo_name_label: Label
 var _armor_bar: ProgressBar
-var _stage_label: Label
+var _stage_name_label: Label
+var _stage_phase_label: Label
 var _next_stage_btn: Button
 
 
@@ -132,6 +136,46 @@ func _build_resource_panel() -> Control:
 	return panel
 
 
+## Badge "Base Alpha / Fase 2 de 3": mesma linguagem visual do painel de recursos
+## (icone + coluna de texto sobre stylebox HUD) em vez de um Label solto sem fundo.
+func _build_stage_badge() -> Control:
+	var panel := PanelContainer.new()
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.HUD))
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UiTokens.PAD_SM)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(row)
+
+	var flag_icon := TextureRect.new()
+	flag_icon.texture = ICON_FLAG
+	flag_icon.custom_minimum_size = STAGE_FLAG_SIZE
+	flag_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	flag_icon.modulate = UiTokens.AMBER
+	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(flag_icon)
+
+	var text_column := VBoxContainer.new()
+	text_column.add_theme_constant_override("separation", 0)
+	text_column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	text_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(text_column)
+
+	_stage_name_label = Label.new()
+	_stage_name_label.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
+	_stage_name_label.add_theme_color_override("font_color", UiTokens.AMBER)
+	text_column.add_child(_stage_name_label)
+
+	_stage_phase_label = Label.new()
+	_stage_phase_label.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
+	_stage_phase_label.add_theme_color_override("font_color", UiTokens.TEXT_MUTED)
+	text_column.add_child(_stage_phase_label)
+
+	return panel
+
+
 func _build_corner_controls() -> void:
 	var pause_btn := UiButton.create("", UiButton.Kind.ICON, ICON_GEAR)
 	pause_btn.custom_minimum_size = PAUSE_BTN_SIZE
@@ -143,15 +187,13 @@ func _build_corner_controls() -> void:
 	pause_btn.offset_right = MARGIN + PAUSE_BTN_SIZE.x
 	pause_btn.offset_bottom = MARGIN + PAUSE_BTN_SIZE.y
 
-	_stage_label = Label.new()
-	_stage_label.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
-	_stage_label.add_theme_color_override("font_color", UiTokens.TEXT)
-	add_child(_stage_label)
-	_stage_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	_stage_label.offset_left = MARGIN
-	_stage_label.offset_top = MARGIN + PAUSE_BTN_SIZE.y + 6.0
-	_stage_label.offset_right = MARGIN + 260.0
-	_stage_label.offset_bottom = MARGIN + PAUSE_BTN_SIZE.y + 30.0
+	var stage_badge := _build_stage_badge()
+	add_child(stage_badge)
+	stage_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	stage_badge.offset_left = MARGIN
+	stage_badge.offset_top = MARGIN + PAUSE_BTN_SIZE.y + 8.0
+	stage_badge.offset_right = stage_badge.offset_left + STAGE_BADGE_SIZE.x
+	stage_badge.offset_bottom = stage_badge.offset_top + STAGE_BADGE_SIZE.y
 
 	var help_btn := UiButton.create("?", UiButton.Kind.ICON)
 	help_btn.custom_minimum_size = HELP_BTN_SIZE
@@ -200,9 +242,11 @@ func set_armor(value: float, max_value: float) -> void:
 	_armor_bar.value = value
 
 
-func set_stage(text: String) -> void:
-	if _stage_label:
-		_stage_label.text = text
+func set_stage(base_name: String, stage_number: int, total_stages: int) -> void:
+	if _stage_name_label:
+		_stage_name_label.text = base_name
+	if _stage_phase_label:
+		_stage_phase_label.text = "Fase %d de %d" % [stage_number, total_stages]
 
 
 func show_next_stage(text: String) -> void:
