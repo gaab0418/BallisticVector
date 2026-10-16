@@ -3,9 +3,8 @@ extends RefCounted
 ## Acompanha os desafios das estrelas de uma fase, a partir de eventos que a
 ## arena informa (tiro, acerto, dano, movimento, engrenagem girada).
 ##
-## A primeira estrela e sempre vencer; as outras duas vem de Campaign. Cada
-## desafio tem um estado ao vivo, para a HUD mostrar o progresso durante a luta
-## em vez de so revelar no fim:
+## A primeira estrela e sempre vencer; as outras duas vem de Campaign. Estado
+## ao vivo de cada desafio:
 ##   PENDING -- ainda da para cumprir
 ##   DONE    -- cumprido
 ##   FAILED  -- perdido nesta tentativa (ex.: passou do limite de tiros)

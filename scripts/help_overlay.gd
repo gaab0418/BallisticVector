@@ -7,9 +7,7 @@ extends UiModal
 ##   A parabola      -- mini-diagrama: vertice, raiz, altura do canhao (c)
 ##   As engrenagens  -- o efeito de cada engrenagem, em tres mini-graficos
 ##
-## Agora e um UiModal, como as outras janelas: herda a centralizacao por
-## CenterContainer, o PROCESS_MODE_ALWAYS e o fechamento com Esc. A pausa em si
-## continua com a arena (pauses_game = false aqui), como sempre foi.
+## A pausa fica com a arena (pauses_game = false aqui).
 
 const ICON_ARROWS_V = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_vertical.png")
 const ICON_ARROWS_H = preload("res://assets/sprites/keyboard_mouse/keyboard_arrows_horizontal.png")
@@ -27,8 +25,7 @@ var _tabs: Array = []
 var _close_btn: Button
 
 
-## Mantido para a arena, que monta a ajuda com um estilo de painel: o UiModal
-## ja usa a moldura MODAL, entao o argumento e so compatibilidade.
+## Compatibilidade com a arena; o UiModal ja usa a moldura MODAL.
 func setup(_panel_style: StyleBox = null) -> void:
 	pass
 
@@ -58,16 +55,31 @@ func _build_content() -> void:
 		page.custom_minimum_size = PAGE_SIZE
 		body.add_child(page)
 
+	var buttons := HBoxContainer.new()
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	buttons.add_theme_constant_override("separation", UiTokens.GAP)
+	body.add_child(buttons)
+	var again := UiButton.create("Rever o tutorial da Ada", UiButton.Kind.SECONDARY, null, true)
+	again.custom_minimum_size = Vector2(300, 52)
+	again.pressed.connect(_replay_tutorial.bind(again))
+	buttons.add_child(again)
 	_close_btn = UiButton.create("ENTENDI!", UiButton.Kind.PRIMARY, null, true)
-	_close_btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_close_btn.pressed.connect(close)
-	body.add_child(_close_btn)
+	buttons.add_child(_close_btn)
 	_tabs[0].button_pressed = true
 
 
 func open() -> void:
 	super()
 	_close_btn.grab_focus.call_deferred()
+
+
+## O tutorial volta a aparecer na proxima vez que a Base Alpha, fase 1, abrir.
+func _replay_tutorial(button: Button) -> void:
+	Global.tutorial_done = false
+	Global.save_game()
+	button.text = "Ok! Ele aparece na Alpha, fase 1"
+	button.disabled = true
 
 
 func _on_tab_toggled(on: bool, index: int) -> void:

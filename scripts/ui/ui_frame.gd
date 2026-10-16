@@ -1,41 +1,40 @@
 @tool
 class_name UiFrame
 extends StyleBox
-## Moldura em pixel art, desenhada so com retangulos.
-##
-## Substitui o StyleBoxFlat arredondado, que nao combinava com a arte do jogo.
-## Desenhar por retangulos, e nao por textura 9-patch, e de proposito: o
-## resultado sai nitido com qualquer filtro de textura e em qualquer escala de
-## janela, e as cores continuam vindo de UiTokens em vez de morarem num PNG.
+## Moldura em pixel art, desenhada so com retangulos: sai nitida com qualquer
+## filtro de textura e escala de janela.
 ##
 ## Camadas, de fora para dentro, cada uma com `unit` pixels de espessura:
 ##   sombra dura (deslocada para baixo) -> contorno escuro -> anel de latao com
 ##   bisel (claro em cima, escuro embaixo) -> miolo.
-## Os cantos sao chanfrados em um pixel, como em sprite feito a mao.
+## Os cantos sao chanfrados em um pixel.
 ##
-## @tool porque o editor tambem desenha o Theme; sem isso os paineis apareceriam
-## vazios na aba 2D.
+## @tool porque o editor tambem desenha o Theme.
+##
+## Nao referencia nenhuma outra classe global (nem UiTokens): este script e
+## carregado junto com o tema do projeto, antes de o Godot registrar as classes
+## numa importacao do zero. Os valores sempre vem de UiPanel.frame().
 
-@export var fill := UiTokens.NIGHT_900
+@export var fill: Color
 @export var draw_fill := true
-@export var outline := UiTokens.NIGHT_950
-@export var border := UiTokens.BRASS
+@export var outline: Color
+@export var border: Color
 ## Espessura do anel de latao, em unidades.
 @export var border_units := 1
-@export var bevel_light := UiTokens.BEVEL_LIGHT
-@export var bevel_dark := UiTokens.BEVEL_DARK
+@export var bevel_light: Color
+@export var bevel_dark: Color
 ## Inverte o bisel: claro embaixo, escuro em cima. E o estado "afundado".
 @export var inset := false
-@export var shadow := UiTokens.SHADOW
+@export var shadow: Color
 ## Deslocamento da sombra dura, em unidades. 0 = sem sombra.
 @export var shadow_units := 0
 @export var rivets := false
-@export var rivet_color := UiTokens.BRASS_LIGHT
+@export var rivet_color: Color
 ## Desenha so um anel na cor `border`, por fora do retangulo. Usado no foco,
 ## que o Godot pinta por cima do estilo normal.
 @export var ring_only := false
 ## Tamanho do pixel da moldura, em pixels de tela.
-@export var unit := UiTokens.PX
+@export var unit: int = 1
 
 
 func _draw(to_canvas_item: RID, rect: Rect2) -> void:
@@ -94,8 +93,7 @@ func _ring(ci: RID, r: Rect2, u: float, color: Color) -> void:
 	RenderingServer.canvas_item_add_rect(ci, Rect2(r.end.x - u, p.y + u, u, h - 2.0 * u), color)
 
 
-## Uma linha clara no topo e uma escura na base do anel de latao: e o que faz a
-## moldura parecer metal com volume em vez de um contorno chapado.
+## Linha clara no topo e escura na base do anel de latao: da volume ao metal.
 func _bevel(ci: RID, ring: Rect2, u: float) -> void:
 	var top := bevel_dark if inset else bevel_light
 	var bottom := bevel_light if inset else bevel_dark

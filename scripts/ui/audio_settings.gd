@@ -1,14 +1,9 @@
 class_name AudioSettingsPanel
 extends VBoxContainer
-## Os tres controles de volume, compartilhados entre o menu principal e a pausa.
+## Os tres controles de volume (Master, SFX, BGM), usados no menu e na pausa.
 ##
-## Antes existiam so no menu_play e escreviam todos no mesmo bus: o projeto nao
-## tinha bus layout, so o Master, e o fallback mandava "Efeitos Sonoros" e
-## "Trilha Sonora" para la. Mexer em um mexia nos tres. Agora BGM e SFX existem
-## de verdade (default_bus_layout.tres) e cada slider governa o seu.
-##
-## O bus e a unica fonte de verdade do volume. Ter tambem variaveis de mix no
-## AudioManager multiplicaria em serie -- dois estagios em 0.5 dao 25%, nao 50%.
+## O bus e a unica fonte de verdade do volume: variaveis de mix no AudioManager
+## multiplicariam em serie (0.5 x 0.5 = 25%).
 
 const ROWS := [
 	{"label": "Volume Geral", "bus": "Master"},

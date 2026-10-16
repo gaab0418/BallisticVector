@@ -1,11 +1,6 @@
 extends Node2D
-## Chao da arena: a faixa de terra onde tanque e castelo se apoiam.
-##
-## A arena antiga nao tinha chao -- o tanque e o castelo flutuavam na borda de
-## baixo da tela. Aqui o chao e desenhado (borda de grama ou poeira, terra em
-## camadas, pedrinhas) e tambem e um obstaculo de verdade: a arena registra o
-## mesmo retangulo como poligono de colisao, entao a bala para no chao em vez de
-## sumir pela borda da tela.
+## Chao da arena: a faixa de terra onde tanque e castelo se apoiam. Tambem e
+## obstaculo: a arena registra collision_polygon() e a bala para no chao.
 
 const WIDTH := 1280.0
 const BOTTOM := 740.0
@@ -40,7 +35,7 @@ func _draw() -> void:
 	rng.seed = _seed
 
 	draw_rect(Rect2(0, ground_y, WIDTH, BOTTOM - ground_y), theme_colors.ground)
-	# Camada funda mais escura: da profundidade a faixa sem precisar de textura.
+	# Camada funda mais escura, para dar profundidade.
 	draw_rect(Rect2(0, ground_y + 34, WIDTH, BOTTOM - ground_y), theme_colors.ground_dark)
 	for x in range(0, int(WIDTH), int(px * 6)):
 		var h := px * rng.randi_range(0, 3)

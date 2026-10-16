@@ -5,9 +5,6 @@ extends UiModal
 ## Cada municao mostra a sua ficha -- gravidade, precisao e dano -- porque isso
 ## muda a parabola na arena: a crianca escolhe sabendo que a Perfurante cai mais
 ## devagar (gravidade menor) e erra menos (faixa de queda menor na regua).
-##
-## Os tres cards passam pelo mesmo _build_card(); antes o kit de reparo era uma
-## copia divergente do card de municao.
 
 signal purchased
 

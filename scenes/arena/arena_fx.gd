@@ -2,12 +2,7 @@ class_name ArenaFx
 extends Node2D
 ## Efeitos curtos da arena: clarao do disparo, poeira de impacto, explosao e
 ## numero flutuante. Cada efeito e um no que se desenha e se apaga sozinho.
-##
-## Todos duram menos de um segundo e ficam longe da linha de mira na maior
-## parte do tempo: feedback sem atrapalhar a leitura da parabola.
-##
-## Particulas sao quadrados no grao de pixel da HUD (UiTokens.PX), em vez de
-## GPUParticles2D, que no GL Compatibility tem limites e aqui seria exagero.
+## Particulas sao quadrados no grao de pixel da HUD (UiTokens.PX).
 
 enum Kind { MUZZLE, DUST, EXPLOSION, SPARK }
 
@@ -45,8 +40,7 @@ static func float_text(parent: Node, at: Vector2, text: String, col: Color) -> v
 	tw.chain().tween_callback(label.queue_free)
 
 
-## Flash branco de dano: estoura o sprite para branco e volta em 0,15 s. Por
-## tween, entao some sozinho se o sprite for destruido no meio.
+## Flash branco de dano: estoura o sprite para branco e volta em 0,15 s.
 static func flash_sprite(sprite: CanvasItem) -> void:
 	if sprite == null or not is_instance_valid(sprite):
 		return

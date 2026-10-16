@@ -3,13 +3,11 @@ class_name UiIcon
 extends Control
 ## Icone desenhado em codigo, numa grade de 16x16 escalada para o tamanho do no.
 ##
-## Existe porque as fontes do jogo nao tem ◆, ★, ✓ nem cadeado, e porque os
-## marcadores da parabola (vertice e raiz) precisam ser o MESMO desenho na HUD e
-## na linha de mira -- e o que liga numero e desenho para a crianca. Por isso o
-## desenho mora em funcoes estaticas (paint) que a trajetoria tambem chama.
+## Cobre simbolos que as fontes nao tem (◆, ★, ✓, cadeado) e garante que os
+## marcadores da parabola (vertice e raiz) sejam o MESMO desenho na HUD e na
+## linha de mira: o desenho mora em paint(), que a trajetoria tambem chama.
 ##
-## Todo icone recebe contorno escuro de um "pixel" (UiTokens.PX), o mesmo truque
-## dos sprites de pixel art para destacar do fundo.
+## Todo icone recebe contorno escuro de um "pixel" para destacar do fundo.
 
 const NAMES := [
 	"vertex",
@@ -137,7 +135,7 @@ static func _shape(ci: CanvasItem, n: String, r: Rect2, col: Color, shadow: bool
 		"star":
 			_poly(ci, r, _star_points(8, 8.6, 7.6, 3.4), col)
 		"star_empty":
-			# So contorno: com miolo escuro, sobre papel a estrela vazia parecia cheia.
+			# So contorno: com miolo escuro, sobre papel ela pareceria cheia.
 			var pts := _star_points(8, 8.6, 6.8, 3.0)
 			pts.append(pts[0])
 			_line(ci, r, pts, col, 1.8)
@@ -200,8 +198,7 @@ static func _shape(ci: CanvasItem, n: String, r: Rect2, col: Color, shadow: bool
 			_box(ci, r, 4, 7, 11, 8.6, col)
 
 
-## Engrenagem de 8 dentes com miolo escuro. Desenhada aqui, e nao com o PNG do
-## pack Kenney, para ter o mesmo traco de pixel art do resto da HUD.
+## Engrenagem de 8 dentes com miolo escuro.
 static func _gear(ci: CanvasItem, r: Rect2, col: Color, shadow: bool) -> void:
 	var c := _g(r, 8, 8)
 	var u := r.size.x / 16.0

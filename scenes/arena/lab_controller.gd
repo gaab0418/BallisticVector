@@ -1,8 +1,6 @@
 extends Node
-## Laboratorio: modo livre da arena, sem inimigos e com municao infinita.
-##
-## Liga o LabPanel ao combate: troca de mundo, alvo clicavel e a tabela de pontos
-## do ultimo tiro. A arena continua cuidando de engrenagens, curva e disparo.
+## Laboratorio: modo livre da arena, sem inimigos e com municao infinita. Liga o
+## LabPanel ao combate: troca de mundo, alvo clicavel e tabela de pontos do tiro.
 
 const TARGET_HIT_M := 0.5
 
@@ -69,7 +67,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	refresh_target(arena.current_shot())
 
 
-## Distancia da curva atual ate o alvo, escrita em linguagem de crianca.
+## Distancia da curva atual ate o alvo, escrita no painel.
 func refresh_target(s: Dictionary) -> void:
 	if _target == Vector2.INF or s.is_empty():
 		return

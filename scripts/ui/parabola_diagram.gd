@@ -5,8 +5,8 @@ extends Control
 ## As curvas vem de Ballistics -- a mesma conta da arena --, entao o que a ajuda
 ## mostra ("30° e 60° caem no mesmo lugar") e exatamente o que acontece no jogo.
 ##
-## `curves`: lista de {angle, speed, gravity, color, label, label_at, label_dy}. `annotate` liga os
-## rotulos de vertice, raiz e altura do canhao (diagrama principal).
+## `curves`: lista de {angle, speed, gravity, color, label, label_at, label_dy}.
+## `annotate` liga os rotulos de vertice, raiz e altura do canhao.
 
 ## Altura do canhao no diagrama, em metros (a mesma da arena).
 const CANNON_H := 1.0

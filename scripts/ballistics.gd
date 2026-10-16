@@ -1,12 +1,7 @@
 class_name Ballistics
 extends RefCounted
-## A matematica do tiro, num lugar so.
-##
-## Antes a escala pixel->metro existia so na HUD (parabola_hud.gd), a mira
-## simulava por Euler com outro passo de tempo e a linha desenhada ficava 54 px
-## atras de onde a bala nascia. Tres fontes de verdade que quase concordavam.
-## Agora fisica (arena), mira (trajectory_view), HUD e regua leem daqui, entao o
-## alcance escrito na tela e o ponto de queda desenhado sao a mesma conta.
+## A matematica do tiro, num lugar so: fisica, mira, HUD e regua usam esta
+## mesma conta, entao o alcance escrito e o ponto de queda desenhado coincidem.
 ##
 ## Sistema de coordenadas "da crianca", em metros:
 ##   x -- horizontal, zero na marca 0 da regua (o munhao do canhao no inicio da fase)
@@ -80,10 +75,8 @@ static func point_px(s: Dictionary, x: float) -> Vector2:
 	return Vector2(s.origin_x_px + to_px(x), s.ground_y_px - to_px(y_at(s, x)))
 
 
-## O vertice so conta se estiver a frente do canhao: com o cano apontado para
-## baixo a parabola continua tendo vertice, mas atras da bala, e dizer "a bala
-## sobe ate aqui" seria mentira. Vale tambem para o Mundo Invertido (a > 0), onde
-## o vertice e o ponto mais BAIXO e fica a frente quando o cano aponta para baixo.
+## O vertice so conta se estiver a frente do canhao (com o cano para baixo ele
+## fica atras da bala). Com a > 0 o vertice e o ponto mais baixo da curva.
 static func has_arc(s: Dictionary) -> bool:
 	return vertex(s).x > s.x_tank + 0.02
 
@@ -166,10 +159,9 @@ static func landing_band(
 	return Vector2(lo, hi)
 
 
-## Quais coeficientes (a, b, c) cada engrenagem -- angulo, forca, gravidade --
-## mexe AGORA, medido mexendo um pouquinho em cada uma. Com o tanque no zero:
-## angulo -> a e b; forca e gravidade -> so a. Com o tanque fora do zero,
-## tudo passa a mexer em b e c tambem. E o que os chips "a b c" da HUD mostram.
+## Quais coeficientes (a, b, c) cada engrenagem (angulo, forca, gravidade) mexe
+## agora, medido perturbando um pouco cada uma. Com o tanque no zero: angulo ->
+## a e b; forca e gravidade -> so a. E o que os chips "a b c" da HUD mostram.
 static func gear_effects(
 	angle_deg: float, speed_px: float, gravity_px: float, pivot: Vector2, ox: float, gy: float
 ) -> Array:

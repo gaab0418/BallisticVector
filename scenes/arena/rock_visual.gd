@@ -1,13 +1,9 @@
 extends Node2D
-## Visual de um obstaculo, desenhado a partir do PROPRIO poligono de colisao.
+## Visual de um obstaculo, desenhado a partir do CollisionPolygon2D irmao: o que
+## se ve e exatamente o que a bala e a mira enxergam.
 ##
-## O Polygon2D antigo era uma copia do poligono de colisao com uma cor chapada:
-## duas listas de pontos que precisavam ser mantidas iguais a mao. Aqui o desenho
-## le o CollisionPolygon2D irmao, entao o que a crianca ve e exatamente o que a
-## bala e a mira enxergam -- impossivel divergir.
-##
-## Luz vindo da esquerda: a metade do poligono a esquerda do pico e mais clara,
-## a direita mais escura, com estratos horizontais e contorno escuro.
+## Luz vindo da esquerda: a metade a esquerda do pico e mais clara, a direita
+## mais escura, com estratos horizontais e contorno escuro.
 
 var rock_colors: Array = UiTokens.WORLD_EARTH.rock
 var _poly := PackedVector2Array()

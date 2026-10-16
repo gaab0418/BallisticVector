@@ -1,9 +1,6 @@
 extends Node2D
-## Regua em metros no chao da arena: uma fita metrica de papel com tinta.
-##
-## E o que torna a HUD conferivel. A crianca le "Alcance 23 m" no painel, ve a
-## bandeira da raiz sobre a fita e confere o numero olhando a tela. Marca a cada
-## metro, numero a cada cinco, zero no munhao do canhao.
+## Regua em metros no chao da arena: deixa conferir na tela o alcance que a HUD
+## mostra. Marca a cada metro, numero a cada cinco, zero no munhao do canhao.
 
 const TAPE_H := 20.0
 const WIDTH := 1280.0

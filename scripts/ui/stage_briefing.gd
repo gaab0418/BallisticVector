@@ -2,9 +2,6 @@ class_name StageBriefing
 extends UiModal
 ## Cartao de missao no inicio de cada fase: o que a fase ensina, uma dica e os
 ## tres desafios que valem estrelas.
-##
-## A licao vem antes do tiro de proposito: a crianca entra na fase sabendo o que
-## observar ("30° e 60° caem no mesmo lugar"), e os desafios a fazem testar isso.
 
 const PANEL_SIZE := Vector2(640, 0)
 

@@ -129,18 +129,16 @@ static func _apply_tight_padding(btn: Button) -> void:
 	)
 
 
-## Amarrar o som aqui garante o mesmo retorno tatil em toda tela.
+## Som de hover, foco e clique em todo botao criado aqui.
 static func _wire_audio(btn: Button) -> void:
 	btn.mouse_entered.connect(func(): _play(btn, SFX_HOVER))
 	btn.focus_entered.connect(func(): _play(btn, SFX_HOVER))
 	btn.pressed.connect(func(): _play(btn, SFX_CLICK))
 
 
-## O autoload e resolvido por caminho, e nao pelo identificador global, porque o
-## compilador de theme (tools/build_ui_theme.gd) roda como script standalone --
-## sem autoloads carregados -- e referenciar AudioManager direto faria este
-## arquivo nao compilar la. De quebra, o botao passa a funcionar em qualquer
-## contexto onde o autoload nao exista.
+## O autoload e resolvido por caminho, e nao pelo identificador global, porque
+## o compilador de theme (tools/build_ui_theme.gd) roda sem autoloads e
+## referenciar AudioManager direto faria este arquivo nao compilar la.
 static func _play(node: Node, path: String) -> void:
 	if not node.is_inside_tree():
 		return

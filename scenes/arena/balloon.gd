@@ -1,9 +1,7 @@
 extends Node2D
-## Balao-alvo da Base Echo, amarrado ao chao por uma corda.
-##
-## A corda tem a altura escrita nela ("5 m"): a crianca liga o balao a linha
-## y = h e ao numero da conta. Usa meta "hp" como o castelo, entao a arena trata o
-## acerto pelo mesmo caminho, sem script de inimigo novo na fisica.
+## Balao-alvo da Base Echo, amarrado ao chao por uma corda com a altura escrita
+## ("5 m"), ligando o balao a linha y = h. Usa meta "hp" como o castelo, entao a
+## arena trata o acerto pelo mesmo caminho.
 
 const RADIUS := 18.0
 

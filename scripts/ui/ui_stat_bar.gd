@@ -2,10 +2,8 @@ class_name UiStatBar
 extends HBoxContainer
 ## Barra com icone e numero: "escudo  ████░░  80/100".
 ##
-## A barra de Blindagem antiga nao tinha valor numerico, e a informacao ficava
-## so na cor e no comprimento. Aqui o numero vem escrito dentro da barra, o
-## icone diz do que se trata e, abaixo de LOW_RATIO, a barra muda para a cor de
-## perigo -- tres sinais, nenhum dependendo so de cor.
+## O numero vem escrito na barra, o icone diz do que se trata e, abaixo de
+## LOW_RATIO, a barra muda para a cor de perigo: nenhum sinal depende so de cor.
 
 const LOW_RATIO := 0.35
 

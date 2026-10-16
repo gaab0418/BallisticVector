@@ -1,9 +1,7 @@
 extends Node2D
 ## O tiro decorativo do menu: uma bala que desenha a propria parabola no ceu do
 ## acampamento e marca o vertice quando passa por ele.
-##
-## E a identidade do jogo na primeira tela -- antes de qualquer texto, a crianca
-## ja ve a curva que vai aprender. Usa Ballistics, a mesma conta da arena.
+## Usa Ballistics, a mesma conta da arena.
 
 signal finished
 

@@ -2,9 +2,6 @@ class_name StageResult
 extends UiModal
 ## Tela de fim de fase: as estrelas ganhas aparecem uma a uma, cada desafio com
 ## o seu resultado, e o ouro recebido.
-##
-## Substitui o botao "Proxima Fase" solto na lateral da HUD, que nao dizia o que
-## a crianca tinha conquistado.
 
 signal next_requested
 signal map_requested
@@ -13,6 +10,8 @@ const PANEL_SIZE := Vector2(560, 0)
 const STAR_SIZE := 64.0
 
 var _headline: Label
+var _ada: AdaPortrait
+var _ada_line: Label
 var _stars_row: HBoxContainer
 var _goals: VBoxContainer
 var _reward: Label
@@ -40,6 +39,20 @@ func _build_content() -> void:
 	_goals.add_theme_constant_override("separation", 6)
 	body.add_child(_goals)
 
+	# A Ada comenta o resultado: uma frase, conforme as estrelas.
+	var ada_row := HBoxContainer.new()
+	ada_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	ada_row.add_theme_constant_override("separation", 10)
+	body.add_child(ada_row)
+	_ada = AdaPortrait.new()
+	_ada.custom_minimum_size = Vector2(64, 64)
+	ada_row.add_child(_ada)
+	_ada_line = Label.new()
+	_ada_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ada_line.custom_minimum_size = Vector2(380, 0)
+	_ada_line.add_theme_color_override("font_color", UiTokens.TEXT_DIM)
+	ada_row.add_child(_ada_line)
+
 	_reward = Label.new()
 	_reward.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_reward.add_theme_color_override("font_color", UiTokens.GOLD)
@@ -66,6 +79,13 @@ func show_result(stars: int, goals: Array, states: Array, gold: int, last_stage:
 	_headline.text = "BASE CONQUISTADA!" if last_stage else "FASE VENCIDA!"
 	_next.visible = not last_stage
 	_reward.text = "+%d de ouro" % gold
+	var says := [
+		"Vitória! Tente os desafios para ganhar mais estrelas.",
+		"Muito bem! Falta pouco para as três estrelas.",
+		"Perfeito! Você domina essa ideia, recruta.",
+	]
+	_ada_line.text = "“" + says[clampi(stars - 1, 0, 2)] + "”"
+	_ada.expression = "proud" if stars >= 3 else "happy"
 
 	for child in _stars_row.get_children():
 		child.queue_free()

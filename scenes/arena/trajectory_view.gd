@@ -1,10 +1,7 @@
 extends Node2D
 ## A parabola desenhada no mundo, com os pontos que a HUD descreve em numeros.
-##
-## Substitui o AimPreview, que simulava por Euler com passo diferente do
-## projetil, era filho do cano (girava junto) e ficava deslocado 54 px da boca.
-## Aqui a curva e a equacao de Ballistics, a mesma que a HUD escreve -- entao o
-## alcance do painel e a bandeira da raiz sao, por construcao, o mesmo numero.
+## A curva e a equacao de Ballistics, a mesma que a HUD escreve: o alcance do
+## painel e a bandeira da raiz sao, por construcao, o mesmo numero.
 ##
 ## Linguagem visual, ligada por cor e forma ao painel:
 ##   cor "aim"  -- tudo que e calculado (curva, vertice, raiz, faixa). Vem do
@@ -18,8 +15,7 @@ extends Node2D
 ##                 sao as solucoes de ax² + bx + c = h, e o delta diz quantas ha
 ##
 ## Rotulos procuram um lugar livre: se o lugar preferido encosta na curva ou
-## numa area da HUD, tentam o proximo. Antes "a bala pode cair aqui" ficava
-## embaixo da linha tracejada com o canhao em 0°.
+## numa area da HUD, tentam o proximo.
 
 const STEP_PX := 5.0
 const DASH := 12.0
@@ -35,11 +31,16 @@ var obstacles: Array = []
 ## Retangulos de tela que tapam o mundo (paineis da HUD): marcador escondido
 ## ali vira seta na borda; rotulo nao e colocado em cima deles.
 var occluders: Array = []
+## Devolve os retangulos atuais da HUD a cada quadro: o layout dela so fica
+## pronto depois do primeiro quadro, e uma lista fixa ficaria desatualizada.
+var occluder_source: Callable
 var show_cannon_height := false
 ## Altura (m) da linha y = h da Base Echo; NAN = sem linha.
 var height_line := NAN
 ## Cor do que e calculado neste mundo (UiTokens.WORLD_*.aim).
 var aim: Color = UiTokens.WORLD_EARTH.aim
+## Mostra o texto "a bala pode cair aqui" (a Ada desliga depois de alguns segundos).
+var band_label := true
 
 var _font: Font
 var _time := 0.0
@@ -95,6 +96,16 @@ func _rebuild() -> void:
 		x += step
 
 
+## Retangulo (tela) que envolve a curva desenhada: o holofote do tutorial.
+func curve_rect() -> Rect2:
+	if _points.is_empty():
+		return Rect2(pivot, Vector2(10, 10))
+	var r := Rect2(_points[0], Vector2.ZERO)
+	for p in _points:
+		r = r.expand(p)
+	return r.grow(10.0)
+
+
 func _inside_obstacle(p: Vector2) -> bool:
 	for poly in obstacles:
 		if Geometry2D.is_point_in_polygon(p, poly):
@@ -103,6 +114,8 @@ func _inside_obstacle(p: Vector2) -> bool:
 
 
 func _draw() -> void:
+	if occluder_source.is_valid():
+		occluders = occluder_source.call()
 	_taken = occluders.duplicate()
 	if shot.is_empty() or _points.size() < 2:
 		return
@@ -220,8 +233,7 @@ func _draw_root() -> void:
 	)
 
 
-## A faixa onde a bala pode cair, desenhada sobre a regua. Substitui o "± 7 m",
-## que dava um numero abstrato: aqui a crianca ve o pedaco do chao.
+## A faixa onde a bala pode cair (desvio da mira), desenhada sobre a regua.
 func _draw_band() -> void:
 	if band.y - band.x < 0.05:
 		return
@@ -234,7 +246,7 @@ func _draw_band() -> void:
 	draw_rect(Rect2(x0, ground - 4, x1 - x0, 30), Color(aim, UiTokens.BAND_ALPHA))
 	for edge in [x0, x1]:
 		draw_rect(Rect2(edge - px, ground - 10, px * 2, 36), Color(aim, 0.7))
-	if x1 - x0 > 110.0:
+	if band_label and x1 - x0 > 110.0:
 		var mid := (x0 + x1) * 0.5 - 80.0
 		_place_label(
 			[

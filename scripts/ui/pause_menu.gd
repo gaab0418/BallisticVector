@@ -1,12 +1,9 @@
 class_name PauseMenu
 extends UiModal
-## Menu de pausa da arena. Nao existia: o que havia era um painel de engrenagem
-## com "Voltar ao Mapa" e "Desistir" que NAO pausava -- o combate seguia rodando
-## atras dele, e os avioes continuavam bombardeando enquanto o jogador lia.
+## Menu de pausa da arena: continuar, audio, reiniciar e voltar ao mapa.
 ##
-## Tres paginas dentro da mesma janela, em vez de modais empilhados: a raiz, os
-## ajustes de audio e a confirmacao. Empilhar CanvasLayer daria duas camadas
-## disputando o Esc.
+## Tres paginas na mesma janela (raiz, audio, confirmacao) em vez de modais
+## empilhados, que disputariam o Esc.
 
 signal restart_requested
 signal return_to_map_requested
@@ -30,8 +27,7 @@ var _pending: Callable = Callable()
 
 
 func _build_content() -> void:
-	# A pausa e o motivo de este modal existir; o UiModal cuida do
-	# get_tree().paused e de despausar deferido ao fechar.
+	# O UiModal pausa a arvore e despausa deferido ao fechar.
 	pauses_game = true
 	window.custom_minimum_size = PANEL_SIZE
 	title_label.text = "JOGO PAUSADO"

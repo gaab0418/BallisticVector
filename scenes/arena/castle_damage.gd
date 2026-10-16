@@ -1,9 +1,8 @@
 extends Node2D
 ## Estrago progressivo do castelo: rachaduras, fumaca e, no fim, fogo.
 ##
-## Le meta "hp"/"max_hp" do castelo (pai). Cada acerto escurece o sprite (por
-## self_modulate, para nao brigar com o flash branco, que usa modulate) e soma
-## rachaduras e colunas de fumaca: a crianca ve o quanto falta sem ler numero.
+## Le meta "hp"/"max_hp" do castelo (pai). Cada acerto escurece o sprite por
+## self_modulate (o flash branco usa modulate) e soma rachaduras e fumaca.
 
 var _t := 0.0
 var _cracks: Array = []

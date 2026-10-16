@@ -1,10 +1,7 @@
 class_name StageBuilder
 extends RefCounted
-## Monta o cenario de uma fase a partir de Campaign: montanhas (arredondadas),
-## chao como obstaculo, castelo e avioes.
-##
-## Saiu de arena.gd, que passou do teto de 1000 linhas do .gdlintrc. A arena
-## continua dona do estado do combate; aqui so nascem os nos.
+## Monta o cenario de uma fase a partir de Campaign: obstaculos, chao e
+## inimigos. A arena continua dona do estado do combate; aqui so nascem os nos.
 
 const RockVisualScript = preload("res://scenes/arena/rock_visual.gd")
 const HpPipsScript = preload("res://scenes/arena/hp_pips.gd")
@@ -40,9 +37,8 @@ static func build_obstacles(
 		body.add_child(visual)
 		visual.setup(rock)
 
-	# Plato do tanque (Ilha Invertida): o tanque atira do alto. Quinas chanfradas
-	# direto, sem spline: pontos tao proximos com tangentes longas faziam a curva
-	# dar um laco sobre si mesma (poligono invalido para a colisao).
+	# Plato do tanque (Ilha Invertida). Quinas chanfradas, sem spline: pontos tao
+	# proximos com tangentes longas fariam a curva dar um laco (poligono invalido).
 	var h: float = stage.get("tank_height", 0.0)
 	if h > 0.0:
 		var top := -(720.0 - Campaign.GROUND_Y) - Ballistics.to_px(h)

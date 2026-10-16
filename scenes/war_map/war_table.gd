@@ -2,20 +2,13 @@ class_name WarTable
 extends Control
 ## O mapa de guerra: um pergaminho sobre a mesa de comando, desenhado em codigo.
 ##
-## O mapa e um PLANO CARTESIANO: grade quadriculada, eixos x e y numerados, e
-## cada base numa ilha com coordenadas inteiras. As rotas entre as bases sao
-## arcos de parabola. Ou seja, ate a tela de escolher fase fala a lingua do jogo.
+## O mapa e um plano cartesiano: grade, eixos x e y numerados, cada base numa
+## ilha com coordenadas, e rotas entre as bases em arco de parabola. Tudo e
+## calculado a partir do tamanho atual.
 ##
-## Substitui a imagem de carta nautica, que era recortada em "cover" (perdia as
-## bordas conforme a proporcao da janela) e nao tinha relacao com a materia.
-## Aqui tudo e calculado a partir do tamanho atual: nada e cortado, em nenhuma
-## resolucao.
-##
-## O plano vai de x = 0 a x = 40, mas a janela mostra 20 de cada vez: tres bases
-## por tela, com espaco para respirar. A seta "Continue a rota" desliza a janela
-## -- o plano cartesiano continua para a direita, como na matematica. A camada do
-## mapa (map_layer) e recortada no pergaminho, entao o que fica fora da janela
-## some em vez de amontoar.
+## O plano vai de x = 0 a x = 40 e a janela mostra 20 de cada vez (tres bases
+## por tela). A camada do mapa (map_layer) e recortada no pergaminho, entao o
+## que fica fora da janela some.
 
 ## Largura visivel da janela (em unidades do plano) e largura total do plano.
 const GRID_W := 20
@@ -25,11 +18,8 @@ const GRID_H := 9
 const PAD := 44.0
 const ISLAND_R := 1.75
 
-## Ilhas e o que cada uma tem desenhado, na ordem dos capitulos.
-## biome: hills (Alpha, angulo), forest (Bravo, forca), craters (Charlie,
-## gravidade), road (Delta, translacao).
-## balloons (Echo, vertice e delta), inverted (bonus: tudo de cabeca para baixo).
-## Tres por tela: x de 0 a 20 na primeira, de 20 a 40 na segunda.
+## Ilhas na ordem dos capitulos, tres por tela. biome: hills (Alpha), forest
+## (Bravo), craters (Charlie), road (Delta), balloons (Echo), inverted (bonus).
 const ISLANDS := [
 	{"grid": Vector2(3.6, 5.8), "biome": "hills"},
 	{"grid": Vector2(10, 2.7), "biome": "forest"},
@@ -299,8 +289,7 @@ func _ragged(r: Rect2, rng: RandomNumberGenerator) -> PackedVector2Array:
 
 ## Aguada de mar sobre a area do plano e ondinhas a tinta longe das ilhas.
 func _draw_sea() -> void:
-	# O plano inteiro (e um pouco alem): a pontinha da proxima tela aparece na
-	# borda com o mesmo mar, convidando a seguir.
+	# O plano inteiro, para a pontinha da outra tela aparecer na borda com o mesmo mar.
 	var a := grid_to_screen(Vector2(-2, GRID_H))
 	var b := grid_to_screen(Vector2(WORLD_W + 2, 0))
 	_ci.draw_rect(Rect2(a, b - a), UiTokens.MAP_SEA)
@@ -344,7 +333,7 @@ func _draw_grid() -> void:
 		var right := grid_to_screen(Vector2(WORLD_W, gy))
 		_ci.draw_line(grid_to_screen(Vector2(0, gy)), right, faint, 1.0)
 
-	# Eixos com seta, como no caderno. O eixo x vai ate 40: o plano continua.
+	# Eixos com seta, como no caderno.
 	var ink := Color(UiTokens.INK, 0.75)
 	var o := grid_to_screen(Vector2.ZERO)
 	var xe := grid_to_screen(Vector2(WORLD_W + 0.4, 0))
@@ -365,7 +354,7 @@ func _draw_grid() -> void:
 		_ci.draw_line(p, p + Vector2(0, 5), ink, 1.0)
 		_ink_text(p + Vector2(-4, 20), str(gx), UiTokens.FONT_XS, 0.7, false)
 	# Numeros de y presos a borda esquerda da janela: na segunda tela o eixo
-	# de verdade (x = 0) ficou para tras, mas a altura continua legivel.
+	# x = 0 ficou para tras.
 	var left := view_x
 	for gy in range(1, GRID_H + 1):
 		var p := grid_to_screen(Vector2(left, gy))
@@ -492,8 +481,8 @@ func _tree(p: Vector2, r: float) -> void:
 # ═════════════════════════════════════════════════════════════════════
 
 
-## Rota entre bases consecutivas desenhada como parabola (bezier quadratica com
-## o ponto de controle acima): a campanha inteira e uma sequencia de tiros.
+## Rota entre bases consecutivas: bezier quadratica com o ponto de controle
+## acima, ou seja, um arco de parabola.
 func _draw_routes() -> void:
 	for i in range(ISLANDS.size() - 1):
 		var a := grid_to_screen(ISLANDS[i].grid)

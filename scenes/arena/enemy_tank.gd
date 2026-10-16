@@ -1,9 +1,7 @@
 extends Node2D
-## Tanque inimigo: anda de um lado para o outro numa faixa do chao e revida com
-## tiros parabolicos -- os mesmos projeteis (projectile.gd) dos avioes.
-##
-## Segue o contrato dos avioes com a arena (hp, take_damage, on_enemy_destroyed),
-## entao entra na lista de inimigos sem nada especial no resto do codigo.
+## Tanque inimigo: anda numa faixa do chao e revida com tiros parabolicos
+## (projectile.gd). Segue o contrato dos avioes com a arena: hp, take_damage e
+## on_enemy_destroyed.
 
 const HULL_TEX := preload("res://assets/sprites/tank_hull.png")
 const BARREL_TEX := preload("res://assets/sprites/tank_barrel.png")

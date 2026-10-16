@@ -5,10 +5,8 @@ extends SceneTree
 ##
 ##     godot --headless --script res://tools/build_ui_theme.gd
 ##
-## O .tres e o que project.godot registra em gui/theme/custom. Ele precisa ser
-## um arquivo porque CanvasLayer interrompe a heranca de tema, entao aplicar em
-## runtime pela arvore nao alcancaria a UI deste projeto -- o motivo completo
-## esta no cabecalho de scripts/ui/ui_theme.gd.
+## O .tres e registrado em project.godot (gui/theme/custom) porque CanvasLayer
+## interrompe a heranca de tema; detalhes em scripts/ui/ui_theme.gd.
 
 const OUT_PATH := "res://assets/resources/ui_theme.tres"
 

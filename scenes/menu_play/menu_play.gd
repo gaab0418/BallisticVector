@@ -1,12 +1,6 @@
 extends Control
-## Menu principal.
-##
-## Mantem o fundo do acampamento (camp.jpg) e o tanque, mas agora o tanque mira
-## e dispara de tempos em tempos, desenhando uma parabola no ceu: a primeira
-## coisa que o jogador ve e a curva que o jogo ensina.
-##
-## Navegacao completa por teclado (setas + Enter), com foco visivel no anel ambar
-## do tema. Entrada animada: o painel surge e os botoes acendem em cascata.
+## Menu principal. O tanque do fundo mira e dispara de tempos em tempos,
+## desenhando uma parabola no ceu. Navegavel por teclado (setas + Enter).
 
 const BACKGROUND_PLANE = preload("res://assets/sprites/airplane_enemy_01.png")
 const HULL_TEX = preload("res://assets/sprites/tank_hull.png")
@@ -45,9 +39,6 @@ var _teacher_btn: Button
 func _ready() -> void:
 	_setup_background()
 	_build_tank()
-	# Antes esta cena criava o proprio AudioStreamPlayer, e era a unica a fazer
-	# isso. Ao voltar do mapa de guerra a trilha do AudioManager continuava
-	# tocando e a local comecava por cima, sobrepostas.
 	AudioManager.play_bgm(MUSIC_BG)
 	_setup_ui()
 	randomize()
@@ -55,7 +46,7 @@ func _ready() -> void:
 
 func _setup_background() -> void:
 	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	# Cover, e nao scale: em telas fora de 16:9 a foto era esticada.
+	# Cover, e nao scale: fora de 16:9 a foto seria esticada.
 	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
@@ -175,8 +166,7 @@ func _setup_ui() -> void:
 	_on_teacher_toggled(Global.teacher_mode)
 	column.add_child(_teacher_btn)
 
-	# Áudio e créditos dividem uma linha: com o Laboratório e o "recomeçar", sete
-	# botões empilhados passariam da altura da tela.
+	# Áudio e créditos dividem uma linha para o painel caber na altura da tela.
 	var pair := HBoxContainer.new()
 	pair.add_theme_constant_override("separation", UiTokens.GAP)
 	column.add_child(pair)
@@ -278,8 +268,7 @@ func _animate_entry(panel: Control) -> void:
 		bt.tween_property(b, "modulate:a", 1.0, 0.18)
 
 
-## Construido uma vez e reaproveitado; o UiModal centraliza com CenterContainer,
-## que recalcula sozinho em qualquer resolucao.
+## Construido uma vez e reaproveitado.
 func _build_audio_modal(parent: CanvasLayer) -> CanvasLayer:
 	var modal = UiModalScript.new()
 	parent.add_child(modal)
@@ -294,8 +283,8 @@ func _build_audio_modal(parent: CanvasLayer) -> CanvasLayer:
 	return modal
 
 
-## Confirmação antes de apagar o progresso: Enter por engano não pode zerar
-## as estrelas de ninguém, então o foco começa no "não".
+## Confirmação antes de apagar o progresso; o foco começa no "não" para um
+## Enter por engano não zerar tudo.
 func _build_reset_modal(parent: CanvasLayer) -> CanvasLayer:
 	var modal = UiModalScript.new()
 	parent.add_child(modal)

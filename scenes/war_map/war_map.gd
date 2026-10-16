@@ -1,9 +1,7 @@
 extends Control
-## Mapa de guerra: o pergaminho cartesiano (WarTable) com as quatro bases
-## (capitulos) da campanha, cada uma numa ilha com coordenadas inteiras.
-##
-## As bases ficam ancoradas em coordenadas do plano cartesiano do mapa e sao
-## reposicionadas a cada mudanca de tamanho: nada e recortado nem sai do lugar.
+## Mapa de guerra: o pergaminho cartesiano (WarTable) com as bases da campanha,
+## cada uma numa ilha. As bases ficam ancoradas em coordenadas do plano e sao
+## reposicionadas a cada mudanca de tamanho ou de tela do mapa.
 
 const ICON_COIN := preload("res://assets/sprites/icons/coin.png")
 const ICON_CART := preload("res://assets/sprites/icons/cart.svg")
@@ -72,7 +70,7 @@ func _ready() -> void:
 	_build_bottom_buttons()
 
 	# Loja e popup vivem em CanvasLayer proprio: com o popup aberto, nada do mapa
-	# atras dele desenha por cima nem responde ao clique.
+	# atras dele responde ao clique.
 	_build_attack_modal()
 	_build_shop()
 
@@ -87,13 +85,25 @@ func _ready() -> void:
 	_table.show_page(WarTable.page_of(_index_of(_next_base_id())), false)
 	_update_page_arrows()
 	_focus_next_base.call_deferred()
-	Global.save_game()
+	# Um recado da Ada por vez; o ultimo que se aplicar (o mais importante) vence.
+	var ada := AdaDialog.new()
+	add_child(ada)
+	var line := ""
+	if not Global.map_intro_done:
+		line = "Este é o mapa de guerra! Cada ilha é um capítulo. Clique numa ilha para escolher a fase."
+		Global.map_intro_done = true
 	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
 	if Global.just_conquered != "":
 		_table.animate_boat(_index_of(Global.just_conquered))
 		Global.just_conquered = ""
+		line = "Base conquistada! O barquinho já está levando a tropa para a próxima ilha."
 	if Global.grant_emergency_ammo():
-		_toast("Kit de emergência: %d balas Enferrujadas grátis!" % Global.EMERGENCY_AMMO)
+		line = (
+			"Acabou a munição? Tome %d balas Enferrujadas, por minha conta!" % Global.EMERGENCY_AMMO
+		)
+	if line != "":
+		ada.pop(line, "happy", 6.0)
+	Global.save_game()
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -121,7 +131,7 @@ func _build_markers() -> void:
 		var data: Dictionary = Global.get_base_data(id)
 		var marker: BaseMarker = BaseMarkerScript.new()
 		marker.name = id
-		# Dentro da camada recortada: base da outra tela fica escondida, nao amontoada.
+		# Na camada recortada: a base da outra tela fica escondida.
 		_table.map_layer.add_child(marker)
 		marker.setup(
 			id,
@@ -266,8 +276,7 @@ func _show_card(base_id: String) -> void:
 		row.add_child(name_label)
 		for k in range(3):
 			var on: bool = k < int(stars[i])
-			# Sem contorno no papel: a tinta ja contrasta, e o contorno escuro
-			# engrossava a estrela vazia ate parecer cheia.
+			# Sem contorno no papel: com ele a estrela vazia parecia cheia.
 			var star := UiIcon.make(
 				"star" if on else "star_empty", UiTokens.EDITABLE_ON_PAPER, 18.0
 			)
@@ -414,25 +423,6 @@ func _refresh_all() -> void:
 		_table.queue_redraw()
 
 
-## Aviso curto embaixo da barra do topo, que some sozinho.
-func _toast(text: String) -> void:
-	var label := Label.new()
-	label.text = text
-	label.theme_type_variation = &"OverlayLabel"
-	label.add_theme_color_override("font_color", UiTokens.EDITABLE)
-	label.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.z_index = 10
-	add_child(label)
-	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	label.offset_top = TOP_BAR_H + 16.0
-	var tw := create_tween()
-	tw.tween_interval(3.5)
-	tw.tween_property(label, "modulate:a", 0.0, 0.6)
-	tw.tween_callback(label.queue_free)
-
-
 func _index_of(base_id: String) -> int:
 	for i in range(BASE_CONFIGS.size()):
 		if BASE_CONFIGS[i].id == base_id:
@@ -453,7 +443,7 @@ func _next_base_id() -> String:
 
 
 ## Botoes para deslizar entre as telas do mapa, na faixa de baixo (entre Loja e
-## Voltar), longe das ilhas. A seta e texto, com o fallback de fonte para "→".
+## Voltar). A seta e texto, desenhada pelo fallback de fonte.
 func _build_page_arrows() -> void:
 	_next_page_btn = _page_button("Continue a rota  →")
 	_next_page_btn.pressed.connect(_go_page.bind(1))
@@ -479,8 +469,8 @@ func _go_page(page: int) -> void:
 	_update_page_arrows(page)
 
 
-## Mostra a seta que leva para a outra tela; ela pulsa quando a proxima base a
-## conquistar esta do outro lado ("e por aqui que a campanha continua").
+## Mostra o botao que leva para a outra tela; ele pulsa quando a proxima base a
+## conquistar esta do outro lado.
 func _update_page_arrows(page: int = -1) -> void:
 	var current := _table.current_page() if page < 0 else page
 	_next_page_btn.visible = current == 0
@@ -582,7 +572,6 @@ func _on_attack_pressed() -> void:
 	if selected_base_id.is_empty() or not Global.is_base_unlocked(selected_base_id):
 		AudioManager.play_sfx(SFX_ERROR)
 		return
-	# Configurar estado global para a arena
 	Global.current_base_id = selected_base_id
 	Global.current_stage = selected_stage
 	Global.reset_armor()

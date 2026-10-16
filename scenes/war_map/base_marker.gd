@@ -3,14 +3,12 @@ extends Button
 ## Uma base no mapa de guerra: o castelo desenhado no papel e uma plaqueta com
 ## nome, capitulo e uma medalha por fase.
 ##
-## Antes a base era um sprite de 64 px com "Fase 1/3" em corpo 14 por cima da
-## arte do mapa -- ilegivel. Agora o estado e lido por tres sinais ao mesmo
-## tempo, nenhum so de cor:
+## O estado e lido por tres sinais ao mesmo tempo, nenhum so de cor:
 ##   bloqueada   -- castelo apagado + cadeado + "termine a base anterior"
 ##   disponivel  -- seta ambar pulsando sobre o castelo + "proxima: fase N"
 ##   conquistada -- bandeira no castelo + medalhas cheias
 ##
-## E um Button (flat) para ganhar de graca foco por teclado, hover e clique.
+## E um Button (flat) para ter foco por teclado, hover e clique.
 
 enum State { LOCKED, OPEN, DONE }
 
@@ -121,8 +119,7 @@ func set_progress(new_state: int, base_stars: Array, cleared: int, total: int) -
 	queue_redraw()
 
 
-## Uma estrela = bronze, duas = prata, tres = ouro: a medalha diz o quanto a
-## crianca dominou a fase, e da vontade de voltar para completar.
+## Uma estrela = bronze, duas = prata, tres = ouro.
 static func _medal_color(n: int) -> Color:
 	match n:
 		1:
@@ -178,7 +175,6 @@ func _draw() -> void:
 		State.DONE:
 			draw_texture_rect(FLAG_TEX, Rect2(c + Vector2(10, -66), Vector2(44, 44)), false)
 		_:
-			# Seta pulsando: "e aqui que voce vai agora".
 			draw_set_transform(c + Vector2(0, -52 + bob), PI, Vector2.ONE)
 			UiIcon.paint(
 				self, "arrow_up", Rect2(Vector2(-12, -12), Vector2(24, 24)), UiTokens.EDITABLE

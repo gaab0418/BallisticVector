@@ -7,10 +7,9 @@ extends RefCounted
 ##
 ## Regra: nenhum literal de cor, de fonte ou de corpo de fonte fora deste arquivo.
 ##
-## A paleta foi tirada dos assets que ja existiam: o ceu crepuscular e as
-## montanhas do camp.jpg, o verde do tanque, a pedra do castelo e o papel do mapa
-## nautico. Contraste conferido contra NIGHT_900 (fundo dos paineis): texto
-## principal 14:1, destaques acima de 9:1, perigo 5,8:1 -- todos WCAG AA.
+## Paleta tirada dos assets (ceu do camp.jpg, verde do tanque, pedra do castelo,
+## papel do mapa). Contraste contra NIGHT_900: texto 14:1, destaques acima de
+## 9:1, perigo 5,8:1 (WCAG AA).
 
 # ═════════════════════════════════════════════════════════════════════
 #  PALETA BASE -- so nomes de material; as telas usam os papeis semanticos
@@ -81,7 +80,7 @@ const EDITABLE_ON_PAPER := Color("774b00")
 const CALCULATED_ON_PAPER := Color("145763")
 const DANGER_ON_PAPER := Color("9a2016")
 
-## Nome antigo de EDITABLE, mantido porque e o acento de interacao do jogo.
+## Alias de EDITABLE: o acento de interacao do jogo.
 const AMBER := EDITABLE
 
 # ── Texto ────────────────────────────────────────────────────────────
@@ -143,14 +142,10 @@ const ENEMY_SHOT := Color("ff6a2a")
 # ═════════════════════════════════════════════════════════════════════
 
 # Tres arquivos, todos OFL (licencas em assets/fonts/):
-#   VT323     -- texto, numeros e formulas. Fonte de terminal em pixel, com
-#                digitos inequivocos (5 nao vira S, 8 nao vira B) e "i" com pingo
-#                separado de verdade, em qualquer corpo.
+#   VT323     -- texto, numeros e formulas: digitos inequivocos (5/S, 8/B) e
+#                "i" com pingo separado em qualquer corpo.
 #   Handjet   -- so fallback, para os glifos que a VT323 nao tem (θ e setas).
-#                Ja foi a fonte de texto, mas o pingo do "i" fica a ~1 px da haste
-#                e some na tela: "Meia" virava "Mela", "Tiro" virava "Tlro".
 #   Jersey 10 -- titulos e logotipo. NAO tem ² nem ±: so para palavras.
-# (O Pixelify Sans foi o primeiro testado e caiu porque o 5 parecia S.)
 const FONT_BODY_PATH := "res://assets/fonts/VT323-Regular.ttf"
 const FONT_FALLBACK_PATH := "res://assets/fonts/Handjet-Variable.ttf"
 const FONT_TITLE_PATH := "res://assets/fonts/Jersey10-Regular.ttf"
@@ -340,7 +335,7 @@ const MAP_TREE := Color("9fae74")
 ## Mar do pergaminho: aguada esverdeada sobre o papel, para a terra saltar.
 const MAP_SEA := Color(0.55, 0.66, 0.6, 0.28)
 
-# ── Alvos e inimigos novos ───────────────────────────────────────────
+# ── Alvos e inimigos ─────────────────────────────────────────────────
 const BALLOON_A := Color("e8584a")
 const BALLOON_B := Color("f2b33d")
 const BALLOON_C := Color("6fb2e0")
@@ -363,3 +358,17 @@ const WORLD_INVERTED := {
 	# Ceu verde-azulado de aurora: a mira vira magenta para contrastar.
 	"aim": Color("ff7ad0"),
 }
+
+# ── Engenheira Ada (mascote) ─────────────────────────────────────────
+const ADA_UNIFORM := Color("5f6e3e")
+const ADA_UNIFORM_DARK := Color("424e2c")
+const ADA_HAIR := Color("96462a")
+const ADA_HAIR_DARK := Color("6e301e")
+const ADA_SKIN := Color("f0c4a0")
+const ADA_SKIN_DARK := Color("d2a080")
+const ADA_CHEEK := Color("e88078")
+const ADA_MOUTH := Color("a03c3c")
+## Escurece o resto da tela no tutorial (o holofote fica de fora).
+const SPOTLIGHT_DIM := Color(0.04, 0.03, 0.07, 0.62)
+## Velocidade da maquina de escrever, em caracteres por segundo.
+const TYPE_SPEED := 48.0

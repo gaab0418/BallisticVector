@@ -2,24 +2,17 @@ class_name UiTheme
 extends RefCounted
 ## Constroi o Theme do jogo a partir de UiTokens.
 ##
-## O tema NAO e aplicado em runtime: ele e compilado para
-## assets/resources/ui_theme.tres e registrado em project.godot como
-## gui/theme/custom. A razao e concreta -- CanvasLayer nao e Control nem Window,
-## entao ele INTERROMPE a heranca de tema. Medido: um Button filho direto de um
-## Control do root recebe o tema; o mesmo Button dentro de um CanvasLayer recebe
-## o default do Godot. Como menu, HUD da arena e todos os modais deste projeto
-## vivem em CanvasLayer, setar root.theme nao pintaria quase nada.
-##
-## O tema de projeto e consultado como fallback por qualquer Control sem theme
-## owner, atravessando CanvasLayer sem problema.
+## O tema e compilado para assets/resources/ui_theme.tres e registrado em
+## project.godot como gui/theme/custom, em vez de aplicado em runtime:
+## CanvasLayer interrompe a heranca de tema, e menu, HUD e modais vivem em
+## CanvasLayer. O tema de projeto e o fallback de todo Control sem theme owner.
 ##
 ## Ao mexer em UiTokens ou aqui, REGERE o .tres:
 ##
 ##     godot --headless --script res://tools/build_ui_theme.gd
 ##
-## Aviso que vale para quem for migrar uma tela: add_theme_*_override() VENCE o
-## tema. Migrar uma tela e remover override, nao acrescentar. Para os papeis de
-## texto existem variacoes prontas (Label.theme_type_variation):
+## add_theme_*_override() vence o tema. Para os papeis de texto use as
+## variacoes prontas (Label.theme_type_variation):
 ##
 ##   TitleLabel    -- titulo de janela, Jersey 10, latao claro
 ##   DisplayLabel  -- logotipo e telas de resultado, Jersey 10 grande com contorno
@@ -30,15 +23,10 @@ extends RefCounted
 ##   DangerLabel   -- dano e alerta
 ##   OverlayLabel  -- texto escrito direto sobre arte, com contorno escuro
 ##   InkLabel      -- texto sobre papel (PAPER)
-##
-## As fontes sao arquivos do projeto (assets/fonts/, OFL), e nao SystemFont:
-## antes o war_map e a arena usavam "Georgia", que no build Linux caia para
-## DejaVu com metricas ~10% maiores e estourava larguras calculadas no Windows.
 
 
 static func build() -> Theme:
 	var theme := Theme.new()
-	theme.default_font = body_font()
 	theme.default_font_size = UiTokens.FONT_MD
 
 	_build_button(theme)
@@ -52,6 +40,22 @@ static func build() -> Theme:
 	_build_separator(theme)
 
 	return theme
+
+
+## Fontes do tema, aplicadas em tempo de execucao (Global._ready) no tema do
+## projeto. Ficam fora do .tres porque o tema e carregado na inicializacao,
+## antes de uma importacao do zero gerar os arquivos das fontes.
+static func apply_fonts(theme: Theme) -> void:
+	var bold := body_font(UiTokens.WEIGHT_BOLD)
+	theme.default_font = body_font()
+	theme.set_font("font", "Button", bold)
+	theme.set_font("font", "ProgressBar", bold)
+	for type_name in ["TitleLabel", "DisplayLabel"]:
+		theme.set_font("font", type_name, title_font())
+	for type_name in [
+		"HeadingLabel", "EditableLabel", "ResultLabel", "DangerLabel", "OverlayLabel"
+	]:
+		theme.set_font("font", type_name, bold)
 
 
 ## Fonte de texto (VT323) com o Handjet de fallback para θ e setas. `weight`
@@ -88,7 +92,6 @@ static func _build_button(theme: Theme) -> void:
 	# HUD usam FOCUS_NONE; menu e modais ligam o foco para navegar por teclado.
 	theme.set_stylebox("focus", "Button", UiButton.make_focus_style())
 
-	theme.set_font("font", "Button", body_font(UiTokens.WEIGHT_BOLD))
 	theme.set_color("font_color", "Button", UiTokens.TEXT)
 	theme.set_color("font_hover_color", "Button", UiTokens.TEXT_HOVER)
 	theme.set_color("font_pressed_color", "Button", UiTokens.TEXT_DIM)
@@ -97,9 +100,8 @@ static func _build_button(theme: Theme) -> void:
 	theme.set_color("font_hover_pressed_color", "Button", UiTokens.TEXT_DIM)
 	theme.set_font_size("font_size", "Button", UiTokens.FONT_MD)
 
-	# Os icones vem do pack Kenney com as cores originais -- o joystick e preto,
-	# e sobre o fundo escuro do tema ele sumia. Modular alinha todos a cor do
-	# texto e faz o icone acompanhar o estado do botao.
+	# Icones do pack Kenney tem cores proprias (alguns pretos): modular alinha
+	# todos a cor do texto e faz o icone acompanhar o estado do botao.
 	theme.set_color("icon_normal_color", "Button", UiTokens.TEXT)
 	theme.set_color("icon_hover_color", "Button", UiTokens.TEXT_HOVER)
 	theme.set_color("icon_pressed_color", "Button", UiTokens.TEXT_DIM)
@@ -126,32 +128,27 @@ static func _build_label(theme: Theme) -> void:
 ## Cada variacao declara so o que difere de Label. Uma tela aplica com
 ## label.theme_type_variation = &"ResultLabel" e nao escreve override nenhum.
 static func _build_label_variations(theme: Theme) -> void:
-	_variation(theme, "TitleLabel", title_font(), UiTokens.FONT_TITLE, UiTokens.TITLE)
+	_variation(theme, "TitleLabel", UiTokens.FONT_TITLE, UiTokens.TITLE)
 
-	_variation(theme, "DisplayLabel", title_font(), UiTokens.FONT_DISPLAY, UiTokens.EDITABLE)
+	_variation(theme, "DisplayLabel", UiTokens.FONT_DISPLAY, UiTokens.EDITABLE)
 	theme.set_constant("outline_size", "DisplayLabel", UiTokens.OUTLINE_SIZE)
 	theme.set_constant("shadow_offset_x", "DisplayLabel", 0)
 	theme.set_constant("shadow_offset_y", "DisplayLabel", UiTokens.PX * 3)
 
-	var bold := body_font(UiTokens.WEIGHT_BOLD)
-	_variation(theme, "HeadingLabel", bold, UiTokens.FONT_LG, UiTokens.BRASS_LIGHT)
-	_variation(theme, "CaptionLabel", null, UiTokens.FONT_XS, UiTokens.TEXT_MUTED)
-	_variation(theme, "EditableLabel", bold, UiTokens.FONT_LG, UiTokens.EDITABLE)
-	_variation(theme, "ResultLabel", bold, UiTokens.FONT_LG, UiTokens.CALCULATED)
-	_variation(theme, "DangerLabel", bold, UiTokens.FONT_MD, UiTokens.DANGER)
+	_variation(theme, "HeadingLabel", UiTokens.FONT_LG, UiTokens.BRASS_LIGHT)
+	_variation(theme, "CaptionLabel", UiTokens.FONT_XS, UiTokens.TEXT_MUTED)
+	_variation(theme, "EditableLabel", UiTokens.FONT_LG, UiTokens.EDITABLE)
+	_variation(theme, "ResultLabel", UiTokens.FONT_LG, UiTokens.CALCULATED)
+	_variation(theme, "DangerLabel", UiTokens.FONT_MD, UiTokens.DANGER)
 
-	_variation(theme, "OverlayLabel", bold, UiTokens.FONT_SM, UiTokens.TEXT)
+	_variation(theme, "OverlayLabel", UiTokens.FONT_SM, UiTokens.TEXT)
 	theme.set_constant("outline_size", "OverlayLabel", UiTokens.TEXT_OUTLINE_SIZE)
 
-	_variation(theme, "InkLabel", null, UiTokens.FONT_MD, UiTokens.INK)
+	_variation(theme, "InkLabel", UiTokens.FONT_MD, UiTokens.INK)
 
 
-static func _variation(
-	theme: Theme, type_name: String, font: Font, size: int, color: Color
-) -> void:
+static func _variation(theme: Theme, type_name: String, size: int, color: Color) -> void:
 	theme.set_type_variation(type_name, "Label")
-	if font != null:
-		theme.set_font("font", type_name, font)
 	theme.set_font_size("font_size", type_name, size)
 	theme.set_color("font_color", type_name, color)
 
@@ -195,7 +192,6 @@ static func _build_progress(theme: Theme) -> void:
 	theme.set_color("font_color", "ProgressBar", UiTokens.TEXT)
 	theme.set_color("font_outline_color", "ProgressBar", UiTokens.TEXT_OUTLINE)
 	theme.set_constant("outline_size", "ProgressBar", UiTokens.TEXT_OUTLINE_SIZE)
-	theme.set_font("font", "ProgressBar", body_font(UiTokens.WEIGHT_BOLD))
 	theme.set_font_size("font_size", "ProgressBar", UiTokens.FONT_XS)
 
 

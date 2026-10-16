@@ -1,13 +1,9 @@
 extends Node2D
 ## Fundo da arena: ceu em faixas, estrelas, um disco no ceu, duas cordilheiras
-## ao longe e nuvens em parallax.
-##
-## Substitui o ColorRect de cor aleatoria. Tudo e desenhado em codigo com a
-## paleta do tema do planeta (UiTokens.WORLD_*), em blocos de UiTokens.PX * 2
-## pixels: e o mesmo grao de pixel art das molduras da HUD.
+## ao longe e nuvens em parallax, com a paleta do planeta (UiTokens.WORLD_*).
 ##
 ## O ceu e "posterizado" -- faixas de cor solida em vez de gradiente liso --
-## porque gradiente suave denuncia arte digital no meio de sprites de pixel art.
+## porque gradiente suave destoa dos sprites de pixel art.
 
 const WIDTH := 1280.0
 const SKY_BANDS := 22
@@ -19,8 +15,7 @@ var horizon_y := 652.0
 var _seed := 7
 var _clouds: Array = []
 var _time := 0.0
-# Cordilheiras calculadas uma vez em setup(): so as nuvens e as estrelas mudam
-# a cada quadro, e refazer a subdivisao com RNG 60 vezes por segundo era gasto.
+# Cordilheiras calculadas uma vez em setup(); so nuvens e estrelas mudam por quadro.
 var _far := {}
 var _mid := {}
 
@@ -70,8 +65,7 @@ func _draw_sky() -> void:
 		draw_rect(Rect2(0, i * band_h, WIDTH, band_h + 1), _sky_at(sky, t))
 
 
-## Tres trechos de interpolacao entre as quatro cores do tema. O brilho do
-## horizonte fica concentrado no ultimo quinto do ceu, como num por do sol.
+## Interpola as quatro cores do tema; o brilho fica no ultimo quinto do ceu.
 func _sky_at(sky: Array, t: float) -> Color:
 	if t < 0.55:
 		return sky[0].lerp(sky[1], t / 0.55)
@@ -96,8 +90,7 @@ func _draw_stars() -> void:
 		draw_rect(Rect2(p.snapped(Vector2(px, px)), Vector2(s, s)), col)
 
 
-## Sol baixo no crepusculo, a Terra vista da Lua, o Sol palido de Marte. Disco
-## em degraus de pixel (circulos concentricos), sem anti-aliasing.
+## Disco no ceu (Sol, ou a Terra vista da Lua), em circulos sem anti-aliasing.
 func _draw_disc() -> void:
 	var col: Color = theme_colors.disc
 	var c := Vector2(WIDTH * 0.74, horizon_y * 0.58)
@@ -107,9 +100,8 @@ func _draw_disc() -> void:
 	draw_circle(c + Vector2(-7, -7), 9.0, UiTokens.SHINE, true, -1.0, false)
 
 
-## Cordilheira por deslocamento do ponto medio, com semente fixa: a mesma fase
-## sempre tem o mesmo horizonte, e cada fase tem o seu. Devolve o poligono e os
-## picos (onde vai a aresta clara do lado da luz).
+## Cordilheira por deslocamento do ponto medio, com semente fixa (cada fase tem
+## sempre o mesmo horizonte). Devolve o poligono e os picos.
 func _build_range(height: float, rough: float, seed_value: int) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
@@ -139,7 +131,7 @@ func _draw_range(data: Dictionary, col: Color) -> void:
 	if data.is_empty():
 		return
 	draw_colored_polygon(data.poly, col)
-	# Picos com uma aresta clara do lado da luz, como no camp.jpg.
+	# Aresta clara do lado da luz em cada pico.
 	var light := col.lightened(0.18)
 	var step: float = data.step
 	for p in data.peaks:

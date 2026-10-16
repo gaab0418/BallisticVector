@@ -5,7 +5,7 @@ extends Node
 const SAVE_PATH := "user://progresso.cfg"
 const SAVE_VERSION := 1
 ## Kit de emergencia: municao gratis quando a crianca fica sem bala e sem ouro
-## para comprar. Sem ele o jogo travava -- nao dava para jogar nem comprar.
+## para comprar (senao ela fica presa, sem poder jogar nem comprar).
 const EMERGENCY_AMMO := 8
 const CHEAPEST_AMMO_PRICE := 10
 
@@ -21,6 +21,10 @@ var teacher_mode: bool = false
 var lab_mode: bool = false
 ## Mundo escolhido no Laboratorio (chave de Campaign.LAB_WORLDS).
 var lab_world: String = "earth"
+## A Ada ja deu o tutorial da primeira fase.
+var tutorial_done: bool = false
+## A Ada ja apresentou o mapa de guerra.
+var map_intro_done: bool = false
 var player_armor: float = 100.0
 var max_player_armor: float = 100.0
 var current_base_id: String = "Base_A"
@@ -33,13 +37,16 @@ var just_conquered: String = ""
 # fase (licao, cenario, desafios) mora em scripts/campaign.gd. "bonus" = base
 # opcional: nao conta para a vitoria final.
 var bases: Dictionary = _fresh_bases()
-## Onde o progresso e salvo. A variavel de ambiente BV_SAVE_PATH troca o arquivo:
-## os testes automaticos (tools/tests) usam isso para nunca tocar no save real
-## de quem esta jogando na mesma maquina.
+## Onde o progresso e salvo. BV_SAVE_PATH troca o arquivo: os testes usam isso
+## para nunca tocar no save real de quem joga na mesma maquina.
 var save_path := SAVE_PATH
 
 
 func _ready() -> void:
+	# Por caminho, e nao pelo nome da classe: autoloads compilam antes de o cache
+	# de classes existir numa importacao do zero.
+	var ui_theme: Script = load("res://scripts/ui/ui_theme.gd")
+	ui_theme.apply_fonts(ThemeDB.get_project_theme())
 	if OS.has_environment("BV_SAVE_PATH"):
 		save_path = OS.get_environment("BV_SAVE_PATH")
 	load_game()
@@ -116,9 +123,8 @@ func is_base_complete(base_id: String) -> bool:
 	return data.get("stages_cleared", 0) >= data.get("total_stages", 3)
 
 
-## Os capitulos seguem em ordem (angulo, forca, gravidade, translacao, vertice,
-## e a ilha bonus): uma base abre quando a anterior e conquistada, ou sempre, no
-## Modo Professor.
+## Uma base abre quando a anterior e conquistada (os capitulos seguem em
+## ordem), ou sempre, no Modo Professor.
 func is_base_unlocked(base_id: String) -> bool:
 	if teacher_mode:
 		return true
@@ -168,6 +174,8 @@ func save_game() -> void:
 	cfg.set_value("player", "money", money)
 	cfg.set_value("player", "ammo", ammo_inventory)
 	cfg.set_value("player", "teacher_mode", teacher_mode)
+	cfg.set_value("player", "tutorial_done", tutorial_done)
+	cfg.set_value("player", "map_intro_done", map_intro_done)
 	for base_id in bases:
 		cfg.set_value(base_id, "stages_cleared", bases[base_id]["stages_cleared"])
 		cfg.set_value(base_id, "stars", bases[base_id]["stars"])
@@ -176,8 +184,8 @@ func save_game() -> void:
 		push_warning("Nao foi possivel salvar o progresso (erro %d)" % err)
 
 
-## Carrega campo a campo, com o valor atual como padrao: um save antigo (sem as
-## bases novas, por exemplo) abre sem perder nada nem quebrar.
+## Carrega campo a campo, com o valor atual como padrao: um save antigo (sem
+## bases novas, por exemplo) abre sem quebrar.
 func load_game() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(save_path) != OK:
@@ -188,6 +196,8 @@ func load_game() -> void:
 		for k in ammo:
 			ammo_inventory[k] = int(ammo[k])
 	teacher_mode = bool(cfg.get_value("player", "teacher_mode", teacher_mode))
+	tutorial_done = bool(cfg.get_value("player", "tutorial_done", tutorial_done))
+	map_intro_done = bool(cfg.get_value("player", "map_intro_done", map_intro_done))
 	for base_id in bases:
 		var total: int = bases[base_id]["total_stages"]
 		var cleared := int(cfg.get_value(base_id, "stages_cleared", 0))

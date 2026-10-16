@@ -18,9 +18,6 @@ extends RefCounted
 ##   inverted    -- gravidade para cima (a > 0)
 ##   tank_height -- altura (m) do platô onde o tanque do jogador fica
 ##
-## Antes as tres bases eram a mesma arena com mais avioes. A fisica nao mudou:
-## so o cenario, os inimigos e o que se pede do jogador.
-##
 ## Toda fase tem tres estrelas. A primeira e vencer; as outras duas sao desafios
 ## que so se cumprem entendendo a conta (ver StageGoals).
 ##
@@ -89,7 +86,7 @@ const PLANETS := [
 	{"name": "Júpiter", "g": 24.8},
 ]
 
-## As tres montanhas da arena original, intactas.
+## As tres montanhas da arena original.
 const ORIGINAL_MOUNTAINS := [
 	{"pos": Vector2(400, 720), "poly": [Vector2(-80, 0), Vector2(0, -280), Vector2(80, 0)]},
 	{
@@ -621,10 +618,9 @@ const BASES := {
 }
 
 
-## Contorno arredondado de um obstaculo: spline de Catmull-Rom passando pelos
-## pontos originais. Como a curva passa pelos picos, a altura de cada montanha
-## continua a mesma; so os cantos viram curva. Visual e colisao usam ESTE
-## poligono, entao continuam identicos.
+## Contorno arredondado de um obstaculo: spline de Catmull-Rom que passa pelos
+## pontos originais, entao a altura dos picos se mantem. Visual e colisao usam
+## este mesmo poligono.
 static func rounded(points: Array, samples: int = 14) -> PackedVector2Array:
 	var pts: Array = points.duplicate()
 	var out := PackedVector2Array()

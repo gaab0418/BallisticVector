@@ -4,12 +4,10 @@ extends PanelContainer
 ## que o jogador controla (cada uma com a sua engrenagem) e os dois resultados
 ## que a parabola desenha no mundo -- altura maxima (vertice) e alcance (raiz).
 ##
-## Compacto de proposito (duas linhas, ~120 px): a versao anterior tinha o dobro
-## da altura e escondia os avioes que voam no alto da tela.
+## Compacto (duas linhas) para nao esconder os avioes no alto da tela.
 ##
-## E view pura: nao le input e nao conhece o canhao. A arena empurra o estado por
-## set_state() e manda girar/piscar. Todos os numeros vem de Ballistics, a mesma
-## conta que desenha a curva, entao painel e mundo nunca discordam.
+## E view pura: a arena empurra o estado por set_state() e manda girar/piscar.
+## Os numeros vem de Ballistics, a mesma conta que desenha a curva.
 ##
 ## Ligacoes visuais com o mundo:
 ##   valores das engrenagens em ambar   <-> arco do angulo junto ao canhao
@@ -86,6 +84,15 @@ func setup(panel_style: StyleBox) -> void:
 	set_selected(GEAR_ANGULO)
 
 
+## Retangulos (tela) usados pelo holofote do tutorial.
+func gear_rect(index: int) -> Rect2:
+	return _gears[index].get_global_rect()
+
+
+func equation_rect() -> Rect2:
+	return _coef_chips[0].get_parent().get_global_rect()
+
+
 ## Cor do que e calculado neste mundo, a mesma da curva desenhada.
 func set_accent(color: Color) -> void:
 	_accent = color
@@ -133,8 +140,8 @@ func flash_selected(index: int) -> void:
 		_gears[index].flash()
 
 
-## Chamado ao trocar de municao: ambar em vez de vermelho, porque nao e erro -- e
-## a gravidade da bala nova entrando em cena, e vale a crianca reparar.
+## Chamado ao trocar de municao: pisca em ambar (nao e erro, e a gravidade da
+## bala nova).
 func flash_gravity() -> void:
 	if _gears.size() > GEAR_GRAVIDADE:
 		_gears[GEAR_GRAVIDADE].flash(UiTokens.EDITABLE)
@@ -198,8 +205,7 @@ func _eq_label(text_value: String) -> Label:
 
 
 ## Cada coeficiente no seu chip, com o sinal separado ("+ 0,62x"). O que mudou
-## desde o ultimo quadro da um pulo: e assim que a crianca ve qual numero a
-## engrenagem mexeu.
+## desde o ultimo quadro da um pulo, para a crianca ver qual numero mexeu.
 func _update_equation(s: Dictionary) -> void:
 	var values := [s.a, s.b, s.c]
 	var suffix := ["x²", "x", ""]
@@ -279,8 +285,8 @@ func _add_result(row: HBoxContainer, icon_name: String, title: String) -> Label:
 	return value
 
 
-## Com o canhao para baixo nao ha ponto mais alto a frente. O painel diz
-## "levante!" e a frase inteira aparece no mundo, junto do canhao.
+## Sem vertice a frente o painel diz "levante!"/"abaixe!"; a frase completa
+## aparece no mundo, junto do canhao.
 func _update_results(s: Dictionary) -> void:
 	var up := Ballistics.opens_up(s)
 	# a > 0 (Mundo Invertido): o vertice e o ponto mais BAIXO.

@@ -84,12 +84,13 @@ var goals := StageGoals.new()
 var move_zone := Vector2(1, 0)
 var _tank_start_x: float = 0.0
 var _money_at_start: int = 0
-var _prev_goal_states: Array = []
 var _last_planet := ""
 ## Gravidade para cima (Ilha Invertida): a > 0 e a engrenagem anda nos negativos.
 var inverted := false
 var lab: Node
 var _fx: Node
+## A Engenheira Ada: tutorial, abertura da fase, dicas e parabéns.
+var coach: Node
 
 # === Sistema de inimigos ===
 var active_enemies: Array = []  # Lista de inimigos vivos na cena
@@ -105,6 +106,7 @@ const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const LabControllerScript = preload("res://scenes/arena/lab_controller.gd")
 const ImpactWatcherScript = preload("res://scenes/arena/impact_watcher.gd")
+const AdaCoachScript = preload("res://scenes/arena/ada_coach.gd")
 
 const SFX_HOVER := "res://assets/audio/menu_hover_.ogg"
 const SFX_CLICK := "res://assets/audio/menu_click.ogg"
@@ -145,8 +147,6 @@ func _ready() -> void:
 	gravity_override = _stage_gravity()
 
 	goals.setup(stage_data.get("goals", []))
-	goals.changed.connect(_on_goals_changed)
-	_prev_goal_states = goals.states.duplicate()
 
 	_build_hud()
 	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
@@ -158,6 +158,11 @@ func _ready() -> void:
 	_refresh_goals()
 	_refresh_math()
 
+	coach = AdaCoachScript.new()
+	add_child(coach)
+	coach.setup(self)
+	_fx.player_shot_ended.connect(coach.on_shot_ended)
+
 	if Global.lab_mode:
 		lab = LabControllerScript.new()
 		add_child(lab)
@@ -167,13 +172,8 @@ func _ready() -> void:
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
 
-	var base_data: Dictionary = Global.get_base_data(Global.current_base_id)
-	briefing.show_stage(
-		base_data.get("name", ""),
-		Campaign.base(Global.current_base_id).chapter,
-		Global.current_stage + 1,
-		stage_data
-	)
+	# A Ada abre a fase (ou dá o tutorial, na primeira vez).
+	coach.start_stage()
 
 
 # =============================================================================
@@ -245,8 +245,8 @@ func _get_current_ammo() -> AmmoData:
 	return ammo_types[current_ammo_index]
 
 
-## Na Terra cada munição traz a sua gravidade (como sempre foi); num planeta, a
-## gravidade é do planeta e vale para qualquer bala.
+## Na Terra cada munição traz a sua gravidade; num planeta, a gravidade é do
+## planeta e vale para qualquer bala.
 func _stage_gravity() -> float:
 	return stage_data.get("gravity", _get_current_ammo().gravity)
 
@@ -494,6 +494,8 @@ func _poll_formula_hotkey() -> void:
 func _on_help_pressed() -> void:
 	if help_overlay == null or help_overlay.visible:
 		return
+	if coach and coach.ada.is_talking():
+		return
 	AudioManager.play_sfx(SFX_CLICK)
 	help_overlay.open()
 	get_tree().paused = true
@@ -593,7 +595,7 @@ func _refresh_math() -> void:
 	if lab:
 		lab.refresh_target(s)
 	trajectory.show_cannon_height = hud.formula.visible
-	trajectory.occluders = hud.occluder_rects()
+	trajectory.occluder_source = hud.occluder_rects
 	trajectory.update_shot(s, cannon.global_position, band)
 
 
@@ -646,6 +648,7 @@ func _fire_projectile() -> void:
 	projectile.set_meta("shot", _shot_for(_angle_deg(), _speed_px(), gravity_override))
 
 	add_child(projectile)
+	coach.on_fire()
 	if lab:
 		lab.on_fired(projectile)
 	ArenaFx.spawn(self, cannon.to_global(BARREL_TIP), ArenaFx.Kind.MUZZLE, fire_direction)
@@ -663,6 +666,7 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 		return
 
 	var bullet := _bullet_near(enemy)
+	coach.on_hit()
 	# Bunker só quebra com tiro caindo de cima; rasante ricocheteia no concreto.
 	if enemy.has_meta("bunker") and bullet != null:
 		var v: Vector2 = bullet.velocity
@@ -779,6 +783,7 @@ func _on_stage_cleared() -> void:
 	# Recompensar o jogador
 	Global.money += 250
 	goals.finish()
+	coach.on_stage_cleared()
 	var stars := goals.stars()
 	Global.record_stars(Global.current_base_id, Global.current_stage, stars)
 	# Deixa a explosão do último inimigo acontecer antes da tela de resultado.
@@ -839,10 +844,6 @@ func _on_return_to_map() -> void:
 
 
 # =============================================================================
-#  EFEITOS VISUAIS
-# =============================================================================
-
-# =============================================================================
 #  ATUALIZAÇÃO DA HUD
 # =============================================================================
 
@@ -857,7 +858,6 @@ func _build_hud() -> void:
 	hud.parabola.formula_toggled.connect(func(): _refresh_math.call_deferred())
 	hud.help_pressed.connect(_on_help_pressed)
 	hud.pause_pressed.connect(_on_pause_pressed)
-	hud.goals_pressed.connect(_on_goals_pressed)
 	hud.set_move_hint(move_zone.y > move_zone.x)
 	# A cor do que é calculado depende do céu: laranja na Terra, azul nos outros.
 	var aim: Color = world_theme.aim
@@ -890,40 +890,10 @@ func _build_hud() -> void:
 	result.map_requested.connect(_on_return_to_map)
 
 
-## Botão de estrela: reabre o cartão de missão, agora com o progresso de cada desafio.
-func _on_goals_pressed() -> void:
-	if stage_cleared or briefing.visible or result.visible or help_overlay.visible:
-		return
-	var progress := []
-	for i in range(goals.goals.size()):
-		progress.append(goals.progress_text(i))
-	briefing.show_stage(
-		Global.get_base_data(Global.current_base_id).get("name", ""),
-		Campaign.base(Global.current_base_id).chapter,
-		Global.current_stage + 1,
-		stage_data,
-		goals.states,
-		progress
-	)
-
-
-## Desafio mudou de estado no meio da luta: avisa na tela e faz a estrela pular.
-func _on_goals_changed() -> void:
-	if not stage_cleared:
-		for i in range(goals.states.size()):
-			if i < _prev_goal_states.size() and goals.states[i] != _prev_goal_states[i]:
-				var text := Campaign.goal_text(goals.goals[i])
-				if goals.states[i] == StageGoals.State.DONE:
-					hud.show_toast("Desafio cumprido: " + text, UiTokens.EDITABLE)
-				else:
-					hud.show_toast("Desafio perdido: " + text, UiTokens.TEXT_DIM)
-				hud.pulse_goals()
-	_prev_goal_states = goals.states.duplicate()
-	_refresh_goals()
-
-
 func _on_pause_pressed() -> void:
 	if help_overlay and help_overlay.visible:
+		return
+	if coach and coach.ada.is_talking():
 		return
 	if briefing.visible or result.visible:
 		return

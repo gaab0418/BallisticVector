@@ -2,9 +2,7 @@ class_name EndScreen
 extends Control
 ## Tela de fim de jogo, compartilhada por vitoria e derrota.
 ##
-## As duas eram .tscn com cores e corpos de fonte escritos a mao e um Button cru,
-## fora do sistema visual. Agora o conteudo vem por configure() e todo estilo vem
-## do tema e de UiTokens.
+## O conteudo vem por configure(); todo estilo vem do tema e de UiTokens.
 ##
 ## Fundo: o mesmo acampamento do menu, escurecido, com particulas desenhadas em
 ## codigo -- estrelas subindo na vitoria, fumaca na derrota.

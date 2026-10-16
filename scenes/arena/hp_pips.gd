@@ -1,9 +1,6 @@
 extends Node2D
-## Vida de um inimigo em escudinhos, flutuando acima dele.
-##
-## O castelo perdia vida sem mostrar nada: a crianca acertava e nao sabia
-## quantos tiros faltavam. Le o hp do pai -- meta "hp"/"max_hp" no castelo,
-## propriedade `hp` nos avioes -- entao nao exige mudar nenhum script de inimigo.
+## Vida de um inimigo em escudinhos, flutuando acima dele. Le o hp do pai:
+## meta "hp" (castelo, baloes, bunker) ou propriedade `hp` (avioes, tanques).
 
 const PIP := 14.0
 const GAP := 4.0

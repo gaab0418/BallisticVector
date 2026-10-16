@@ -50,7 +50,6 @@ func _ready() -> void:
 	# Inverte a flag para o próximo avião que for instanciado
 	use_skin_a = not use_skin_a
 
-	# Escala fixa padrão solicitada
 	sprite.scale = Vector2(0.2, 0.2)
 
 	add_child(sprite)

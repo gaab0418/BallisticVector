@@ -100,7 +100,7 @@ func _check_enemy_collision() -> void:
 			# Define o raio padrão (35.0 para os aviões)
 			var current_hit_radius: float = HIT_RADIUS_ENEMY
 
-			# Se o inimigo for o Boss, aumenta o raio consideravelmente (ex: 150 pixels)
+			# O Boss (castelo) e bem maior: raio de colisao maior
 			if enemy.has_meta("is_boss") and enemy.get_meta("is_boss") == true:
 				current_hit_radius = 85.0
 
@@ -140,5 +140,4 @@ func _on_hit_player() -> void:
 
 # --- Projétil atingiu um obstáculo (montanha) ---
 func _on_hit_obstacle() -> void:
-	# Simplesmente destruir o projétil ao colidir com obstáculo
 	queue_free()

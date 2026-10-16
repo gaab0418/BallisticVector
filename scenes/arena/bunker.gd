@@ -2,8 +2,7 @@ extends Node2D
 ## Bunker enterrado: cupula de concreto com seteira e sacos de areia.
 ##
 ## So quebra com tiro caindo de cima (a arena confere o angulo de descida da
-## bala no acerto). Tiro rasante ricocheteia -- e a crianca descobre que, para
-## cair "de cima", a parabola precisa ser alta e fechada.
+## bala no acerto); tiro rasante ricocheteia.
 
 ## Descida minima, em graus abaixo da horizontal, para o tiro furar o concreto.
 const MIN_DESCENT_DEG := 40.0
@@ -26,7 +25,6 @@ func _draw() -> void:
 		var x := -W * 0.6 + i * W * 0.3
 		draw_rect(Rect2(Vector2(x - 12, base.y - 10), Vector2(24, 12)), UiTokens.EARTH_DARK)
 		draw_rect(Rect2(Vector2(x - 10, base.y - 9), Vector2(20, 9)), UiTokens.EARTH_LIGHT)
-	# Cupula.
 	var dome := PackedVector2Array()
 	for i in range(17):
 		var a := PI + PI * i / 16.0

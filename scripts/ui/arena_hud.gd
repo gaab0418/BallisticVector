@@ -8,9 +8,7 @@ extends CanvasLayer
 ##   topo direito   -- ajuda e botao de estrela (missao e desafios, recolhidos)
 ##   base           -- municao e blindagem, deitadas no chao abaixo da regua
 ## O meio da tela fica livre para a curva, o vertice e os avioes.
-##
-## Posicionamento por ancora e container, nunca por coordenada absoluta: mudar a
-## resolucao nao desloca nada.
+## Posicionada so por ancora e container, para acompanhar a resolucao.
 
 signal pause_pressed
 signal help_pressed
@@ -142,8 +140,7 @@ func _build_right() -> void:
 	row.offset_right = -MARGIN
 	row.offset_top = MARGIN
 
-	# Missao recolhida: so a estrela e o placar, como um botao de configuracao.
-	# O cartao inteiro aparece ao entrar na fase e ao clicar aqui.
+	# Missao recolhida: estrela e placar; o cartao completo abre ao clicar.
 	_goals_btn = UiButton.create("", UiButton.Kind.ICON)
 	_goals_btn.tooltip_text = "Missão e desafios da fase"
 	_goals_btn.custom_minimum_size = Vector2(88, 48)
@@ -248,8 +245,7 @@ func set_ammo(count: int, color: Color, ammo_name: String) -> void:
 		_ammo_name_label.text = ammo_name + "  ·  Tab troca"
 
 
-## max_value vem do Global em vez de 100 literal: se a blindagem maxima mudar,
-## a barra acompanha em vez de mentir.
+## max_value vem do Global, para acompanhar mudancas na blindagem maxima.
 func set_armor(value: float, max_value: float) -> void:
 	if _armor:
 		_armor.set_value(value, max_value)

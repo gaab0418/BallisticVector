@@ -2,15 +2,10 @@ extends Node
 ## Gerenciador global de audio -- persistente entre cenas.
 ## Autoload registrado em project.godot como "AudioManager".
 ##
-## O volume mora no bus, e so no bus. Antes existiam dois estagios: as variaveis
-## master_volume/bgm_volume/sfx_volume aplicadas no volume_db dos players, e o
-## AudioServer que os sliders mexiam. Dois estagios multiplicam -- 0.5 e 0.5 dao
-## 25%, nao 50% -- e as variaveis eram escritas uma unica vez no _ready, sem
-## ninguem mais toca-las. Ficou um estagio so, e os sliders de
-## AudioSettingsPanel leem e escrevem exatamente nele.
+## O volume mora so no bus (os sliders de AudioSettingsPanel leem e escrevem
+## nele); um segundo estagio de volume multiplicaria com este.
 ##
-## O mix relativo entre trilha e efeitos virou o volume inicial de cada bus: a
-## trilha entra mais baixa que os efeitos, de proposito.
+## A trilha entra mais baixa que os efeitos, de proposito.
 
 const START_MASTER := 0.5
 const START_BGM_DB := -8.0

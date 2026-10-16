@@ -1,16 +1,11 @@
 class_name FormulaDrawer
 extends PanelContainer
-## "Ver conta": a gaveta de papel embaixo do painel da parabola, com de onde
-## saem a, b, c, o vertice e a raiz -- os numeros da tela ja colocados na formula.
+## Gaveta "Ver conta" (tecla F): de onde saem a, b, c, o vertice e a raiz, com
+## os numeros da tela ja colocados nas formulas da escola (-b/2a, Bhaskara) e,
+## numa linha menor, nas formulas de fisica do lancamento obliquo.
 ##
-## Fica escondida por padrao para nao poluir a arena: e apoio para quem quer ver
-## a conta (ou para o professor mostrar a turma). Abre com F ou pelo botao.
-##
-## Usa as formulas de funcao quadratica da escola (vertice -b/2a, Bhaskara) e,
-## escreve "delta" e "/" por extenso: no Handjet o Δ parece um 0 e o ÷ pequeno
-## parece um +, e numa conta isso engana.
-##
-## numa linha menor, as formulas de fisica do lancamento obliquo.
+## Escreve "delta" e "/" por extenso: na fonte, o Δ parece um 0 e o ÷ pequeno
+## parece um +.
 
 var _body: RichTextLabel
 ## Cor dos numeros calculados, ja escurecida para o papel. Segue a cor "aim" do

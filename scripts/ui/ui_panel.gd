@@ -1,10 +1,7 @@
 class_name UiPanel
 extends RefCounted
 ## Fabrica das superficies do jogo: todas sao molduras UiFrame em pixel art.
-##
-## Substitui os doze StyleBoxFlat construidos a mao no war_map.gd e o
-## _create_steampunk_panel() da arena. Toda tela pede um Kind daqui em vez de
-## montar o proprio estilo.
+## Toda tela pede um Kind daqui em vez de montar o proprio estilo.
 
 enum Kind {
 	PANEL,  # painel de conteudo comum (menu)
@@ -16,8 +13,8 @@ enum Kind {
 }
 
 
-## Ainda usados por slider, barra de progresso e celulas de engrenagem, que
-## seguem em StyleBoxFlat porque sao faixas simples, sem moldura.
+## Usados por slider, barra de progresso e celulas de engrenagem, que sao faixas
+## simples em StyleBoxFlat.
 static func set_border(box: StyleBoxFlat, width: int, color: Color) -> void:
 	box.set_border_width_all(width)
 	box.border_color = color

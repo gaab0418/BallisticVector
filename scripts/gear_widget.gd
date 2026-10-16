@@ -1,17 +1,10 @@
 class_name GearWidget
 extends PanelContainer
-## Uma celula da HUD de parabola: nome, valor grande, engrenagem e os
-## coeficientes da equacao que ela mexe.
+## Uma celula da HUD de parabola: nome, valor, engrenagem e os coeficientes da
+## equacao que ela mexe (chips "a b c").
 ##
-## A engrenagem gira enquanto o jogador segura a seta e trava quando o valor bate
-## no limite -- a trava e o feedback de "nao da para ir mais longe". Ela tambem
-## pode ser agarrada com o mouse: segurando o botao e girando em volta dela, o
-## valor acompanha, como uma manivela de verdade.
-##
-## Os chips "a b c" embaixo sao a ponte com a matematica: dizem em qual numero da
-## equacao esta engrenagem mexe. A arena calcula isso perturbando o valor, entao
-## o chip e sempre verdadeiro -- com o tanque fora do zero, por exemplo, a forca
-## passa a mexer tambem no b e no c.
+## A engrenagem gira com a seta e trava no limite do valor. Tambem pode ser
+## agarrada com o mouse e girada em volta, como uma manivela.
 
 ## Emitido a cada movimento do arrasto, em radianos girados (positivo = horario).
 signal dragged(delta_rad: float)
@@ -45,8 +38,7 @@ func setup(title_text: String, width: float) -> void:
 	_build_styles()
 	add_theme_stylebox_override("panel", _style_off)
 
-	# Engrenagem a esquerda, duas linhas a direita (nome + chips, valor): a
-	# celula fica baixa e o painel do topo tapa pouco ceu.
+	# Engrenagem a esquerda, duas linhas a direita: a celula fica baixa.
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	add_child(row)
@@ -84,7 +76,7 @@ func set_value_text(text_value: String) -> void:
 		_value.text = text_value
 
 
-## Legenda extra foi removida para o painel ficar baixo; mantida como no-op.
+## No-op: a celula nao tem mais legenda extra.
 func set_caption(_text_value: String) -> void:
 	pass
 
@@ -105,8 +97,7 @@ func set_selected(on: bool) -> void:
 	_value.add_theme_color_override("font_color", _value_color)
 	_title.add_theme_color_override("font_color", UiTokens.TEXT if on else UiTokens.TEXT_MUTED)
 	_gear.color = UiTokens.EDITABLE if on else UiTokens.GEAR_IDLE
-	# A dica de tecla so aparece na engrenagem ativa: mostra qual seta age ali,
-	# no lugar exato da acao, sem poluir as outras celulas.
+	# A dica de tecla so aparece na engrenagem ativa.
 	_hint.modulate.a = 1.0 if on else 0.0
 
 
@@ -133,9 +124,8 @@ func gear_center() -> Vector2:
 	return _gear.get_global_rect().get_center()
 
 
-## So inicia o arrasto. O resto vem de _input, porque o gui_input da engrenagem
-## para de chegar assim que o cursor sai dela -- e girar em volta dela
-## significa justamente sair.
+## So inicia o arrasto. O resto vem de _input, porque o gui_input para de chegar
+## assim que o cursor sai da engrenagem, e girar em volta dela e justamente sair.
 func _on_gear_gui_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton):
 		return
@@ -207,9 +197,8 @@ func _build_chips() -> HBoxContainer:
 
 
 func _build_styles() -> void:
-	# Os dois estilos tem as MESMAS margens: sem isso a celula muda de tamanho ao
-	# ser selecionada e o HBox inteiro treme a cada troca de engrenagem. O
-	# desligado e a mesma moldura com todas as cores transparentes.
+	# Os dois estilos tem as mesmas margens, senao a celula muda de tamanho ao ser
+	# selecionada. O desligado e a mesma moldura com as cores transparentes.
 	_style_on = UiPanel.create(UiPanel.Kind.SELECTED)
 	var off: UiFrame = _style_on.duplicate()
 	for prop in ["fill", "outline", "border", "bevel_light", "bevel_dark"]:

@@ -3,7 +3,7 @@ extends SceneTree
 ##
 ##     BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_runner.gd
 ##
-## Protegem as garantias pedagogicas do jogo, nao so "o codigo compila":
+## Verificam:
 ##   1. todo script do projeto compila;
 ##   2. todo obstaculo de toda fase e um poligono valido (colisao e desenho);
 ##   3. todo alvo de toda fase e atingivel, e as metas de vertice sao cumpriveis;
@@ -193,11 +193,14 @@ func _landing_error(base_id: String, stage: int, angle: float, power: float) -> 
 	g.current_base_id = base_id
 	g.current_stage = stage
 	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.tutorial_done = true
 	change_scene_to_file("res://scenes/arena/arena.tscn")
 	for _i in range(10):
 		await process_frame
 	var a = current_scene
-	a.briefing.close()
+	# A abertura da Ada pausa o jogo: sem fechar, a bala nao sai do lugar.
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
 	await create_timer(0.1).timeout
 	for e in a.active_enemies.duplicate():
 		if not e.has_meta("is_boss"):
