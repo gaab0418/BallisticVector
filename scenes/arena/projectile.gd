@@ -19,6 +19,12 @@ var enemy_nodes: Array = []  # Lista de inimigos ativos (projétil do jogador)
 var player_node: Node2D = null  # Referência ao jogador (projétil inimigo)
 var is_enemy_projectile: bool = false  # true = projétil disparado por inimigo
 
+# === Quique no gelo (Arquipélago do Norte) ===
+## Quantos quiques ainda restam e quanto da velocidade vertical sobra em cada um.
+var bounces_left: int = 0
+var bounce_e: float = 0.0
+var ground_y: float = 652.0
+
 # === Obstáculos ===
 # Array de PackedVector2Array representando polígonos de obstáculos em coords globais
 var obstacle_polygons: Array = []
@@ -69,6 +75,15 @@ func _process(delta: float) -> void:
 	if position.x > 1350 or position.x < -50 or position.y > 780 or position.y < -60:
 		queue_free()
 		return
+
+	# Quica antes de testar o chao como obstaculo: a velocidade para o lado
+	# continua, a vertical inverte e perde forca.
+	if bounces_left > 0 and position.y >= ground_y and velocity.y > 0.0:
+		position.y = ground_y - (position.y - ground_y)
+		velocity.y = -velocity.y * bounce_e
+		bounces_left -= 1
+		set_meta("bounced", true)
+		ArenaFx.spawn(get_parent(), Vector2(position.x, ground_y), ArenaFx.Kind.DUST)
 
 	# === Verificar colisão com obstáculos ===
 	if _check_obstacle_collision():

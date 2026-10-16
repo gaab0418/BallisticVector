@@ -22,6 +22,8 @@ var _low_twin := false
 var _high_twin := false
 var _popped_rising := false
 var _popped_falling := false
+var _drone_rising := false
+var _drone_falling := false
 
 
 func setup(goal_list: Array) -> void:
@@ -88,6 +90,37 @@ func on_balloon_hit(rising: bool) -> void:
 		_popped_falling = true
 	for i in range(goals.size()):
 		if goals[i].type == "up_down" and _popped_rising and _popped_falling:
+			_mark(i, State.DONE)
+
+
+## Drone derrubado: `rising` = a bala ainda subia (primeiro encontro com a reta).
+func on_drone_hit(rising: bool) -> void:
+	if rising:
+		_drone_rising = true
+	else:
+		_drone_falling = true
+	for i in range(goals.size()):
+		match goals[i].type:
+			"intercept_up":
+				if rising:
+					_mark(i, State.DONE)
+			"intercept_both":
+				if _drone_rising and _drone_falling:
+					_mark(i, State.DONE)
+
+
+## Um alvo foi acertado por uma bala que ja tinha quicado no gelo.
+func on_bounce_hit() -> void:
+	for i in range(goals.size()):
+		if goals[i].type == "bounce_hit":
+			_mark(i, State.DONE)
+
+
+## A bala parou no chao em `x_m` (metros da regua).
+func on_landed(x_m: float) -> void:
+	for i in range(goals.size()):
+		var g: Dictionary = goals[i]
+		if g.type == "land_zone" and x_m >= g.min and x_m <= g.max:
 			_mark(i, State.DONE)
 
 

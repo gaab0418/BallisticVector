@@ -14,6 +14,7 @@ signal pause_pressed
 signal help_pressed
 ## Botao de estrela: reabre o cartao de missao com o progresso dos desafios.
 signal goals_pressed
+signal guess_toggled(on: bool)
 
 const AmmoIconScript = preload("res://scripts/ammo_icon.gd")
 const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
@@ -43,6 +44,7 @@ var _strip: Control
 var _right_row: Control
 var _left_col: Control
 var _toast_tween: Tween
+var guess_btn: Button
 
 
 func _ready() -> void:
@@ -66,7 +68,7 @@ func top_panel_rect() -> Rect2:
 ## em cima deles e troca o vertice escondido por uma seta.
 func occluder_rects() -> Array:
 	var out := []
-	for c in [parabola, formula, _badge, _strip, _right_row, _left_col]:
+	for c in [parabola, formula, _badge, _strip, _right_row, _left_col, guess_btn]:
 		if c != null and c.visible:
 			out.append(c.get_global_rect())
 	return out
@@ -111,6 +113,16 @@ func _build_left() -> void:
 	column.add_child(pause_btn)
 
 	_left_col = pause_btn
+
+	# Modo chute, logo abaixo da insignia: esconde a curva e o alcance; a
+	# crianca marca no chao onde a bala vai cair e confere depois do tiro.
+	guess_btn = UiButton.create("Modo chute (C)", UiButton.Kind.SECONDARY)
+	guess_btn.toggle_mode = true
+	guess_btn.tooltip_text = "Esconde a curva: calcule e clique no chão onde a bala vai cair"
+	guess_btn.custom_minimum_size = Vector2(176, 40)
+	guess_btn.toggled.connect(func(on: bool): guess_toggled.emit(on))
+	add_child(guess_btn)
+	guess_btn.position = Vector2(MARGIN, MARGIN + 80.0)
 	var badge := PanelContainer.new()
 	_badge = badge
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -280,6 +292,8 @@ func set_lab(world_name: String) -> void:
 	_stage_name_label.text = "Laboratório"
 	_stage_phase_label.text = "Mundo: %s · tiros grátis" % world_name
 	_goals_btn.visible = false
+	# O painel do Laboratorio ja mostra a tabela de pontos; o chute fica na campanha.
+	guess_btn.visible = false
 
 
 func set_stage(base_name: String, chapter: String, number: int, total: int, title: String) -> void:

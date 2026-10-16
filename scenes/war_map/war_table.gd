@@ -6,27 +6,31 @@ extends Control
 ## ilha com coordenadas, e rotas entre as bases em arco de parabola. Tudo e
 ## calculado a partir do tamanho atual.
 ##
-## O plano vai de x = 0 a x = 40 e a janela mostra 20 de cada vez (tres bases
+## O plano vai de x = 0 a x = 60 e a janela mostra 20 de cada vez (tres bases
 ## por tela). A camada do mapa (map_layer) e recortada no pergaminho, entao o
 ## que fica fora da janela some.
 
 ## Largura visivel da janela (em unidades do plano) e largura total do plano.
 const GRID_W := 20
-const WORLD_W := 40
-const PAGES := 2
+const WORLD_W := 60
+const PAGES := 3
 const GRID_H := 9
 const PAD := 44.0
 const ISLAND_R := 1.75
 
 ## Ilhas na ordem dos capitulos, tres por tela. biome: hills (Alpha), forest
-## (Bravo), craters (Charlie), road (Delta), balloons (Echo), inverted (bonus).
+## (Bravo), craters (Charlie), road (Delta), balloons (Echo), radar (Foxtrot),
+## ice (Norte), inverted (bonus). "from" = de qual ilha sai a rota (padrao: a
+## anterior); a bonus sai da Echo, que e quando ela abre.
 const ISLANDS := [
 	{"grid": Vector2(3.6, 5.8), "biome": "hills"},
 	{"grid": Vector2(10, 2.7), "biome": "forest"},
 	{"grid": Vector2(16.4, 6.0), "biome": "craters"},
 	{"grid": Vector2(23.6, 2.8), "biome": "road"},
 	{"grid": Vector2(30, 6.1), "biome": "balloons"},
-	{"grid": Vector2(36.4, 2.9), "biome": "inverted"},
+	{"grid": Vector2(36.4, 2.9), "biome": "radar"},
+	{"grid": Vector2(44.0, 6.0), "biome": "ice"},
+	{"grid": Vector2(53.5, 3.2), "biome": "inverted", "from": 4},
 ]
 ## Ilhotas decorativas, sem base.
 const ISLETS := [
@@ -37,11 +41,16 @@ const ISLETS := [
 	Vector2(26.6, 8.0),
 	Vector2(33.4, 1.4),
 	Vector2(39.4, 5.4),
+	Vector2(47.6, 1.6),
+	Vector2(49.2, 7.9),
+	Vector2(57.8, 6.6),
+	Vector2(41.0, 1.2),
 ]
 ## Nomes dos mares, um por tela.
 const SEAS := [
 	{"grid": Vector2(9.6, 7.9), "name": "Mar das Parábolas"},
 	{"grid": Vector2(30.2, 1.3), "name": "Mar do Vértice"},
+	{"grid": Vector2(49.0, 4.6), "name": "Mar do Norte"},
 ]
 ## Rosa dos ventos: fixa na janela (canto superior direito), nao desliza.
 const COMPASS_VIEW := Vector2(19.0, 8.0)
@@ -49,7 +58,7 @@ const COMPASS_VIEW := Vector2(19.0, 8.0)
 var top_margin := 70.0
 var bottom_margin := 86.0
 ## Trechos de rota ja percorridos (base anterior conquistada).
-var done_routes: Array = [false, false, false, false, false]
+var done_routes: Array = []
 ## Por ilha: {"cleared": n, "total": n, "stars": [..], "locked": bool}.
 var progress: Array = []
 var _boat_route := -1
@@ -191,11 +200,18 @@ func _draw_page_dots() -> void:
 
 ## Barquinho percorrendo a rota que leva a proxima base (chamado ao voltar de
 ## uma base conquistada).
-func animate_boat(route_index: int) -> void:
-	if route_index < 0 or route_index >= ISLANDS.size() - 1:
-		return
-	_boat_route = route_index
-	_boat_t = 0.0
+## `from_index` = a ilha conquistada; o barco segue para a ilha que sai dela.
+func animate_boat(from_index: int) -> void:
+	for i in range(1, ISLANDS.size()):
+		if route_from(i) == from_index:
+			_boat_route = i
+			_boat_t = 0.0
+			return
+
+
+## De qual ilha sai a rota que chega na ilha `index`.
+static func route_from(index: int) -> int:
+	return int(ISLANDS[index].get("from", index - 1))
 
 
 func _process(delta: float) -> void:
@@ -452,6 +468,30 @@ func _draw_island(c: Vector2, radius: float, seed_value: int, biome: String) -> 
 				Color(UiTokens.EDITABLE_ON_PAPER, 0.6),
 				1.5
 			)
+		"radar":
+			# Antena de radar e a rota reta dos drones cortando a ilha.
+			var base := c + Vector2(-radius * 0.2, radius * 0.25)
+			_ci.draw_line(base, base + Vector2(0, -radius * 0.45), Color(UiTokens.INK, 0.8), 2.0)
+			_ci.draw_arc(base + Vector2(0, -radius * 0.5), radius * 0.2, PI * 0.9, PI * 1.9, 10, Color(UiTokens.INK, 0.8), 2.0)
+			var a := c + Vector2(-radius * 0.9, radius * 0.1)
+			var b := c + Vector2(radius * 0.9, -radius * 0.45)
+			for i in range(0, 12, 2):
+				_ci.draw_line(a.lerp(b, i / 12.0), a.lerp(b, (i + 1) / 12.0), Color(UiTokens.DANGER_ON_PAPER, 0.7), 2.0)
+		"ice":
+			# Picos nevados e a bala quicando no gelo.
+			for off in [Vector2(-0.5, 0.2), Vector2(0.35, 0.35)]:
+				_hill(c + off * radius, radius * 0.22)
+			var y0 := c.y - radius * 0.05
+			var x0 := c.x - radius * 0.8
+			for k in range(2):
+				var w := radius * (0.75 if k == 0 else 0.45)
+				var h := radius * (0.45 if k == 0 else 0.22)
+				var arc := PackedVector2Array()
+				for i in range(11):
+					var t := float(i) / 10.0
+					arc.append(Vector2(x0 + w * t, y0 - 4.0 * h * t * (1.0 - t)))
+				_ci.draw_polyline(arc, Color(UiTokens.INK, 0.6), 1.5)
+				x0 += w
 		"inverted":
 			# Um "sorriso": a parabola de boca para cima da ilha bonus.
 			var pts := PackedVector2Array()
@@ -484,9 +524,10 @@ func _tree(p: Vector2, r: float) -> void:
 ## Rota entre bases consecutivas: bezier quadratica com o ponto de controle
 ## acima, ou seja, um arco de parabola.
 func _draw_routes() -> void:
-	for i in range(ISLANDS.size() - 1):
+	for j in range(1, ISLANDS.size()):
+		var i := route_from(j)
 		var a := grid_to_screen(ISLANDS[i].grid)
-		var b := grid_to_screen(ISLANDS[i + 1].grid)
+		var b := grid_to_screen(ISLANDS[j].grid)
 		var lift := _cell * 1.6 + a.distance_to(b) * 0.12
 		var ctrl := (a + b) * 0.5 + Vector2(0, -lift)
 		var done: bool = done_routes[i] if i < done_routes.size() else false
@@ -549,8 +590,8 @@ func _draw_fog() -> void:
 func _draw_boat() -> void:
 	if _boat_route < 0:
 		return
-	var a := grid_to_screen(ISLANDS[_boat_route].grid)
-	var b := grid_to_screen(ISLANDS[_boat_route + 1].grid)
+	var a := grid_to_screen(ISLANDS[route_from(_boat_route)].grid)
+	var b := grid_to_screen(ISLANDS[_boat_route].grid)
 	var ctrl := (a + b) * 0.5 + Vector2(0, -(_cell * 1.6 + a.distance_to(b) * 0.12))
 	var t := clampf(0.15 + _boat_t * 0.7, 0.0, 1.0)
 	var p := a.lerp(ctrl, t).lerp(ctrl.lerp(b, t), t)

@@ -82,6 +82,16 @@ func start_stage() -> void:
 
 ## A licao da fase em baloes curtos: uma frase por balao, depois a dica e as
 ## missoes.
+## Como vencer cada tipo de chefe, na fala de abertura (ver BossBrain).
+const CHIEF_RULES := {
+	"shield": "A cúpula dele só deixa passar bala caindo de cima: faça o vértice bem alto.",
+	"moving": "Ele anda de um lado para o outro: a raiz da parábola tem que acompanhar.",
+	"hopping": "A cada acerto ele foge para outro lugar. Ande com o tanque e mire de novo!",
+	"gravity": "A cada acerto ele troca a gravidade. Olhe o 'a' da equação mudar!",
+	"guarded": "O escudo vermelho só cai quando todos os outros inimigos caírem.",
+}
+
+
 func _intro_lines() -> Array:
 	var st: Dictionary = arena.stage_data
 	var info: Dictionary = Campaign.base(Global.current_base_id)
@@ -99,6 +109,15 @@ func _intro_lines() -> Array:
 				"text": sentences[i],
 				"expr": exprs[i % exprs.size()],
 				"caption": caption if i == 0 else ""
+			}
+		)
+	var chief: Dictionary = st.get("chief", {})
+	if not chief.is_empty():
+		lines.append(
+			{
+				"text": "Cuidado: aqui mora um CHEFE, o %s! %s" % [chief.name, CHIEF_RULES.get(chief.kind, "")],
+				"expr": "surprised",
+				"caption": "CHEFE",
 			}
 		)
 	lines.append({"text": "Dica: " + st.tip, "expr": "thinking"})

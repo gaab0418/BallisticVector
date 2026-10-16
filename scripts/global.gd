@@ -5,6 +5,7 @@ extends Node
 const SAVE_PATH := "user://progresso.cfg"
 ## Por caminho: este autoload compila antes do cache de classes globais.
 const CosmeticsData := preload("res://scripts/cosmetics.gd")
+const AchievementsData := preload("res://scripts/achievements.gd")
 const SAVE_VERSION := 1
 ## Kit de emergencia: municao gratis quando a crianca fica sem bala e sem ouro
 ## para comprar (senao ela fica presa, sem poder jogar nem comprar).
@@ -20,6 +21,10 @@ var owned: Dictionary = {}
 var equipped: Dictionary = {"camo": "camo_original", "trail": "trail_smoke", "flag": "flag_none"}
 ## Paginas do Caderno da Ada que a crianca ja abriu (id -> true).
 var notebook_seen: Dictionary = {}
+## Selos do caderno ja conquistados (id -> true) e contadores que levam a eles.
+var achievements: Dictionary = {}
+var stats: Dictionary = {"lab_shots": 0, "chiefs": {}}
+var _badge_toast: CanvasLayer
 var ammo_inventory: Dictionary = {"Enferrujada": 15, "Perfurante": 5}
 
 # ── Estado de jogo ───────────────────────────────────────────────────
@@ -32,8 +37,18 @@ var lab_mode: bool = false
 var lab_world: String = "earth"
 ## A Ada ja deu o tutorial da primeira fase.
 var tutorial_done: bool = false
+## Acessibilidade: a Ada fala em voz alta, e as falas e o caderno usam letra maior.
+var narration: bool = false
+var big_text: bool = false
+## Duelo: "pvp" (dois jogadores no mesmo teclado) ou "ada" (contra a Ada).
+var duel_mode: String = "pvp"
+## Dificuldade da Ada no duelo: "easy", "medium" ou "hard".
+var duel_level: String = "medium"
 ## A Ada ja apresentou o mapa de guerra.
 var map_intro_done: bool = false
+## A tela de vitoria ja apareceu: depois dela o mapa continua aberto (para a
+## ilha bonus e para rejogar fases atras de estrelas).
+var victory_seen: bool = false
 var player_armor: float = 100.0
 var max_player_armor: float = 100.0
 var current_base_id: String = "Base_A"
@@ -56,6 +71,8 @@ func _ready() -> void:
 	# de classes existir numa importacao do zero.
 	var ui_theme: Script = load("res://scripts/ui/ui_theme.gd")
 	ui_theme.apply_fonts(ThemeDB.get_project_theme())
+	_badge_toast = load("res://scripts/ui/achievement_toast.gd").new()
+	add_child(_badge_toast)
 	if OS.has_environment("BV_SAVE_PATH"):
 		save_path = OS.get_environment("BV_SAVE_PATH")
 	load_game()
@@ -68,6 +85,8 @@ static func _fresh_bases() -> Dictionary:
 		"Base_C": _base("Base Charlie", 3),
 		"Base_D": _base("Base Delta", 3),
 		"Base_E": _base("Base Echo", 3),
+		"Base_F": _base("Base Foxtrot", 3),
+		"Base_N": _base("Base Norte", 3),
 		"Base_Z": _base("Ilha Invertida", 2, true),
 	}
 
@@ -133,10 +152,13 @@ func is_base_complete(base_id: String) -> bool:
 
 
 ## Uma base abre quando a anterior e conquistada (os capitulos seguem em
-## ordem), ou sempre, no Modo Professor.
+## ordem), ou sempre, no Modo Professor. A ilha bonus abre junto com a Foxtrot,
+## para nao ficar escondida atras do fim da campanha.
 func is_base_unlocked(base_id: String) -> bool:
 	if teacher_mode:
 		return true
+	if base_id == "Base_Z":
+		return is_base_complete("Base_E")
 	var ids := bases.keys()
 	var i := ids.find(base_id)
 	return i <= 0 or is_base_complete(ids[i - 1])
@@ -187,8 +209,13 @@ func save_game() -> void:
 	cfg.set_value("player", "owned", owned)
 	cfg.set_value("player", "equipped", equipped)
 	cfg.set_value("player", "notebook_seen", notebook_seen)
+	cfg.set_value("player", "achievements", achievements)
+	cfg.set_value("player", "stats", stats)
 	cfg.set_value("player", "tutorial_done", tutorial_done)
 	cfg.set_value("player", "map_intro_done", map_intro_done)
+	cfg.set_value("player", "victory_seen", victory_seen)
+	cfg.set_value("player", "narration", narration)
+	cfg.set_value("player", "big_text", big_text)
 	for base_id in bases:
 		cfg.set_value(base_id, "stages_cleared", bases[base_id]["stages_cleared"])
 		cfg.set_value(base_id, "stars", bases[base_id]["stars"])
@@ -213,6 +240,13 @@ func load_game() -> void:
 	var own = cfg.get_value("player", "owned", owned)
 	if own is Dictionary:
 		owned = own
+	var ach = cfg.get_value("player", "achievements", achievements)
+	if ach is Dictionary:
+		achievements = ach
+	var st = cfg.get_value("player", "stats", stats)
+	if st is Dictionary:
+		for k in st:
+			stats[k] = st[k]
 	var seen = cfg.get_value("player", "notebook_seen", notebook_seen)
 	if seen is Dictionary:
 		notebook_seen = seen
@@ -222,6 +256,9 @@ func load_game() -> void:
 			equipped[k] = str(eq[k])
 	tutorial_done = bool(cfg.get_value("player", "tutorial_done", tutorial_done))
 	map_intro_done = bool(cfg.get_value("player", "map_intro_done", map_intro_done))
+	victory_seen = bool(cfg.get_value("player", "victory_seen", victory_seen))
+	narration = bool(cfg.get_value("player", "narration", narration))
+	big_text = bool(cfg.get_value("player", "big_text", big_text))
 	for base_id in bases:
 		var total: int = bases[base_id]["total_stages"]
 		var cleared := int(cfg.get_value(base_id, "stages_cleared", 0))
@@ -240,9 +277,35 @@ func reset_progress() -> void:
 	owned = {}
 	equipped = {"camo": "camo_original", "trail": "trail_smoke", "flag": "flag_none"}
 	notebook_seen = {}
+	achievements = {}
+	stats = {"lab_shots": 0, "chiefs": {}}
+	victory_seen = false
 	ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
 	bases = _fresh_bases()
 	just_conquered = ""
+	save_game()
+
+
+## Da o selo (uma vez so) e mostra a faixa. Devolve true se era novo.
+func unlock_achievement(id: String) -> bool:
+	if achievements.has(id):
+		return false
+	achievements[id] = true
+	save_game()
+	var data: Dictionary = AchievementsData.item(id)
+	if _badge_toast and not data.is_empty():
+		_badge_toast.show_badge(data.name)
+	return true
+
+
+## Chefe derrubado: conta cada base uma vez para o selo dos sete chefes.
+func record_chief(base_id: String) -> void:
+	var chiefs: Dictionary = stats.get("chiefs", {})
+	chiefs[base_id] = true
+	stats["chiefs"] = chiefs
+	unlock_achievement("chief")
+	if chiefs.size() >= 7:
+		unlock_achievement("chiefs_all")
 	save_game()
 
 
@@ -260,6 +323,7 @@ func buy_cosmetic(item_id: String) -> bool:
 	brass -= price
 	owned[item_id] = true
 	save_game()
+	unlock_achievement("workshop")
 	return true
 
 

@@ -139,6 +139,7 @@ func prompt(text: String, expr: String = "neutral", caption: String = "") -> voi
 func hide_now() -> void:
 	_mode = ""
 	visible = false
+	Narrator.stop()
 
 
 func is_talking() -> bool:
@@ -164,6 +165,8 @@ func _next_line() -> void:
 	var line: Dictionary = _lines.pop_front()
 	_text.text = line.text
 	_text.visible_characters = 0
+	_text.add_theme_font_size_override("font_size", UiTokens.FONT_XL if Global.big_text else UiTokens.FONT_LG)
+	Narrator.speak(line.text)
 	_caption.text = line.get("caption", "")
 	_caption.visible = _caption.text != ""
 	_portrait.expression = line.get("expr", "neutral")
@@ -220,6 +223,7 @@ func _advance() -> void:
 
 
 func _finish() -> void:
+	Narrator.stop()
 	var was_blocking := _blocking
 	_lines.clear()
 	_mode = ""

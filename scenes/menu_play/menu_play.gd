@@ -162,6 +162,12 @@ func _setup_ui() -> void:
 	btn_play.pressed.connect(func(): get_tree().change_scene_to_file(WAR_MAP_SCENE))
 	column.add_child(btn_play)
 
+	var duel_modal := _build_duel_modal(hud)
+	var btn_duel := UiButton.create("DUELO", UiButton.Kind.SECONDARY, null, true)
+	btn_duel.tooltip_text = "Dois tanques, um tiro por vez: contra um amigo ou contra a Ada"
+	btn_duel.pressed.connect(duel_modal.open)
+	column.add_child(btn_duel)
+
 	notebook_modal = NotebookPanel.new()
 	hud.add_child(notebook_modal)
 	var tools_row := HBoxContainer.new()
@@ -203,19 +209,64 @@ func _setup_ui() -> void:
 	btn_credits.pressed.connect(credits_modal.open)
 	pair.add_child(btn_credits)
 
+	# Recomeçar e sair também dividem uma linha (o Duelo ganhou a dele).
+	var last_row := HBoxContainer.new()
+	last_row.add_theme_constant_override("separation", UiTokens.GAP)
+	column.add_child(last_row)
 	reset_modal = _build_reset_modal(hud)
-	var btn_reset := UiButton.create("RECOMEÇAR CAMPANHA", UiButton.Kind.SECONDARY, null, true)
+	var btn_reset := UiButton.create("RECOMEÇAR", UiButton.Kind.SECONDARY, null, true)
+	btn_reset.tooltip_text = "Apaga o progresso da campanha"
+	btn_reset.custom_minimum_size = Vector2(134, 52)
+	btn_reset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_reset.pressed.connect(reset_modal.open)
 	btn_reset.visible = Global.has_progress()
-	column.add_child(btn_reset)
+	last_row.add_child(btn_reset)
 
 	var btn_quit := UiButton.create("ABANDONAR POSTO", UiButton.Kind.SECONDARY, null, true)
+	btn_quit.custom_minimum_size = Vector2(134, 52)
+	btn_quit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_quit.pressed.connect(func(): get_tree().quit())
-	column.add_child(btn_quit)
+	last_row.add_child(btn_quit)
 
-	_buttons = [btn_play, btn_lab, _teacher_btn, btn_audio, btn_credits, btn_reset, btn_quit]
+	_buttons = [btn_play, btn_lab, _teacher_btn, btn_audio, btn_credits, btn_reset, btn_quit, btn_duel, btn_book]
 	_animate_entry(panel)
 	btn_play.grab_focus.call_deferred()
+
+
+## Escolha do Duelo: dois jogadores no mesmo teclado ou contra a Ada.
+func _build_duel_modal(parent: CanvasLayer) -> CanvasLayer:
+	var modal = UiModalScript.new()
+	parent.add_child(modal)
+	modal.title_label.text = "DUELO"
+	var text := Label.new()
+	text.text = "Um tanque de cada lado e um tiro por vez. Vence quem zerar a blindagem do outro."
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size = Vector2(440, 0)
+	modal.body.add_child(text)
+	var first: Button = null
+	for opt in [
+		["2 JOGADORES (MESMO TECLADO)", "pvp", "medium"],
+		["CONTRA A ADA · FÁCIL", "ada", "easy"],
+		["CONTRA A ADA · MÉDIA", "ada", "medium"],
+		["CONTRA A ADA · DIFÍCIL", "ada", "hard"],
+	]:
+		var b := UiButton.create(opt[0], UiButton.Kind.PRIMARY if opt[1] == "pvp" else UiButton.Kind.SECONDARY, null, true)
+		b.pressed.connect(_start_duel.bind(opt[1], opt[2]))
+		modal.body.add_child(b)
+		if first == null:
+			first = b
+	var back := UiButton.create("VOLTAR", UiButton.Kind.SECONDARY, null, true)
+	back.pressed.connect(modal.close)
+	modal.body.add_child(back)
+	modal.visibility_changed.connect(_focus_if_visible.bind(modal, first))
+	modal.closed.connect(func(): _buttons[7].grab_focus())
+	return modal
+
+
+func _start_duel(mode: String, level: String) -> void:
+	Global.duel_mode = mode
+	Global.duel_level = level
+	get_tree().change_scene_to_file("res://scenes/duel/duel.tscn")
 
 
 func _open_lab() -> void:

@@ -21,6 +21,9 @@ var _ada: AdaPortrait
 var _prev: Button
 var _next: Button
 var _turning := false
+var _badges: GridContainer
+var _badge_btn: Button
+var _page_nav: Array = []
 
 
 func _build_content() -> void:
@@ -78,6 +81,13 @@ func _build_content() -> void:
 	_new_tag.text = "NOVA!"
 	col.add_child(_new_tag)
 
+	_badges = GridContainer.new()
+	_badges.columns = 4
+	_badges.add_theme_constant_override("h_separation", 8)
+	_badges.add_theme_constant_override("v_separation", 8)
+	_badges.visible = false
+	body.add_child(_badges)
+
 	var foot := HBoxContainer.new()
 	foot.alignment = BoxContainer.ALIGNMENT_CENTER
 	foot.add_theme_constant_override("separation", UiTokens.GAP)
@@ -94,6 +104,12 @@ func _build_content() -> void:
 	_next.custom_minimum_size = Vector2(200, 48)
 	_next.pressed.connect(_turn.bind(1))
 	foot.add_child(_next)
+	_page_nav = [_prev, _counter, _next]
+	_badge_btn = UiButton.create("Selos", UiButton.Kind.SECONDARY, null, true)
+	_badge_btn.custom_minimum_size = Vector2(140, 48)
+	_badge_btn.toggle_mode = true
+	_badge_btn.toggled.connect(_show_badges)
+	foot.add_child(_badge_btn)
 	var close_btn := UiButton.create("Fechar", UiButton.Kind.SECONDARY, null, true)
 	close_btn.custom_minimum_size = Vector2(140, 48)
 	close_btn.pressed.connect(close)
@@ -114,6 +130,48 @@ func _ink(size_px: int, col: Color) -> Label:
 	return l
 
 
+## Os selos (Achievements): conquistados com a cor, os outros apagados com a
+## dica de como ganhar.
+func _show_badges(on: bool) -> void:
+	_book.visible = not on
+	_badges.visible = on
+	for c in _page_nav:
+		c.visible = not on
+	_badge_btn.text = "Páginas" if on else "Selos (%d/%d)" % [Global.achievements.size(), Achievements.LIST.size()]
+	if not on:
+		return
+	for child in _badges.get_children():
+		child.queue_free()
+	for a in Achievements.LIST:
+		var got := Global.achievements.has(a.id)
+		var card := PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.PAPER if got else UiPanel.Kind.CARD))
+		card.custom_minimum_size = Vector2(224, 96)
+		_badges.add_child(card)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		card.add_child(row)
+		var icon := UiIcon.make(a.icon if got else "lock", UiTokens.EDITABLE_ON_PAPER if got else UiTokens.TEXT_DISABLED, 32.0)
+		icon.outlined = not got
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(icon)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 0)
+		row.add_child(col)
+		var name_label := Label.new()
+		name_label.text = a.name
+		name_label.theme_type_variation = &"InkLabel" if got else &"CaptionLabel"
+		name_label.add_theme_font_size_override("font_size", UiTokens.FONT_SM)
+		col.add_child(name_label)
+		var text := Label.new()
+		text.text = a.text
+		text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.custom_minimum_size = Vector2(160, 0)
+		text.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
+		text.add_theme_color_override("font_color", UiTokens.INK if got else UiTokens.TEXT_DIM)
+		col.add_child(text)
+
+
 ## Abre na primeira pagina nova (ou na primeira, se nao houver).
 func open() -> void:
 	_index = 0
@@ -122,6 +180,8 @@ func open() -> void:
 		if Notebook.is_unlocked(page) and not Global.notebook_seen.has(Notebook.page_id(page)):
 			_index = i
 			break
+	_badge_btn.set_pressed_no_signal(false)
+	_show_badges(false)
 	_show_page()
 	super()
 	_next.grab_focus.call_deferred()
@@ -175,6 +235,7 @@ func _show_page() -> void:
 	_formula_box.visible = unlocked
 	var is_new := unlocked and not Global.notebook_seen.has(Notebook.page_id(page))
 	_new_tag.visible = is_new
+	_text.add_theme_font_size_override("font_size", UiTokens.FONT_LG if Global.big_text else UiTokens.FONT_MD)
 	if unlocked:
 		_title.text = page.title
 		_text.text = page.text
@@ -184,6 +245,8 @@ func _show_page() -> void:
 		if is_new:
 			Global.notebook_seen[Notebook.page_id(page)] = true
 			Global.save_game()
+			if Global.notebook_seen.size() >= 10:
+				Global.unlock_achievement("reader")
 	else:
 		_title.text = "Página trancada"
 		_text.text = "Vença a fase %d da %s para abrir esta página do meu caderno." % [page.stage + 1, base_name]

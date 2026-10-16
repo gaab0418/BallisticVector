@@ -109,8 +109,9 @@ func _build_keys_page() -> Control:
 		[ICON_SHIFT, "Shift + seta", "gira devagarinho, para acertar o número"],
 		[ICON_SPACE, "Espaço", "dispara o canhão"],
 		[ICON_TAB, "Tab", "troca a munição"],
-		[null, "A e D", "andam com o tanque (só na Base Delta)"],
+		[null, "A e D", "andam com o tanque (quando há combustível)"],
 		[null, "F", "mostra a conta por trás da curva"],
+		[null, "C", "modo chute: esconde a curva para você calcular"],
 		[null, "H", "abre esta ajuda"],
 		[ICON_ESCAPE, "Esc", "pausa o jogo ou fecha esta tela"],
 	]

@@ -10,6 +10,10 @@ const BalloonScript = preload("res://scenes/arena/balloon.gd")
 const BunkerScript = preload("res://scenes/arena/bunker.gd")
 const EnemyTankScript = preload("res://scenes/arena/enemy_tank.gd")
 const CastleDamageScript = preload("res://scenes/arena/castle_damage.gd")
+const BossBrainScript = preload("res://scenes/arena/boss_brain.gd")
+const DroneScript = preload("res://scenes/arena/drone.gd")
+## Distancia entre um drone e o proximo na fila da rota.
+const DRONE_GAP := 330.0
 const BALLOON_COLORS := [UiTokens.BALLOON_A, UiTokens.BALLOON_B, UiTokens.BALLOON_C]
 const BOSS_TEXTURE = preload("res://assets/sprites/boss.png")
 
@@ -82,10 +86,16 @@ static func spawn_enemies(arena: Node2D, stage: Dictionary, player: Node2D) -> A
 	var enemies: Array = []
 	var boss_x: float = stage.get("boss_x", 1100.0)
 	if boss_x >= 0.0:
-		var boss := _create_boss(3)
+		var boss := _create_boss(int(stage.get("boss_hp", 3)))
 		boss.position = Vector2(boss_x, Campaign.GROUND_Y + 4.0 - BOSS_BASE_OFFSET)
 		arena.add_child(boss)
 		enemies.append(boss)
+		var chief: Dictionary = stage.get("chief", {})
+		if not chief.is_empty():
+			var brain := Node2D.new()
+			brain.set_script(BossBrainScript)
+			brain.setup(arena, chief)
+			boss.add_child(brain)
 
 	for i in range(int(stage.get("planes", 2))):
 		var airplane = AirplaneScript.new()
@@ -121,6 +131,17 @@ static func spawn_enemies(arena: Node2D, stage: Dictionary, player: Node2D) -> A
 		arena.add_child(bunker)
 		enemies.append(bunker)
 		_attach_pips(bunker, -48.0)
+
+	var route: Vector2 = stage.get("route", Vector2.ZERO)
+	for i in range(int(stage.get("drones", 0))):
+		var drone := Node2D.new()
+		drone.name = "Drone"
+		drone.set_script(DroneScript)
+		drone.route = route
+		drone.player_ref = player
+		drone.delay_px = i * DRONE_GAP
+		arena.add_child(drone)
+		enemies.append(drone)
 
 	var tanks: Dictionary = stage.get("tanks", {})
 	for i in range(int(tanks.get("count", 0))):

@@ -31,6 +31,8 @@ const BASE_CONFIGS: Array = [
 	{"id": "Base_C", "tex": "tower", "flip": false},
 	{"id": "Base_D", "tex": "castle", "flip": true},
 	{"id": "Base_E", "tex": "tower", "flip": true},
+	{"id": "Base_F", "tex": "wide", "flip": true},
+	{"id": "Base_N", "tex": "castle", "flip": false},
 	{"id": "Base_Z", "tex": "wide", "flip": false, "upside_down": true},
 ]
 
@@ -64,7 +66,7 @@ var _quiet_focus := false
 
 
 func _ready() -> void:
-	if Global.are_all_bases_complete():
+	if Global.are_all_bases_complete() and not Global.victory_seen:
 		get_tree().change_scene_to_file("res://scenes/victory/victory.tscn")
 		return
 
@@ -514,20 +516,21 @@ func _next_base_id() -> String:
 ## Botoes para deslizar entre as telas do mapa, na faixa de baixo (entre Loja e
 ## Voltar). A seta e texto, desenhada pelo fallback de fonte.
 func _build_page_arrows() -> void:
-	_next_page_btn = _page_button("Continue a rota  →")
-	_next_page_btn.pressed.connect(_go_page.bind(1))
-	_prev_page_btn = _page_button("←  Voltar ao início")
-	_prev_page_btn.pressed.connect(_go_page.bind(0))
+	_next_page_btn = _page_button("Continue a rota  →", 140.0, 380.0)
+	_next_page_btn.pressed.connect(func(): _go_page(_table.current_page() + 1))
+	_prev_page_btn = _page_button("←  Rota anterior", -82.0, 132.0)
+	_prev_page_btn.pressed.connect(func(): _go_page(_table.current_page() - 1))
 
 
-func _page_button(text: String) -> Button:
+## `left`/`right` = bordas em relacao ao centro da tela: a esquerda da faixa e
+## de Loja, Oficina e Caderno, e a direita do Voltar.
+func _page_button(text: String, left: float, right: float) -> Button:
 	var btn := UiButton.create(text, UiButton.Kind.PRIMARY, null, true)
-	btn.custom_minimum_size = Vector2(260, 52)
+	btn.custom_minimum_size = Vector2(right - left, 52)
 	add_child(btn)
 	btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	# Deslocado para a direita: a esquerda da faixa e de Loja, Oficina e Caderno.
-	btn.offset_left = 55.0
-	btn.offset_right = 315.0
+	btn.offset_left = left
+	btn.offset_right = right
 	btn.offset_top = -20.0 - 52.0
 	btn.offset_bottom = -20.0
 	return btn
@@ -543,13 +546,14 @@ func _go_page(page: int) -> void:
 ## conquistar esta do outro lado.
 func _update_page_arrows(page: int = -1) -> void:
 	var current := _table.current_page() if page < 0 else page
-	_next_page_btn.visible = current == 0
-	_prev_page_btn.visible = current == 1
+	_next_page_btn.visible = current < WarTable.PAGES - 1
+	_prev_page_btn.visible = current > 0
 	if _pulse:
 		_pulse.kill()
 	var next_page := WarTable.page_of(_index_of(_next_base_id()))
-	var btn := _next_page_btn if current == 0 else _prev_page_btn
-	btn.scale = Vector2.ONE
+	var btn := _next_page_btn if next_page > current else _prev_page_btn
+	_next_page_btn.scale = Vector2.ONE
+	_prev_page_btn.scale = Vector2.ONE
 	if next_page != current:
 		btn.pivot_offset = btn.custom_minimum_size * 0.5
 		_pulse = create_tween().set_loops()

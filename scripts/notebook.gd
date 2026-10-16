@@ -81,6 +81,36 @@ const PAGES := [
 		"formula": "Δ = 0: uma solução", "anim": "line", "p": {"touch": true, "angle": 50.0},
 	},
 	{
+		"base": "Base_F", "stage": 0, "title": "A reta da rota",
+		"text": "O drone voa em linha reta: y = mx + n. O m diz o quanto a reta sobe a cada metro, o n onde ela corta o eixo y.",
+		"formula": "y = mx + n", "anim": "intercept", "p": {"m": 0.15, "n": 2.0},
+	},
+	{
+		"base": "Base_F", "stage": 1, "title": "Parábola encontra reta",
+		"text": "Onde a bala cruza a rota, as duas contas dão o mesmo y. É só igualar: ax² + bx + c = mx + n.",
+		"formula": "ax² + (b − m)x + (c − n) = 0", "anim": "intercept", "p": {"m": -0.1, "n": 7.0},
+	},
+	{
+		"base": "Base_F", "stage": 2, "title": "Tempo de voo",
+		"text": "A bala anda sempre a mesma distância para o lado por segundo. Por isso dá para saber QUANDO ela chega no encontro.",
+		"formula": "t = x / (v · cos θ)", "anim": "intercept", "p": {"m": 0.1, "n": 3.0, "drone": true},
+	},
+	{
+		"base": "Base_N", "stage": 0, "title": "O quique",
+		"text": "No gelo a bala quica e faz uma parábola menor. O 'a' é o mesmo: só a subida de saída diminui.",
+		"formula": "a igual, b menor", "anim": "bounce", "p": {},
+	},
+	{
+		"base": "Base_N", "stage": 1, "title": "O intervalo",
+		"text": "Cair entre 12 e 15 m é um INTERVALO: a raiz precisa ser maior que 12 e menor que 15.",
+		"formula": "12 < raiz < 15", "anim": "zone", "p": {"from": 12.0, "to": 15.0},
+	},
+	{
+		"base": "Base_N", "stage": 2, "title": "O máximo da função",
+		"text": "Com a força parada, o alcance é uma função do ângulo. Ela sobe, chega no máximo em 45° e desce.",
+		"formula": "alcance máximo em 45°", "anim": "sweep", "p": {},
+	},
+	{
 		"base": "Base_Z", "stage": 0, "title": "Quando a > 0",
 		"text": "Com a gravidade para cima, o 'a' fica positivo e a parábola abre para cima, como um sorriso.",
 		"formula": "a > 0: boca para cima", "anim": "flip", "p": {},

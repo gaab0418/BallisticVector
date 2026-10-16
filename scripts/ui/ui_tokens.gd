@@ -244,6 +244,25 @@ const WORLD_EARTH := {
 	# mundo: vermelho-alaranjado sobre o ceu roxo do crepusculo.
 	"aim": Color("ff7a3d"),
 }
+## Arquipelago do Norte: ceu de aurora e chao de gelo (onde a bala quica).
+const WORLD_ICE := {
+	"sky": [Color("0b1426"), Color("163055"), Color("2e6b7a"), Color("7fc6b4")],
+	"stars": 0.6,
+	"far": Color("8fa6bf"),
+	"mid": Color("6a829e"),
+	"lip": Color("e8f2f8"),
+	"lip_dark": Color("b9d0de"),
+	"ground": Color("7fa3bd"),
+	"ground_dark": Color("4f6f8a"),
+	"speck": Color("d6e7f2"),
+	"rock": [Color("c3d4e0"), Color("8aa2b8"), Color("56708a")],
+	"disc": Color("d8f3ea"),
+	# Ceu azul-esverdeado: o calculado vai em laranja quente para destacar.
+	"aim": Color("ff8a3d"),
+}
+## Zona de pouso (intervalo no chao) e rota dos drones.
+const LAND_ZONE := Color("86d46b")
+const DRONE_ROUTE := Color("ff6a6a")
 const WORLD_MOON := {
 	"sky": [Color("05050b"), Color("0e1020"), Color("1d2136"), Color("2e3450")],
 	"stars": 1.0,

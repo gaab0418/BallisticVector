@@ -131,6 +131,55 @@ static func crossings(s: Dictionary, h: float) -> Array:
 	return out
 
 
+## Reta y = m x + n contra a parabola: ax² + (b − m)x + (c − n) = 0. O delta
+## diz em quantos pontos a bala cruza a rota (Base Foxtrot).
+static func delta_line(s: Dictionary, m: float, n: float) -> float:
+	var bb: float = s.b - m
+	return bb * bb - 4.0 * s.a * (s.c - n)
+
+
+## Os x (a frente do canhao, em ordem) onde a parabola encontra a reta.
+static func crossings_line(s: Dictionary, m: float, n: float) -> Array:
+	var d := delta_line(s, m, n)
+	if d < 0.0 or is_zero_approx(s.a):
+		return []
+	var bb: float = s.b - m
+	var r1: float = (-bb - sqrt(d)) / (2.0 * s.a)
+	var r2: float = (-bb + sqrt(d)) / (2.0 * s.a)
+	var out := []
+	for r in [minf(r1, r2), maxf(r1, r2)]:
+		if r > s.x_tank and not out.has(r):
+			out.append(r)
+	return out
+
+
+## Segundos que a bala leva do canhao ate a posicao x (m): o passo horizontal
+## e constante, v·cos θ.
+static func time_to(s: Dictionary, x: float) -> float:
+	var vx: float = s.v * cos(deg_to_rad(s.angle_deg))
+	if vx <= 0.0001:
+		return INF
+	return (x - s.x_tank) / vx
+
+
+## O quique no chao gelado: a bala sai da raiz com a mesma velocidade
+## horizontal (o "a" nao muda) e so uma fracao `e` da velocidade vertical.
+## Devolve um tiro novo com x_tank na raiz, ou {} se nao ha raiz.
+static func bounce(s: Dictionary, e: float) -> Dictionary:
+	var r := root(s)
+	if is_nan(r):
+		return {}
+	var slope: float = 2.0 * s.a * r + s.b
+	var b2 := -e * slope
+	var out := s.duplicate()
+	out.x_tank = r
+	out.h_cannon = 0.0
+	out.b = b2 - 2.0 * s.a * r
+	out.c = s.a * r * r - b2 * r
+	out.bounced = true
+	return out
+
+
 ## Faixa no chao onde a bala pode cair, dado o desvio maximo do cano. Amostrado,
 ## e nao so nas pontas: o alcance passa por um maximo perto de 45°, e se esse
 ## angulo estiver dentro do intervalo e la que a faixa termina.

@@ -8,6 +8,8 @@ extends RefCounted
 ##   Charlie -- a gravidade (Lua, Jupiter, Marte: o "a" da equacao)
 ##   Delta   -- a translacao (o tanque anda: so b e c mudam, o a nunca)
 ##   Echo    -- o vertice e o delta (a linha y = h: 2, 1 ou 0 solucoes)
+##   Foxtrot -- a parabola e a reta (interceptar drones na rota y = mx + n)
+##   Norte   -- o gelo: quique (o "a" nao muda), intervalo de pouso e alcance maximo
 ##   Bonus   -- a Ilha Invertida (gravidade para cima: a > 0, vertice minimo)
 ##
 ## Chaves opcionais de uma fase, alem das basicas:
@@ -17,6 +19,14 @@ extends RefCounted
 ##   tanks       -- {"count": n, "zone": Vector2(x1, x2)} tanques inimigos que andam
 ##   inverted    -- gravidade para cima (a > 0)
 ##   tank_height -- altura (m) do platô onde o tanque do jogador fica
+##   route       -- Vector2(m, n): rota y = m x + n dos drones (Foxtrot)
+##   drones      -- quantos drones voam pela rota, um atras do outro
+##   bounce      -- fracao da velocidade vertical que sobra no quique (gelo)
+##   land_zone   -- Vector2(x1, x2) em metros: intervalo de pouso desenhado no chao
+##   power_lock  -- forca travada (fracao): so o angulo muda o alcance
+##   chief       -- o chefe da ultima fase de cada base (ver BossBrain):
+##                  {"name", "kind": shield|moving|hopping|gravity|guarded, ...}
+##   boss_hp     -- vida do castelo (padrao 3; o chefe tem mais)
 ##
 ## Toda fase tem tres estrelas. A primeira e vencer; as outras duas sao desafios
 ## que so se cumprem entendendo a conta (ver StageGoals).
@@ -168,6 +178,8 @@ const BASES := {
 					},
 				],
 				"boss_x": 1110.0,
+				"boss_hp": 4,
+				"chief": {"name": "Fortaleza do Escudo", "kind": "shield", "min_descent": 35.0},
 				"planes": 3,
 				"plane_hp": 1,
 				"goals":
@@ -258,6 +270,9 @@ const BASES := {
 					},
 				],
 				"boss_x": 1180.0,
+				"boss_hp": 4,
+				"chief":
+				{"name": "Castelo sobre Rodas", "kind": "moving", "zone": Vector2(1060, 1200), "speed": 22.0},
 				"planes": 2,
 				"plane_hp": 2,
 				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
@@ -347,6 +362,13 @@ const BASES := {
 					},
 				],
 				"boss_x": 1120.0,
+				"boss_hp": 4,
+				"chief":
+				{
+					"name": "Torre dos Planetas",
+					"kind": "gravity",
+					"list": [G_MARS, G_MOON, G_EARTH, G_MARS],
+				},
 				"planes": 2,
 				"plane_hp": 2,
 				"bunkers": [900.0],
@@ -447,6 +469,9 @@ const BASES := {
 					},
 				],
 				"boss_x": 1180.0,
+				"boss_hp": 5,
+				"chief":
+				{"name": "Castelo Fujão", "kind": "hopping", "spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]},
 				"planes": 4,
 				"plane_hp": 2,
 				"goals":
@@ -544,12 +569,198 @@ const BASES := {
 					}
 				],
 				"boss_x": 1160.0,
+				"boss_hp": 4,
+				"chief": {"name": "Castelo dos Balões", "kind": "guarded"},
 				"planes": 2,
 				"plane_hp": 1,
 				"goals":
 				[
 					{"type": "vertex_hit", "value": 0.6},
 					{"type": "max_shots", "value": 8},
+				],
+			},
+		],
+	},
+	"Base_F":
+	{
+		"chapter": "A parábola e a reta",
+		"icon": "target",
+		"blurb": "Drones voam em linha reta: intercepte onde a curva cruza a rota.",
+		"stages":
+		[
+			{
+				"title": "A rota do drone",
+				"lesson":
+				(
+					"Os drones voam numa linha RETA: y = mx + n. A bala encontra o drone onde a "
+					+ "parábola cruza a reta, ou seja, onde ax² + bx + c = mx + n. Os pontinhos "
+					+ "vermelhos são esses encontros!"
+				),
+				"tip": "Atire quando o drone passar pelo anel: a bala chega junto com ele.",
+				"route": Vector2(0.15, 2.0),
+				"drones": 3,
+				"obstacles":
+				[
+					{
+						"pos": Vector2(560, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -140), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1150.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "no_damage"},
+					{"type": "max_shots", "value": 10},
+				],
+			},
+			{
+				"title": "Subindo ou descendo",
+				"lesson":
+				(
+					"Esta rota desce: o m é NEGATIVO. A curva cruza a reta duas vezes, uma com "
+					+ "a bala subindo e outra descendo. Intercepte um drone no primeiro encontro!"
+				),
+				"tip": "O primeiro anel é o encontro com a bala ainda subindo.",
+				"route": Vector2(-0.1, 7.0),
+				"drones": 3,
+				"obstacles":
+				[
+					{
+						"pos": Vector2(480, 720),
+						"poly": [Vector2(-70, 0), Vector2(0, -170), Vector2(70, 0)]
+					}
+				],
+				"boss_x": 1160.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "intercept_up"},
+					{"type": "max_shots", "value": 11},
+				],
+			},
+			{
+				"title": "O comboio",
+				"lesson":
+				(
+					"Quatro drones protegem o castelo: o escudo dele só cai quando todos "
+					+ "caírem. Se o delta de ax² + (b − m)x + (c − n) = 0 der negativo, a curva "
+					+ "nem encosta na rota!"
+				),
+				"tip": "Derrube os drones primeiro. Depois, o castelo.",
+				"route": Vector2(0.1, 3.0),
+				"drones": 4,
+				"obstacles":
+				[
+					{
+						"pos": Vector2(620, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -150), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1170.0,
+				"boss_hp": 4,
+				"chief": {"name": "Castelo Comboio", "kind": "guarded"},
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "intercept_both"},
+					{"type": "max_shots", "value": 15},
+				],
+			},
+		],
+	},
+	"Base_N":
+	{
+		"chapter": "O gelo",
+		"icon": "planet",
+		"blurb": "No gelo a bala quica: cada quique é uma parábola nova.",
+		"stages":
+		[
+			{
+				"title": "Gelo que quica",
+				"lesson":
+				(
+					"No gelo a bala QUICA. Depois do quique ela faz outra parábola, mais baixa. "
+					+ "O 'a' é o mesmo (a gravidade e a velocidade para o lado não mudam): só a "
+					+ "inclinação de saída diminui."
+				),
+				"tip": "A curva fininha depois da bandeira é o quique. Estoure o balão baixinho!",
+				"planet": "ice",
+				"bounce": 0.55,
+				"balloons": [Vector2(930, 1.0)],
+				"obstacles":
+				[
+					{
+						"pos": Vector2(430, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -120), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1130.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "bounce_hit"},
+					{"type": "max_shots", "value": 8},
+				],
+			},
+			{
+				"title": "Zona de pouso",
+				"lesson":
+				(
+					"Os suprimentos precisam cair na faixa verde: 12 < x < 15. É um INTERVALO. "
+					+ "A raiz da parábola tem que ficar maior que 12 e menor que 15."
+				),
+				"tip": "Olhe a bandeira da raiz: ela precisa ficar dentro da faixa verde.",
+				"planet": "ice",
+				"land_zone": Vector2(12.0, 15.0),
+				"obstacles":
+				[
+					{
+						"pos": Vector2(470, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -160), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1150.0,
+				"planes": 2,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "land_zone", "min": 12.0, "max": 15.0},
+					{"type": "max_shots", "value": 9},
+				],
+			},
+			{
+				"title": "Força travada",
+				"lesson":
+				(
+					"A força ficou travada em 80%. Só o ângulo muda o alcance agora. Gire e "
+					+ "descubra: o alcance cresce até perto de 45° e depois diminui. É o MÁXIMO "
+					+ "da função!"
+				),
+				"tip": "O iglu anda: perto de 45° a bala vai o mais longe possível.",
+				"planet": "ice",
+				"power_lock": 0.8,
+				"obstacles":
+				[
+					{
+						"pos": Vector2(500, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -150), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 960.0,
+				"boss_hp": 4,
+				"chief":
+				{"name": "Iglu Blindado", "kind": "moving", "zone": Vector2(900.0, 975.0), "speed": 10.0},
+				"planes": 1,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "angle_hit", "min": 40.0, "max": 50.0},
+					{"type": "max_shots", "value": 10},
 				],
 			},
 		],
@@ -662,7 +873,7 @@ static func stage(base_id: String, index: int) -> Dictionary:
 ## Fora da Delta (que ensina a translacao com faixa livre), o tanque anda pouco:
 ## um tanque de combustivel por fase, para ajustar a posicao sem virar a licao.
 ## Alpha fica parada (tutorial) e o plato nao tem chao para andar.
-const FUEL_BASES := ["Base_B", "Base_C", "Base_E"]
+const FUEL_BASES := ["Base_B", "Base_C", "Base_E", "Base_F"]
 const FUEL_M := 3.0
 const FUEL_ZONE := Vector2(40.0, 250.0)
 
@@ -706,6 +917,17 @@ static func goal_text(goal: Dictionary) -> String:
 			return "Vença sem mexer na gravidade"
 		"move_hit":
 			return "Ande %s m e acerte o castelo" % Ballistics.fmt(goal.value)
+		"intercept_up":
+			return "Derrube um drone com a bala ainda subindo"
+		"intercept_both":
+			return "Derrube um drone subindo e outro descendo"
+		"bounce_hit":
+			return "Acerte um alvo depois do quique"
+		"land_zone":
+			return (
+				"Faça uma bala cair entre %s e %s m"
+				% [Ballistics.fmt(goal.min, 0), Ballistics.fmt(goal.max, 0)]
+			)
 	return ""
 
 

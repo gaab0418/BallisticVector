@@ -119,7 +119,7 @@ func set_state(view: Dictionary) -> void:
 
 	_update_equation(s)
 	_update_vertex_form(s, view.get("vertex_form", false))
-	_update_results(s)
+	_update_results(s, view.get("hide_results", false))
 	_highlight_coefs()
 
 
@@ -287,8 +287,14 @@ func _add_result(row: HBoxContainer, icon_name: String, title: String) -> Label:
 
 ## Sem vertice a frente o painel diz "levante!"/"abaixe!"; a frase completa
 ## aparece no mundo, junto do canhao.
-func _update_results(s: Dictionary) -> void:
+## `hidden` = modo chute: a crianca calcula, o painel nao entrega a resposta.
+func _update_results(s: Dictionary, hidden: bool = false) -> void:
 	var up := Ballistics.opens_up(s)
+	if hidden:
+		_height_caption.text = "ALTURA MÍN." if up else "ALTURA MÁX."
+		_height_value.text = "?"
+		_range_value.text = "?"
+		return
 	# a > 0 (Mundo Invertido): o vertice e o ponto mais BAIXO.
 	_height_caption.text = "ALTURA MÍN." if up else "ALTURA MÁX."
 	if Ballistics.has_arc(s):

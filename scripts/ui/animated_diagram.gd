@@ -84,6 +84,12 @@ func _draw() -> void:
 			_draw_line_mode()
 		"flip":
 			_draw_flip()
+		"intercept":
+			_draw_intercept()
+		"bounce":
+			_draw_bounce()
+		"zone":
+			_draw_zone()
 		_:
 			_draw_fly()
 
@@ -311,3 +317,78 @@ func _draw_flip() -> void:
 	draw_rect(Rect2(c - Vector2(16, -8), Vector2(26, 30)), UiTokens.ROCK)
 	if params.get("mark", "") == "vertex" or Ballistics.vertex(s).x < 22.0 * k:
 		_vertex(s, _warm, "vértice: o ponto mais baixo")
+
+
+## A rota reta do drone e a parabola: os encontros sao as solucoes. Com
+## "drone", um drone anda pela reta e chega no encontro junto com a bala.
+func _draw_intercept() -> void:
+	_setup_scale(30.0)
+	_draw_ground()
+	var m: float = params.get("m", 0.15)
+	var n: float = params.get("n", 2.0)
+	var a := _to_screen(0, n)
+	var b := _to_screen(_span, n + m * _span)
+	draw_dashed_line(a, b, _warm, 2.0, 8.0)
+	_text(a + Vector2(4, -8), "y = %sx + %s" % [Ballistics.fmt(m, 2), Ballistics.fmt(n, 0)], _warm, UiTokens.FONT_SM)
+	var s := _shot(42.0, V, G)
+	var k := minf(_phase() * 1.25, 1.0)
+	var r := Ballistics.root(s)
+	var head := _curve(s, _calc, 3.0, r * k)
+	if k < 1.0:
+		_bullet(head)
+	var xs := Ballistics.crossings_line(s, m, n)
+	for xm in xs:
+		if xm <= r * k + 0.01:
+			var p := _to_screen(xm, Ballistics.y_at(s, xm))
+			draw_circle(p, 6.0, _warm, true, -1.0, false)
+			draw_arc(p, 6.0, 0, TAU, 12, _ink, 1.5)
+	if params.get("drone", false) and xs.size() > 1:
+		# O drone chega ao segundo encontro no mesmo instante que a bala.
+		var meet: float = xs[1]
+		var t_meet := Ballistics.time_to(s, meet)
+		var t_now := Ballistics.time_to(s, r * k)
+		var dx := 4.0 * (t_meet - t_now)
+		var xd := meet + dx
+		if xd < _span:
+			var dp := _to_screen(xd, n + m * xd)
+			draw_rect(Rect2(dp - Vector2(8, 4), Vector2(16, 8)), _warm)
+			draw_rect(Rect2(dp - Vector2(10, 2), Vector2(4, 4)), _ink)
+
+
+## A bala quica e faz outra parabola com o mesmo "a", mais baixa.
+func _draw_bounce() -> void:
+	_setup_scale(36.0)
+	_draw_ground()
+	var s := _shot(50.0, 640.0, G)
+	var s2 := Ballistics.bounce(s, 0.55)
+	var r := Ballistics.root(s)
+	var r2 := Ballistics.root(s2)
+	var k := minf(_phase() * 1.3, 1.0)
+	var x_now := lerpf(s.x_tank, r2, k)
+	var head := _curve(s, _calc, 3.0, minf(x_now, r))
+	if x_now > r:
+		head = _curve(s2, _edit, 3.0, x_now)
+	if k < 1.0:
+		_bullet(head)
+	_vertex(s, _calc)
+	if x_now > r:
+		_vertex(s2, _edit)
+	_text(Vector2(_x0, 24), "a = %s nas duas!" % Ballistics.fmt(s.a, 3), _calc, UiTokens.FONT_SM)
+
+
+## A faixa de pouso: so as curvas com a raiz dentro dela acendem.
+func _draw_zone() -> void:
+	_setup_scale(24.0)
+	_draw_ground()
+	var lo: float = params.get("from", 12.0)
+	var hi: float = params.get("to", 15.0)
+	var x0 := _to_screen(lo, 0).x
+	var x1 := _to_screen(hi, 0).x
+	draw_rect(Rect2(x0, _ground - 6, x1 - x0, 8), Color(UiTokens.LAND_ZONE.darkened(0.3), 0.7))
+	_text(Vector2(x0 - 6, _ground - 64), "%s < x < %s" % [Ballistics.fmt(lo, 0), Ballistics.fmt(hi, 0)], _ink, UiTokens.FONT_SM)
+	var pw := 0.55 + 0.4 * _swing()
+	var s := _shot(45.0, 640.0 * pw, G)
+	var r := Ballistics.root(s)
+	var inside := r >= lo and r <= hi
+	_curve(s, _calc if inside else Color(_ink, 0.45), 3.0)
+	_flag(s, _calc if inside else _warm, ("dentro!" if inside else "fora") + " (%s m)" % Ballistics.fmt(r))
