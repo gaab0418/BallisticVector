@@ -21,6 +21,8 @@ var shots := 0
 var _first_angle := NAN
 var _low_twin := false
 var _high_twin := false
+var _popped_rising := false
+var _popped_falling := false
 
 
 func setup(goal_list: Array) -> void:
@@ -45,7 +47,8 @@ func on_fire(angle_deg: float) -> void:
 					_mark(i, State.FAILED)
 
 
-func on_boss_hit(angle_deg: float, power: float, moved_m: float) -> void:
+## `vertex_y` = altura (m) do vertice daquele tiro (NAN se nao havia vertice).
+func on_boss_hit(angle_deg: float, power: float, moved_m: float, vertex_y: float = NAN) -> void:
 	for i in range(goals.size()):
 		var g: Dictionary = goals[i]
 		match g.type:
@@ -57,6 +60,9 @@ func on_boss_hit(angle_deg: float, power: float, moved_m: float) -> void:
 					_mark(i, State.DONE)
 			"move_hit":
 				if moved_m >= g.value:
+					_mark(i, State.DONE)
+			"vertex_band":
+				if not is_nan(vertex_y) and vertex_y >= g.min and vertex_y <= g.max:
 					_mark(i, State.DONE)
 			"twin_angles":
 				if angle_deg < 45.0:
@@ -72,6 +78,17 @@ func on_plane_hit(dist_m: float) -> void:
 	for i in range(goals.size()):
 		var g: Dictionary = goals[i]
 		if g.type == "vertex_hit" and dist_m <= g.value:
+			_mark(i, State.DONE)
+
+
+## Balao estourado: `rising` = a bala ainda subia (antes do vertice).
+func on_balloon_hit(rising: bool) -> void:
+	if rising:
+		_popped_rising = true
+	else:
+		_popped_falling = true
+	for i in range(goals.size()):
+		if goals[i].type == "up_down" and _popped_rising and _popped_falling:
 			_mark(i, State.DONE)
 
 

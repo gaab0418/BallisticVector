@@ -231,6 +231,7 @@ func _buy_ammo(ammo: AmmoData, qty: int) -> void:
 	AudioManager.play_sfx(SFX_CLICK)
 	_celebrate(_rows[ammo.ammo_name]["card"], "+%d" % actual_qty)
 	refresh()
+	Global.save_game()
 	purchased.emit()
 
 
@@ -244,6 +245,7 @@ func _buy_repair() -> void:
 	AudioManager.play_sfx(SFX_CLICK)
 	_celebrate(_repair_card, "+%d" % int(REPAIR_HEAL))
 	refresh()
+	Global.save_game()
 	purchased.emit()
 
 

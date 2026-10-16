@@ -7,6 +7,16 @@ extends RefCounted
 ##   Bravo   -- a forca (v² na formula: metade da forca, um quarto do alcance)
 ##   Charlie -- a gravidade (Lua, Jupiter, Marte: o "a" da equacao)
 ##   Delta   -- a translacao (o tanque anda: so b e c mudam, o a nunca)
+##   Echo    -- o vertice e o delta (a linha y = h: 2, 1 ou 0 solucoes)
+##   Bonus   -- a Ilha Invertida (gravidade para cima: a > 0, vertice minimo)
+##
+## Chaves opcionais de uma fase, alem das basicas:
+##   height_line -- altura (m) da linha y = h desenhada no mundo
+##   balloons    -- [Vector2(x_px, altura_m)] balões amarrados ao chao
+##   bunkers     -- [x_px] bunkers enterrados (so quebram com tiro caindo de cima)
+##   tanks       -- {"count": n, "zone": Vector2(x1, x2)} tanques inimigos que andam
+##   inverted    -- gravidade para cima (a > 0)
+##   tank_height -- altura (m) do platô onde o tanque do jogador fica
 ##
 ## Antes as tres bases eram a mesma arena com mais avioes. A fisica nao mudou:
 ## so o cenario, os inimigos e o que se pede do jogador.
@@ -30,6 +40,44 @@ const G_MOON := 80.0  # 1,6 m/s²
 const G_MARS := 185.0  # 3,7 m/s²
 const G_EARTH := 490.0  # 9,8 m/s²
 const G_JUPITER := 1240.0  # 24,8 m/s²
+## Gravidade "para cima" da Ilha Invertida (negativa no motor).
+const G_INVERTED := -400.0  # -8 m/s²
+
+## Laboratorio: sem inimigos e sem montanhas; o mundo e escolhido no painel.
+const LAB_STAGE := {
+	"title": "Laboratório",
+	"lesson": "",
+	"tip": "",
+	"obstacles": [],
+	"boss_x": -1.0,
+	"planes": 0,
+	"plane_hp": 1,
+	"goals": [],
+}
+
+## Mundos do Laboratorio: nome no botao, tema e gravidade (px/s²; vazio = a da
+## municao, como na Terra).
+const LAB_WORLDS := {
+	"earth": {"name": "Terra", "planet": ""},
+	"moon": {"name": "Lua", "planet": "moon", "gravity": G_MOON},
+	"mars": {"name": "Marte", "planet": "mars", "gravity": G_MARS},
+	"jupiter": {"name": "Júpiter", "planet": "jupiter", "gravity": G_JUPITER},
+	"inverted":
+	{"name": "Invertido", "planet": "inverted", "gravity": G_INVERTED, "inverted": true},
+}
+
+
+static func lab_stage(world_key: String) -> Dictionary:
+	var st := LAB_STAGE.duplicate(true)
+	var w: Dictionary = LAB_WORLDS.get(world_key, LAB_WORLDS["earth"])
+	st.planet = w.planet
+	if w.has("gravity"):
+		st.gravity = w.gravity
+	if w.get("inverted", false):
+		st.inverted = true
+		st.tank_height = 5.0
+	return st
+
 
 ## Planetas que a engrenagem da gravidade reconhece, para a crianca ligar o
 ## numero a um lugar de verdade.
@@ -213,8 +261,9 @@ const BASES := {
 					},
 				],
 				"boss_x": 1180.0,
-				"planes": 3,
+				"planes": 2,
 				"plane_hp": 2,
+				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
 				"goals":
 				[
 					{"type": "no_damage"},
@@ -301,8 +350,9 @@ const BASES := {
 					},
 				],
 				"boss_x": 1120.0,
-				"planes": 3,
+				"planes": 2,
 				"plane_hp": 2,
+				"bunkers": [900.0],
 				"goals":
 				[
 					{"type": "keep_gravity"},
@@ -365,8 +415,9 @@ const BASES := {
 					},
 				],
 				"boss_x": 1150.0,
-				"planes": 3,
+				"planes": 2,
 				"plane_hp": 2,
+				"tanks": {"count": 1, "zone": Vector2(980, 1110)},
 				"goals":
 				[
 					{"type": "no_damage"},
@@ -405,6 +456,164 @@ const BASES := {
 				[
 					{"type": "vertex_hit", "value": 1.5},
 					{"type": "max_shots", "value": 10},
+				],
+			},
+		],
+	},
+	"Base_E":
+	{
+		"chapter": "O vértice e o delta",
+		"icon": "target",
+		"blurb": "A linha y = h: a bala passa por ela 2, 1 ou 0 vezes?",
+		"stages":
+		[
+			{
+				"title": "Na altura certa",
+				"lesson":
+				(
+					"A linha tracejada é y = 5. Onde a parábola cruza a linha, a bala está a "
+					+ "5 m de altura. A conta ax² + bx + c = 5 tem DUAS soluções: a bala passa "
+					+ "por 5 m subindo e de novo descendo!"
+				),
+				"tip": "Os pontinhos na linha são as soluções. Estoure os balões!",
+				"height_line": 5.0,
+				"balloons": [Vector2(700, 5.0), Vector2(860, 5.0), Vector2(1020, 5.0)],
+				"obstacles":
+				[
+					{
+						"pos": Vector2(500, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -130), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1180.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "up_down"},
+					{"type": "max_shots", "value": 8},
+				],
+			},
+			{
+				"title": "A muralha",
+				"lesson":
+				(
+					"A muralha tem 7 m. A bala só passa se a parábola chegar a y = 7. Se o "
+					+ "delta de ax² + bx + c = 7 der NEGATIVO, a curva nunca chega lá: aumente "
+					+ "o ângulo ou a força."
+				),
+				"tip": "Atrás da muralha tem um bunker: ele só quebra com tiro caindo de cima.",
+				"height_line": 7.0,
+				"obstacles":
+				[
+					{
+						"pos": Vector2(760, 720),
+						"poly":
+						[
+							Vector2(-55, 0),
+							Vector2(-38, -380),
+							Vector2(-20, -418),
+							Vector2(20, -418),
+							Vector2(38, -380),
+							Vector2(55, 0),
+						]
+					},
+				],
+				"bunkers": [1010.0],
+				"boss_x": 1180.0,
+				"planes": 1,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "vertex_band", "min": 7.0, "max": 8.5},
+					{"type": "max_shots", "value": 9},
+				],
+			},
+			{
+				"title": "Toque no vértice",
+				"lesson":
+				(
+					"Quando o vértice fica exatamente na linha, a curva só ENCOSTA nela: uma "
+					+ "solução só, e o delta vale zero. Acerte um balão bem no ponto mais alto!"
+				),
+				"tip": 'Ajuste até aparecer "Δ = 0" ao lado da linha.',
+				"height_line": 6.0,
+				"balloons": [Vector2(640, 6.0), Vector2(980, 6.0)],
+				"obstacles":
+				[
+					{
+						"pos": Vector2(820, 720),
+						"poly": [Vector2(-60, 0), Vector2(0, -210), Vector2(60, 0)]
+					}
+				],
+				"boss_x": 1160.0,
+				"planes": 2,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "vertex_hit", "value": 0.6},
+					{"type": "max_shots", "value": 8},
+				],
+			},
+		],
+	},
+	"Base_Z":
+	{
+		"chapter": "Bônus: a > 0",
+		"icon": "planet",
+		"blurb": "Gravidade para cima! A parábola abre como um sorriso.",
+		"stages":
+		[
+			{
+				"title": "De cabeça para baixo",
+				"lesson":
+				(
+					"Aqui a gravidade puxa para CIMA. O 'a' fica POSITIVO e a parábola abre "
+					+ "para cima, como um sorriso. O vértice agora é o ponto mais BAIXO da curva."
+				),
+				"tip": "Aponte o canhão para baixo: a bala desce, faz a curva e sobe.",
+				"planet": "inverted",
+				"inverted": true,
+				"gravity": G_INVERTED,
+				"tank_height": 5.0,
+				"balloons": [Vector2(980, 9.0), Vector2(1140, 10.5)],
+				"obstacles": [],
+				"boss_x": 760.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "vertex_band", "min": 0.0, "max": 2.5},
+					{"type": "max_shots", "value": 7},
+				],
+			},
+			{
+				"title": "Sorriso de bala",
+				"lesson":
+				(
+					"Com a > 0 o vértice é um MÍNIMO. Para acertar o castelo no chão, o ponto "
+					+ "mais baixo da curva precisa passar por ele."
+				),
+				"tip": "Pouca força e cano para baixo levam o vértice para perto.",
+				"planet": "inverted",
+				"inverted": true,
+				"gravity": -300.0,
+				"tank_height": 3.5,
+				"balloons": [Vector2(720, 7.0), Vector2(1190, 9.0)],
+				"obstacles":
+				[
+					{
+						"pos": Vector2(470, 720),
+						"poly": [Vector2(-50, 0), Vector2(0, -150), Vector2(50, 0)]
+					}
+				],
+				"boss_x": 1040.0,
+				"planes": 0,
+				"plane_hp": 1,
+				"goals":
+				[
+					{"type": "vertex_band", "min": 0.0, "max": 2.5},
+					{"type": "max_shots", "value": 8},
 				],
 			},
 		],
@@ -465,7 +674,14 @@ static func goal_text(goal: Dictionary) -> String:
 		"max_shots":
 			return "Vença com até %d tiros" % goal.value
 		"vertex_hit":
-			return "Derrube um avião no vértice (±%s m)" % Ballistics.fmt(goal.value)
+			return "Acerte um avião ou balão no vértice (±%s m)" % Ballistics.fmt(goal.value)
+		"vertex_band":
+			return (
+				"Acerte o castelo com o vértice entre %s e %s m"
+				% [Ballistics.fmt(goal.min), Ballistics.fmt(goal.max)]
+			)
+		"up_down":
+			return "Estoure um balão com a bala subindo e outro descendo"
 		"power_hit":
 			return "Acerte o castelo com força até %d%%" % roundi(goal.max * 100.0)
 		"same_angle":

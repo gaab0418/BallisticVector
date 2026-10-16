@@ -41,6 +41,7 @@ var _vertex_form: Label
 var _height_value: Label
 var _range_value: Label
 var _result_icons: Array = []
+var _height_caption: Label
 var _effects: Array = ["", "", ""]
 var _selected := GEAR_ANGULO
 var _accent: Color = UiTokens.WORLD_EARTH.aim
@@ -79,6 +80,7 @@ func setup(panel_style: StyleBox) -> void:
 
 	row.add_child(VSeparator.new())
 	_height_value = _add_result(row, "vertex", "Altura máx.")
+	_height_caption = _height_value.get_parent().get_child(0).get_child(1)
 	_range_value = _add_result(row, "root", "Alcance")
 
 	set_selected(GEAR_ANGULO)
@@ -280,8 +282,12 @@ func _add_result(row: HBoxContainer, icon_name: String, title: String) -> Label:
 ## Com o canhao para baixo nao ha ponto mais alto a frente. O painel diz
 ## "levante!" e a frase inteira aparece no mundo, junto do canhao.
 func _update_results(s: Dictionary) -> void:
+	var up := Ballistics.opens_up(s)
+	# a > 0 (Mundo Invertido): o vertice e o ponto mais BAIXO.
+	_height_caption.text = "ALTURA MÍN." if up else "ALTURA MÁX."
 	if Ballistics.has_arc(s):
 		_height_value.text = Ballistics.fmt(Ballistics.vertex(s).y) + " m"
 	else:
-		_height_value.text = "levante!"
-	_range_value.text = Ballistics.fmt(Ballistics.root(s)) + " m"
+		_height_value.text = "abaixe!" if up else "levante!"
+	var r := Ballistics.root(s)
+	_range_value.text = "não cai" if is_nan(r) else Ballistics.fmt(r) + " m"

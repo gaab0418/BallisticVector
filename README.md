@@ -16,11 +16,14 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 ```
 
 ### Principais Funcionalidades Implementadas:
-- **Mapa de Guerra Cartesiano (`war_map.gd`, `war_table.gd`)**: um pergaminho sobre a mesa de comando, desenhado em código, que é um **plano cartesiano** — grade, eixos x e y numerados e cada base numa ilha com coordenadas inteiras. As rotas entre as bases são arcos de parábola. Medalhas mostram as estrelas de cada fase; as bases abrem em ordem (ou todas, no Modo Professor).
+- **Mapa de Guerra Cartesiano (`war_map.gd`, `war_table.gd`)**: um pergaminho sobre a mesa de comando, desenhado em código, que é um **plano cartesiano** — grade, eixos x e y numerados e cada base numa ilha com coordenadas. As rotas entre as bases são arcos de parábola; ao conquistar uma base, um barquinho navega a rota até a próxima. Medalhas e bolinhas de fase mostram o progresso; ilhas bloqueadas ficam sob névoa e abrem em ordem (ou todas, no Modo Professor).
 - **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Parábola Visível (`trajectory_view.gd`, `ballistics.gd`)**: A trajetória é desenhada pela própria equação `y = ax² + bx + c`, com o **vértice** (altura máxima), a **raiz** (alcance) sobre uma **régua em metros** no chão, o ponto onde a bala bate numa montanha e a faixa onde ela pode cair. A física, a mira e a HUD usam a mesma escala (`Ballistics.PX_PER_METER = 50`), então o número do painel é o mesmo que a régua mostra.
-- **Campanha de 4 Capítulos (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte) e Delta (a translação, com o tanque andando). Cada fase começa com um cartão de missão e vale até **3 estrelas** por desafios matemáticos (ex.: acertar com ângulos complementares, derrubar um avião no vértice).
+- **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase começa com um cartão de missão e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
+- **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto.
+- **Laboratório**: modo livre (menu principal), sem inimigos e com mira perfeita. Troque de mundo (Terra, Lua, Marte, Júpiter, Invertido), clique no céu para pôr um alvo e veja a **tabela de pontos (x, y)**: a altura medida na bala, metro a metro, ao lado da altura que a equação prevê.
+- **Progresso salvo**: estrelas, bases, ouro e munição ficam em `user://progresso.cfg` (salvamento automático). O menu mostra "Continuar" e tem "Recomeçar campanha" com confirmação. Sem munição e sem ouro, o mapa entrega um **kit de emergência**.
 - **Modo Professor**: no menu principal; libera todas as bases e já abre a "conta" da parábola (a, b, c, vértice e Bhaskara com os números da tela) para mostrar em aula.
 - **IA Inimiga com Evasão Dinâmica (`airplane_enemy.gd`)**: Os aviões realizam patrulhas aéreas e bombardeiam o jogador, mas agora possuem sensores geométricos. Utilizando a API `Geometry2D` do Godot, os aviões detectam se a sua trajetória de voo colidirá com as montanhas e arremetem de volta para cima ou invertem a direção, evitando bater nos obstáculos.
 
@@ -43,6 +46,7 @@ mostram quais coeficientes da equação ela altera, e esses coeficientes ganham 
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
 | **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Na Terra cada munição traz a sua própria gravidade; num planeta, a gravidade é a do planeta. |
 | **A / D** | Anda com o tanque dentro da faixa de manobra (só nas fases da Base Delta). |
+| **Clique no céu** (Laboratório) | Põe um alvo: o painel mostra as coordenadas e a que distância a curva passa dele. |
 | **Tecla F** ou botão **Ver conta** | Abre a "conta por trás da curva": de onde saem a, b, c, o vértice e a raiz (Bhaskara). |
 | **Tecla H** ou botão **?** | Pausa o jogo e abre a ajuda, com as teclas, um diagrama da parábola e o efeito de cada engrenagem. |
 | **Esc** | Abre o menu de pausa. Com a ajuda ou o menu já aberto, fecha o que estiver na frente. |
@@ -107,6 +111,21 @@ Os papéis de texto são variações do tema (`Label.theme_type_variation`): `Ti
 
 - **`scripts/ballistics.gd`**: fonte única da escala (50 px = 1 m) e da conta do tiro — coeficientes, vértice (−b/2a), raiz (Bhaskara), faixa de queda e formatação de números em português.
 - **`scripts/campaign.gd`**: capítulos, fases, lições, cenários e desafios das estrelas. As montanhas são listadas pelos picos e arredondadas por `Campaign.rounded()` (spline que passa pelos picos, então a altura não muda); desenho e colisão usam o mesmo contorno.
+
+---
+
+## 🧪 Testes Automáticos
+
+`tools/tests/test_runner.gd` roda na CI depois do import e protege as garantias do jogo:
+todo script compila, todo obstáculo é um polígono válido, **todo alvo de toda fase é
+atingível** (e as metas de vértice são cumpríveis), a **bala real cai onde a HUD diz**,
+cada tela abre e o save volta igual ao carregar. Para rodar localmente:
+
+```bash
+BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_runner.gd
+```
+
+`BV_SAVE_PATH` troca o arquivo de progresso, para os testes nunca tocarem no save real.
 
 ---
 

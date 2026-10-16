@@ -9,12 +9,17 @@ extends Node2D
 ## Linguagem visual, ligada por cor e forma ao painel:
 ##   cor "aim"  -- tudo que e calculado (curva, vertice, raiz, faixa). Vem do
 ##                 mundo: vermelho-alaranjado na Terra, azul onde o ceu e laranja
-##                 ou escuro. O painel usa a mesma cor, entao numero e desenho
-##                 continuam ligados.
-##   losango    -- vertice, com a altura maxima ao lado
+##                 ou escuro. O painel usa a mesma cor.
+##   losango    -- vertice, com a altura maxima (ou minima, se a > 0) ao lado
 ##   bandeira   -- raiz (onde a bala toca o chao), com o alcance
-##   X vermelho -- onde a bala bate antes de chegar la
+##   X carmim   -- onde a bala bate antes de chegar la
 ##   arco ambar -- o angulo do cano, a unica coisa aqui que o jogador muda
+##   linha y=h  -- (Base Echo) uma altura fixa; os cruzamentos da curva com ela
+##                 sao as solucoes de ax² + bx + c = h, e o delta diz quantas ha
+##
+## Rotulos procuram um lugar livre: se o lugar preferido encosta na curva ou
+## numa area da HUD, tentam o proximo. Antes "a bala pode cair aqui" ficava
+## embaixo da linha tracejada com o canhao em 0°.
 
 const STEP_PX := 5.0
 const DASH := 12.0
@@ -27,11 +32,12 @@ var shot: Dictionary = {}
 var pivot := Vector2.ZERO
 var band := Vector2(1, 0)
 var obstacles: Array = []
-## Retangulos de tela que tapam o mundo (painel do topo): marcador escondido ali
-## vira seta na borda de baixo do retangulo.
+## Retangulos de tela que tapam o mundo (paineis da HUD): marcador escondido
+## ali vira seta na borda; rotulo nao e colocado em cima deles.
 var occluders: Array = []
 var show_cannon_height := false
-var vertex_form := false
+## Altura (m) da linha y = h da Base Echo; NAN = sem linha.
+var height_line := NAN
 ## Cor do que e calculado neste mundo (UiTokens.WORLD_*.aim).
 var aim: Color = UiTokens.WORLD_EARTH.aim
 
@@ -39,6 +45,8 @@ var _font: Font
 var _time := 0.0
 var _points := PackedVector2Array()
 var _hit_index := -1
+## Retangulos ja ocupados por rotulos neste quadro.
+var _taken: Array = []
 
 
 func _ready() -> void:
@@ -58,8 +66,8 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## Amostra a curva do munhao ate a raiz (ou a borda direita), e acha o primeiro
-## ponto dentro de um obstaculo: dali em diante a curva vira "fantasma".
+## Amostra a curva do munhao ate a raiz (ou ate sair da tela), e acha o
+## primeiro ponto dentro de um obstaculo: dali em diante a curva vira "fantasma".
 func _rebuild() -> void:
 	_points.clear()
 	_hit_index = -1
@@ -67,13 +75,18 @@ func _rebuild() -> void:
 		return
 	var x0: float = shot.x_tank
 	var origin_x: float = shot.origin_x_px
-	var x_end := minf(Ballistics.root(shot), Ballistics.to_m(RIGHT_EDGE + 40.0 - origin_x))
+	var x_end := Ballistics.to_m(RIGHT_EDGE + 40.0 - origin_x)
+	var r := Ballistics.root(shot)
+	if not is_nan(r):
+		x_end = minf(x_end, r)
 	var step := Ballistics.to_m(STEP_PX)
 	var x := x0
 	while x <= x_end + step:
 		var p := Ballistics.point_px(shot, minf(x, x_end))
-		if p.y < -400.0 and x > x0:
-			# Muito acima da tela: segue amostrando sem guardar, para nao gastar.
+		if p.y < -60.0 and x > x0:
+			# Saiu por cima da tela. Com a < 0 ainda volta; com a > 0, nunca mais.
+			if Ballistics.opens_up(shot):
+				break
 			x += step
 			continue
 		_points.append(p)
@@ -90,8 +103,11 @@ func _inside_obstacle(p: Vector2) -> bool:
 
 
 func _draw() -> void:
+	_taken = occluders.duplicate()
 	if shot.is_empty() or _points.size() < 2:
 		return
+	if not is_nan(height_line):
+		_draw_height_line()
 	_draw_band()
 	_draw_angle_arc()
 	if show_cannon_height:
@@ -108,11 +124,17 @@ func _draw() -> void:
 
 	_draw_vertex()
 	_draw_root()
+	if not is_nan(height_line):
+		_draw_crossings()
 	if _hit_index > 0:
 		var hp := _points[_hit_index]
 		UiIcon.paint(self, "cross", Rect2(hp - Vector2(9, 9), Vector2(18, 18)), UiTokens.DANGER)
-		# Abaixo do X: acima dele costuma estar o rotulo do vertice.
-		_label(hp + Vector2(-30, 26), "bate aqui", UiTokens.DANGER, UiTokens.FONT_XS)
+		_place_label(
+			[hp + Vector2(-30, 28), hp + Vector2(14, -12)],
+			"bate aqui",
+			UiTokens.DANGER,
+			UiTokens.FONT_XS
+		)
 
 
 ## Tracejado que anda ao longo da curva, indicando o sentido do tiro.
@@ -134,22 +156,22 @@ func _dashed(pts: PackedVector2Array, col: Color, width: float, offset: float) -
 
 
 func _draw_vertex() -> void:
+	var up := Ballistics.opens_up(shot)
 	if not Ballistics.has_arc(shot):
-		# Sem arco para cima nao ha vertice: no lugar do numero, o que fazer.
-		_label(
-			pivot + Vector2(-60, -70),
-			"Levante o canhão para formar a parábola!",
-			UiTokens.EDITABLE,
-			UiTokens.FONT_SM
+		# Sem vertice a frente: no lugar do numero, o que fazer.
+		var tip := (
+			"Abaixe o canhão: aqui a parábola abre para cima!"
+			if up
+			else "Levante o canhão para formar a parábola!"
 		)
-		UiIcon.paint(
-			self, "arrow_up", Rect2(pivot + Vector2(-80, -86), Vector2(16, 16)), UiTokens.EDITABLE
-		)
+		var icon_rect := Rect2(pivot + Vector2(-80, -86), Vector2(16, 16))
+		UiIcon.paint(self, "arrow_up", icon_rect, UiTokens.EDITABLE)
+		_label(pivot + Vector2(-60, -70), tip, UiTokens.EDITABLE, UiTokens.FONT_SM)
 		return
 	var v := Ballistics.vertex(shot)
 	var p := Ballistics.point_px(shot, v.x)
 	var ground: float = shot.ground_y_px
-	var text := "Altura máx. " + Ballistics.fmt(v.y) + " m"
+	var text := ("Altura mín. " if up else "Altura máx. ") + Ballistics.fmt(v.y) + " m"
 
 	var hidden := _hidden_rect(p)
 	if hidden != Rect2() or p.y < 0.0:
@@ -162,14 +184,24 @@ func _draw_vertex() -> void:
 
 	# Linha de prumo do vertice ate o chao: a "altura" que o numero mede.
 	_dashed(PackedVector2Array([p, Vector2(p.x, ground)]), Color(aim, 0.45), 2.0, 0.0)
-	UiIcon.paint(
-		self, "vertex", Rect2(p - Vector2(MARKER, MARKER) * 0.5, Vector2(MARKER, MARKER)), aim
+	var m := Vector2(MARKER, MARKER)
+	UiIcon.paint(self, "vertex", Rect2(p - m * 0.5, m), aim)
+	_place_label(
+		[
+			p + Vector2(MARKER * 0.6, -MARKER * 0.5),
+			p + Vector2(MARKER * 0.6, MARKER + 6),
+			p + Vector2(-180, -MARKER * 0.5),
+		],
+		text,
+		aim,
+		UiTokens.FONT_SM
 	)
-	_label(p + Vector2(MARKER * 0.6, -MARKER * 0.5), text, aim, UiTokens.FONT_SM)
 
 
 func _draw_root() -> void:
 	var r := Ballistics.root(shot)
+	if is_nan(r):
+		return
 	var x: float = shot.origin_x_px + Ballistics.to_px(r)
 	var ground: float = shot.ground_y_px
 	var text := "Alcance " + Ballistics.fmt(r) + " m"
@@ -180,7 +212,12 @@ func _draw_root() -> void:
 		return
 	var flag := Rect2(Vector2(x - 6, ground - 30), Vector2(28, 28))
 	UiIcon.paint(self, "root", flag, aim)
-	_label(Vector2(x + 18, ground - 34), text, aim, UiTokens.FONT_SM)
+	_place_label(
+		[Vector2(x + 18, ground - 34), Vector2(x + 18, ground - 60), Vector2(x - 150, ground - 60)],
+		text,
+		aim,
+		UiTokens.FONT_SM
+	)
 
 
 ## A faixa onde a bala pode cair, desenhada sobre a regua. Substitui o "± 7 m",
@@ -197,15 +234,57 @@ func _draw_band() -> void:
 	draw_rect(Rect2(x0, ground - 4, x1 - x0, 30), Color(aim, UiTokens.BAND_ALPHA))
 	for edge in [x0, x1]:
 		draw_rect(Rect2(edge - px, ground - 10, px * 2, 36), Color(aim, 0.7))
-	# Rotulo logo acima do chao, no comeco da faixa: embaixo dela fica a faixa de
-	# municao da HUD, que tapava o texto.
 	if x1 - x0 > 110.0:
-		_label(
-			Vector2(x0 + 6, ground - 12),
+		var mid := (x0 + x1) * 0.5 - 80.0
+		_place_label(
+			[
+				Vector2(x0 + 6, ground - 12),
+				Vector2(x0 + 6, ground + 48),
+				Vector2(mid, ground - 40),
+				Vector2(x0 + 6, ground - 40),
+			],
 			"a bala pode cair aqui",
 			Color(aim, 0.95),
 			UiTokens.FONT_XS
 		)
+
+
+## A linha y = h atravessando a tela, com o valor na ponta esquerda.
+func _draw_height_line() -> void:
+	var ground: float = shot.ground_y_px
+	var y := ground - Ballistics.to_px(height_line)
+	var x := 0.0
+	var col := Color(UiTokens.EDITABLE, 0.55)
+	while x < RIGHT_EDGE:
+		draw_line(Vector2(x, y), Vector2(minf(x + 14.0, RIGHT_EDGE), y), col, 2.0)
+		x += 24.0
+	var label := "y = " + Ballistics.fmt(height_line, 0) + " m"
+	_label(Vector2(8, y - 8), label, UiTokens.EDITABLE, UiTokens.FONT_SM)
+
+
+## Cruzamentos da curva com a linha y = h: as solucoes da equacao. O texto diz
+## quantas sao e o que o delta significa, em linguagem de crianca.
+func _draw_crossings() -> void:
+	var d := Ballistics.delta_at(shot, height_line)
+	var xs := Ballistics.crossings(shot, height_line)
+	var ground: float = shot.ground_y_px
+	var y := ground - Ballistics.to_px(height_line)
+	for xm in xs:
+		var px: float = shot.origin_x_px + Ballistics.to_px(xm)
+		draw_circle(Vector2(px, y), 9.0, UiTokens.AIM_OUTLINE, true, -1.0, false)
+		draw_circle(Vector2(px, y), 6.0, UiTokens.EDITABLE, true, -1.0, false)
+	var h := Ballistics.fmt(height_line, 0)
+	var touching := absf(d) < 0.02 * maxf(1.0, shot.b * shot.b)
+	var msg := ""
+	if touching:
+		msg = "Δ = 0: 1 solução — o vértice encosta em y = %s!" % h
+	elif d > 0.0 and xs.size() == 2:
+		msg = "Δ > 0: 2 soluções — a bala passa por %s m subindo e descendo" % h
+	elif d > 0.0:
+		msg = "Δ > 0: 2 soluções, mas só uma à frente do canhão"
+	else:
+		msg = "Δ < 0: nenhuma solução — a bala não chega a %s m" % h
+	_place_label([Vector2(8, y - 34), Vector2(8, y + 26)], msg, UiTokens.EDITABLE, UiTokens.FONT_SM)
 
 
 ## Arco do angulo junto ao canhao, em ambar (e o valor que o jogador gira).
@@ -236,11 +315,37 @@ func _hidden_rect(p: Vector2) -> Rect2:
 	return Rect2()
 
 
+## Escolhe o primeiro candidato cujo retangulo nao encosta na curva, num painel
+## da HUD nem noutro rotulo; se nenhum servir, usa o primeiro.
+func _place_label(candidates: Array, text: String, col: Color, size: int) -> void:
+	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	for at in candidates:
+		var rect := Rect2(at - Vector2(2, size), Vector2(w + 4, size + 6))
+		if rect.position.x < 0.0 or rect.end.x > RIGHT_EDGE:
+			continue
+		if not _rect_blocked(rect):
+			_label(at, text, col, size)
+			return
+	_label(candidates[0], text, col, size)
+
+
+func _rect_blocked(rect: Rect2) -> bool:
+	for r in _taken:
+		if r.intersects(rect):
+			return true
+	var grown := rect.grow(4.0)
+	for i in range(0, _points.size(), 2):
+		if grown.has_point(_points[i]):
+			return true
+	return false
+
+
 ## Texto com contorno escuro, legivel sobre ceu, rocha ou chao.
 func _label(at: Vector2, text: String, col: Color, size: int, align_right: bool = false) -> void:
 	var pos := at
+	var w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
 	if align_right:
-		pos.x -= _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		pos.x -= w
 	draw_string_outline(
 		_font,
 		pos,
@@ -252,3 +357,4 @@ func _label(at: Vector2, text: String, col: Color, size: int, align_right: bool 
 		UiTokens.TEXT_OUTLINE
 	)
 	draw_string(_font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, col)
+	_taken.append(Rect2(pos - Vector2(2, size), Vector2(w + 4, size + 6)))

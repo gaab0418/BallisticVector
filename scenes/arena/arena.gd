@@ -84,9 +84,12 @@ var goals := StageGoals.new()
 var move_zone := Vector2(1, 0)
 var _tank_start_x: float = 0.0
 var _money_at_start: int = 0
-var _shake: float = 0.0
 var _prev_goal_states: Array = []
 var _last_planet := ""
+## Gravidade para cima (Ilha Invertida): a > 0 e a engrenagem anda nos negativos.
+var inverted := false
+var lab: Node
+var _fx: Node
 
 # === Sistema de inimigos ===
 var active_enemies: Array = []  # Lista de inimigos vivos na cena
@@ -94,14 +97,14 @@ var stage_cleared: bool = false  # Se todos os inimigos morreram nesta fase
 
 # === Polígonos de obstáculos em coordenadas globais (calculados uma vez) ===
 var _obstacle_polygons_cache: Array = []
-# Projéteis em voo: id -> última posição, para o impacto no chão virar poeira.
-var _tracked: Dictionary = {}
 
 # === Preload dos scripts ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 const ArenaHudScript = preload("res://scripts/ui/arena_hud.gd")
 const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
+const LabControllerScript = preload("res://scenes/arena/lab_controller.gd")
+const ImpactWatcherScript = preload("res://scenes/arena/impact_watcher.gd")
 
 const SFX_HOVER := "res://assets/audio/menu_hover_.ogg"
 const SFX_CLICK := "res://assets/audio/menu_click.ogg"
@@ -113,18 +116,29 @@ const WORLDS := {
 	"moon": UiTokens.WORLD_MOON,
 	"mars": UiTokens.WORLD_MARS,
 	"jupiter": UiTokens.WORLD_JUPITER,
+	"inverted": UiTokens.WORLD_INVERTED,
 }
 
 
 func _ready() -> void:
 	randomize()
-	stage_data = Campaign.stage(Global.current_base_id, Global.current_stage)
+	if Global.lab_mode:
+		stage_data = Campaign.lab_stage(Global.lab_world)
+	else:
+		stage_data = Campaign.stage(Global.current_base_id, Global.current_stage)
 	world_theme = WORLDS.get(stage_data.get("planet", ""), UiTokens.WORLD_EARTH)
 	move_zone = stage_data.get("move_zone", Vector2(1, 0))
+	inverted = stage_data.get("inverted", false)
+	# Platô: o tanque sobe junto, e a altura do canhão (o "c") cresce com ele.
+	player.position.y -= Ballistics.to_px(stage_data.get("tank_height", 0.0))
+	trajectory.height_line = stage_data.get("height_line", NAN)
 	_tank_start_x = player.position.x
 	_money_at_start = Global.money
 
 	_build_world()
+	_fx = ImpactWatcherScript.new()
+	add_child(_fx)
+	_fx.setup(self, camera, ProjectileScript)
 
 	# Carregar munições dos Resources
 	_load_ammo_types()
@@ -143,6 +157,12 @@ func _ready() -> void:
 	_update_stage_label()
 	_refresh_goals()
 	_refresh_math()
+
+	if Global.lab_mode:
+		lab = LabControllerScript.new()
+		add_child(lab)
+		lab.setup(self)
+		return
 
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
@@ -245,8 +265,6 @@ func _process(delta: float) -> void:
 	# Fora do early-return de propósito: a ajuda abre mesmo com a fase já limpa.
 	_poll_help_hotkey()
 	_poll_formula_hotkey()
-	_track_projectiles()
-	_update_shake(delta)
 
 	# Não processar input se a fase foi limpa
 	if stage_cleared:
@@ -340,6 +358,8 @@ func _after_gear_change() -> void:
 ## Ao girar a gravidade até o valor de um lugar de verdade, avisa qual é: liga o
 ## número a uma ideia ("10 é a Terra, 1,6 é a Lua").
 func _announce_planet() -> void:
+	if inverted:
+		return
 	var planet := Campaign.planet_like(Ballistics.to_m(gravity_override))
 	if planet != "" and planet != _last_planet:
 		var where := ("da " if planet in ["Terra", "Lua"] else "de ") + planet
@@ -354,7 +374,9 @@ func _adjust_selected_gear(dir: float, delta: float, mult: float) -> bool:
 		GEAR_FORCA:
 			return _set_power(current_power + dir * POWER_RATE * mult * delta)
 		GEAR_GRAVIDADE:
-			return _set_gravity(gravity_override + dir * GRAVITY_RATE * mult * delta)
+			# No mundo invertido "mais gravidade" é mais negativo.
+			var sgn := -1.0 if inverted else 1.0
+			return _set_gravity(gravity_override + sgn * dir * GRAVITY_RATE * mult * delta)
 		_:
 			var ammo = _get_current_ammo()
 			var comp: float = 500.0 / max(ammo.impulse, 10.0)
@@ -367,7 +389,8 @@ func _adjust_selected_gear_by(frac: float) -> bool:
 		GEAR_FORCA:
 			return _set_power(current_power + frac * (1.0 - MIN_POWER))
 		GEAR_GRAVIDADE:
-			return _set_gravity(gravity_override + frac * (MAX_GRAVITY - MIN_GRAVITY))
+			var sgn := -1.0 if inverted else 1.0
+			return _set_gravity(gravity_override + sgn * frac * (MAX_GRAVITY - MIN_GRAVITY))
 		_:
 			return _set_angle(cannon.rotation - frac * (MAX_CANNON_ANGLE - MIN_CANNON_ANGLE))
 
@@ -386,7 +409,10 @@ func _set_power(value: float) -> bool:
 
 func _set_gravity(value: float) -> bool:
 	var before: float = gravity_override
-	gravity_override = clamp(value, MIN_GRAVITY, MAX_GRAVITY)
+	if inverted:
+		gravity_override = clamp(value, -MAX_GRAVITY, -MIN_GRAVITY)
+	else:
+		gravity_override = clamp(value, MIN_GRAVITY, MAX_GRAVITY)
 	return not is_equal_approx(gravity_override, before)
 
 
@@ -489,6 +515,10 @@ func _on_help_closed() -> void:
 ## Desvio máximo para cada lado, em radianos. Fonte única: o disparo real e a faixa
 ## desenhada na régua saem daqui, então o que a tela mostra é o erro que de fato acontece.
 func _current_spread() -> float:
+	# No Laboratório a mira é perfeita: a tabela compara bala e conta, e o desvio
+	# da munição esconderia que a equação acerta.
+	if Global.lab_mode:
+		return 0.0
 	var ammo = _get_current_ammo()
 	var armor_ratio: float = Global.player_armor / Global.max_player_armor
 	var armor_penalty: float = (1.0 - armor_ratio) * ARMOR_PENALTY_MAX
@@ -515,6 +545,11 @@ func _shot_for(angle_deg: float, speed_px: float, gravity_px: float) -> Dictiona
 	)
 
 
+## A equação do tiro na mira agora (usada pelo Laboratório).
+func current_shot() -> Dictionary:
+	return _shot_for(_angle_deg(), _speed_px(), gravity_override)
+
+
 ## Recalcula a equação e empurra para painel, gaveta e curva.
 func _refresh_math() -> void:
 	if hud == null:
@@ -539,34 +574,27 @@ func _refresh_math() -> void:
 				"angle_deg": angle,
 				"power": current_power,
 				"shot": s,
-				"effects": _gear_effects(s, angle, speed),
+				"effects":
+				Ballistics.gear_effects(
+					angle,
+					speed,
+					gravity_override,
+					cannon.global_position,
+					Campaign.ORIGIN_X,
+					Campaign.GROUND_Y
+				),
 				"planet": Campaign.planet_like(s.g),
 				"vertex_form": move_zone.y > move_zone.x,
 			}
 		)
 	)
+	hud.formula.set_height_line(trajectory.height_line)
 	hud.formula.set_shot(s)
+	if lab:
+		lab.refresh_target(s)
 	trajectory.show_cannon_height = hud.formula.visible
-	trajectory.occluders = [hud.top_panel_rect()]
+	trajectory.occluders = hud.occluder_rects()
 	trajectory.update_shot(s, cannon.global_position, band)
-
-
-## Quais coeficientes cada engrenagem mexe AGORA, medido mexendo um pouquinho em
-## cada uma. Com o tanque no zero: ângulo -> a e b; força e gravidade -> só a.
-func _gear_effects(base: Dictionary, angle: float, speed: float) -> Array:
-	var probes := [
-		_shot_for(angle + 0.5, speed, gravity_override),
-		_shot_for(angle, speed * 1.01, gravity_override),
-		_shot_for(angle, speed, gravity_override * 1.01),
-	]
-	var out := []
-	for p in probes:
-		var letters := ""
-		for k in ["a", "b", "c"]:
-			if absf(p[k] - base[k]) > 1e-6 * maxf(1.0, absf(base[k])):
-				letters += k
-		out.append(letters)
-	return out
 
 
 # =============================================================================
@@ -575,14 +603,20 @@ func _gear_effects(base: Dictionary, angle: float, speed: float) -> Array:
 func _fire_projectile() -> void:
 	var ammo = _get_current_ammo()
 
-	if ammo_counts[current_ammo_index] <= 0:
+	if not Global.lab_mode and ammo_counts[current_ammo_index] <= 0:
 		AudioManager.play_sfx(SFX_ERROR)
-		hud.show_toast("Sem munição! Tab troca o tipo.", UiTokens.DANGER)
+		var other := ammo_counts[(current_ammo_index + 1) % ammo_counts.size()]
+		if other > 0:
+			hud.show_toast("Sem munição! Tab troca o tipo.", UiTokens.DANGER)
+		else:
+			# Sem nenhuma bala: o mapa entrega um kit de emergência se faltar ouro.
+			hud.show_toast("Acabou a munição! Volte ao mapa (Esc).", UiTokens.DANGER)
 		return
 
 	AudioManager.play_sfx(SFX_FIRE)
-	ammo_counts[current_ammo_index] -= 1
-	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
+	if not Global.lab_mode:
+		ammo_counts[current_ammo_index] -= 1
+		Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
 	goals.on_fire(_angle_deg())
 	_refresh_goals()
@@ -612,8 +646,10 @@ func _fire_projectile() -> void:
 	projectile.set_meta("shot", _shot_for(_angle_deg(), _speed_px(), gravity_override))
 
 	add_child(projectile)
+	if lab:
+		lab.on_fired(projectile)
 	ArenaFx.spawn(self, cannon.to_global(BARREL_TIP), ArenaFx.Kind.MUZZLE, fire_direction)
-	_kick(2.0)
+	_fx.kick(2.0)
 
 
 # =============================================================================
@@ -626,7 +662,22 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 	if not enemy or not is_instance_valid(enemy):
 		return
 
-	_report_hit_to_goals(enemy)
+	var bullet := _bullet_near(enemy)
+	# Bunker só quebra com tiro caindo de cima; rasante ricocheteia no concreto.
+	if enemy.has_meta("bunker") and bullet != null:
+		var v: Vector2 = bullet.velocity
+		var descent := rad_to_deg(atan2(v.y, absf(v.x)))
+		if descent < enemy.MIN_DESCENT_DEG:
+			ArenaFx.spawn(self, enemy.global_position + Vector2(0, -20), ArenaFx.Kind.SPARK)
+			var msg := (
+				"ricochete! a bala desceu a %d°, precisa de %d°"
+				% [maxi(0, roundi(descent)), roundi(enemy.MIN_DESCENT_DEG)]
+			)
+			ArenaFx.float_text(self, enemy.global_position + Vector2(-110, -60), msg, UiTokens.TEXT)
+			return
+	if enemy.has_meta("balloon") and bullet != null:
+		goals.on_balloon_hit(bullet.velocity.y < 0.0)
+	_report_hit_to_goals(enemy, bullet)
 	ArenaFx.spawn(self, enemy.global_position, ArenaFx.Kind.SPARK)
 
 	# Verificar se o inimigo tem o método take_damage (aviões com script)
@@ -638,7 +689,7 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 		current_hp -= 1
 		enemy.set_meta("hp", current_hp)
 		ArenaFx.flash_sprite(enemy.get_node_or_null("Body"))
-		_kick(5.0)
+		_fx.kick(5.0)
 		ArenaFx.float_text(self, enemy.global_position + Vector2(0, -70), "−1", UiTokens.DANGER)
 		if current_hp <= 0:
 			on_enemy_destroyed(enemy)
@@ -647,8 +698,8 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 
 ## A bala que acertou ainda existe neste instante (o projétil só se libera depois de
 ## chamar a arena): a mais perto do alvo é ela.
-func _report_hit_to_goals(enemy: Node2D) -> void:
-	var best: Node = null
+func _bullet_near(enemy: Node2D) -> Node2D:
+	var best: Node2D = null
 	var best_d := INF
 	for child in get_children():
 		if child.get_script() == ProjectileScript and child.has_meta("shot"):
@@ -656,10 +707,18 @@ func _report_hit_to_goals(enemy: Node2D) -> void:
 			if d < best_d:
 				best_d = d
 				best = child
+	return best
+
+
+func _report_hit_to_goals(enemy: Node2D, best: Node2D) -> void:
 	if best == null:
 		return
 	if enemy.has_meta("is_boss"):
-		goals.on_boss_hit(best.get_meta("angle"), best.get_meta("power"), best.get_meta("moved"))
+		var shot: Dictionary = best.get_meta("shot")
+		var vy := Ballistics.vertex(shot).y if Ballistics.has_arc(shot) else NAN
+		goals.on_boss_hit(
+			best.get_meta("angle"), best.get_meta("power"), best.get_meta("moved"), vy
+		)
 		return
 	var s: Dictionary = best.get_meta("shot")
 	if Ballistics.has_arc(s):
@@ -677,7 +736,7 @@ func on_player_hit(dmg: int) -> void:
 	# A armadura entra em _current_spread(): levar dano alarga a faixa de queda na hora.
 	_refresh_math()
 	ArenaFx.flash_sprite(player.get_node_or_null("Body"))
-	_kick(8.0)
+	_fx.kick(8.0)
 	ArenaFx.spawn(self, player.global_position, ArenaFx.Kind.EXPLOSION)
 	ArenaFx.float_text(self, player.global_position + Vector2(0, -60), "−%d" % dmg, UiTokens.DANGER)
 
@@ -707,28 +766,6 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 		_on_stage_cleared()
 
 
-## Projétil que some sem acertar ninguém bateu no chão ou numa montanha: poeira.
-## Feito aqui, observando, para não mexer na física de projectile.gd.
-func _track_projectiles() -> void:
-	var alive := {}
-	for child in get_children():
-		if child.get_script() == ProjectileScript and not child.is_queued_for_deletion():
-			alive[child.get_instance_id()] = child.position
-	for id in _tracked:
-		if not alive.has(id):
-			var p: Vector2 = _tracked[id]
-			if p.y > Campaign.GROUND_Y - 6.0 or _inside_mountain(p):
-				ArenaFx.spawn(self, p, ArenaFx.Kind.DUST)
-	_tracked = alive
-
-
-func _inside_mountain(p: Vector2) -> bool:
-	for poly in _mountain_polygons():
-		if Geometry2D.is_point_in_polygon(p + Vector2(0, 6), poly):
-			return true
-	return false
-
-
 # =============================================================================
 #  SISTEMA DE FASES
 # =============================================================================
@@ -747,13 +784,13 @@ func _on_stage_cleared() -> void:
 	# Deixa a explosão do último inimigo acontecer antes da tela de resultado.
 	await get_tree().create_timer(1.0).timeout
 	result.show_result(
-		stars, goals.goals, goals.states, Global.money - _money_at_start, Global.current_stage >= 2
+		stars, goals.goals, goals.states, Global.money - _money_at_start, _is_last_stage()
 	)
 
 
 # --- "Próxima fase" na tela de resultado ---
 func _on_next_stage() -> void:
-	if Global.current_stage < 2:
+	if not _is_last_stage():
 		# Avançar para a próxima fase
 		Global.current_stage += 1
 		_save_progress(Global.current_stage)
@@ -765,9 +802,17 @@ func _on_next_stage() -> void:
 
 ## Base inteira concluída: registra e volta ao mapa.
 func _finish_base() -> void:
-	_save_progress(3)
+	_save_progress(_total_stages())
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+
+
+func _total_stages() -> int:
+	return int(Global.get_base_data(Global.current_base_id).get("total_stages", 3))
+
+
+func _is_last_stage() -> bool:
+	return Global.current_stage >= _total_stages() - 1
 
 
 ## Progresso só cresce: rejogar uma fase antiga (para ganhar mais estrelas) não pode
@@ -780,9 +825,12 @@ func _save_progress(stages_done: int) -> void:
 
 # --- "Voltar ao Mapa" (pausa ou tela de resultado) ---
 func _on_return_to_map() -> void:
+	if Global.lab_mode:
+		lab._exit()
+		return
 	# Vencer e voltar pelo resultado conta a fase como feita; abandonar pela pausa não.
 	var done := Global.current_stage + (1 if stage_cleared else 0)
-	if done >= 3:
+	if done >= _total_stages():
 		_finish_base()
 		return
 	_save_progress(done)
@@ -793,20 +841,6 @@ func _on_return_to_map() -> void:
 # =============================================================================
 #  EFEITOS VISUAIS
 # =============================================================================
-
-
-## Tremida de câmera, em pixels. Curta e pequena: só a sensação do impacto.
-func _kick(amount: float) -> void:
-	_shake = maxf(_shake, amount)
-
-
-func _update_shake(delta: float) -> void:
-	if _shake <= 0.05:
-		camera.offset = Vector2.ZERO
-		return
-	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake
-	_shake = move_toward(_shake, 0.0, 30.0 * delta)
-
 
 # =============================================================================
 #  ATUALIZAÇÃO DA HUD
@@ -910,7 +944,8 @@ func _on_restart_stage() -> void:
 
 func _update_hud() -> void:
 	var ammo = _get_current_ammo()
-	hud.set_ammo(ammo_counts[current_ammo_index], ammo.color, ammo.ammo_name)
+	var count: int = -1 if Global.lab_mode else ammo_counts[current_ammo_index]
+	hud.set_ammo(count, ammo.color, ammo.ammo_name)
 
 
 func _update_armor_hud() -> void:
@@ -919,6 +954,9 @@ func _update_armor_hud() -> void:
 
 ## Usa o nome de exibicao da base ("Base Alpha"), nao o id ("Base_A").
 func _update_stage_label() -> void:
+	if Global.lab_mode:
+		hud.set_lab(Campaign.LAB_WORLDS.get(Global.lab_world, {}).get("name", ""))
+		return
 	var data: Dictionary = Global.get_base_data(Global.current_base_id)
 	var base_name: String = data.get("name", "Base desconhecida")
 	var total_stages: int = data.get("total_stages", 3)

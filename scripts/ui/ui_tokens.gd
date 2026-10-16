@@ -339,3 +339,27 @@ const MAP_LAND := Color("f4eacb")
 const MAP_TREE := Color("9fae74")
 ## Mar do pergaminho: aguada esverdeada sobre o papel, para a terra saltar.
 const MAP_SEA := Color(0.55, 0.66, 0.6, 0.28)
+
+# ── Alvos e inimigos novos ───────────────────────────────────────────
+const BALLOON_A := Color("e8584a")
+const BALLOON_B := Color("f2b33d")
+const BALLOON_C := Color("6fb2e0")
+## Tanque inimigo: o mesmo sprite do jogador, tingido de ferrugem.
+const ENEMY_TANK_TINT := Color(1.0, 0.62, 0.5)
+
+# ── Mundo Invertido (bonus, a > 0) ───────────────────────────────────
+const WORLD_INVERTED := {
+	"sky": [Color("0f1a24"), Color("1f3a44"), Color("3f6e66"), Color("8fd0a0")],
+	"stars": 0.8,
+	"far": Color("2e4a4e"),
+	"mid": Color("223a3e"),
+	"lip": Color("7ac0a0"),
+	"lip_dark": Color("4e8a74"),
+	"ground": Color("3a4a44"),
+	"ground_dark": Color("26322e"),
+	"speck": Color("5a7068"),
+	"rock": [Color("7a9a90"), Color("4e6a62"), Color("2e403a")],
+	"disc": Color("d0f0e0"),
+	# Ceu verde-azulado de aurora: a mira vira magenta para contrastar.
+	"aim": Color("ff7ad0"),
+}

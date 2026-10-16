@@ -24,6 +24,8 @@ var state := State.OPEN
 var stars: Array = [0, 0, 0]
 var _tex: Texture2D
 var _flip := false
+## Ilha Invertida: o castelo e desenhado de cabeca para baixo.
+var upside_down := false
 var _hot := false
 var _t := 0.0
 var _name: Label
@@ -33,7 +35,9 @@ var _medals: Array = []
 var _plaque: PanelContainer
 
 
-func setup(id: String, tex: Texture2D, flip: bool, display_name: String, chapter: String) -> void:
+func setup(
+	id: String, tex: Texture2D, flip: bool, display_name: String, chapter: String, stages: int = 3
+) -> void:
 	base_id = id
 	_tex = tex
 	_flip = flip
@@ -79,7 +83,7 @@ func setup(id: String, tex: Texture2D, flip: bool, display_name: String, chapter
 	medals.add_theme_constant_override("separation", 4)
 	medals.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(medals)
-	for i in range(3):
+	for i in range(stages):
 		var m := UiIcon.make("star_empty", UiTokens.TEXT_DISABLED, MEDAL)
 		medals.add_child(m)
 		_medals.append(m)
@@ -159,8 +163,10 @@ func _draw() -> void:
 	var scale_k := 1.08 if _hot else 1.0
 	var sz := Vector2(CASTLE, CASTLE) * scale_k
 	var rect := Rect2(c - sz * 0.5, sz)
-	if _flip:
-		draw_set_transform(Vector2(c.x * 2.0, 0), 0.0, Vector2(-1, 1))
+	if _flip or upside_down:
+		var sx := -1.0 if _flip else 1.0
+		var sy := -1.0 if upside_down else 1.0
+		draw_set_transform(Vector2(c.x * (1.0 - sx), c.y * (1.0 - sy)), 0.0, Vector2(sx, sy))
 	draw_texture_rect(_tex, rect, false, tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 

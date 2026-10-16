@@ -82,9 +82,15 @@ static func point_px(s: Dictionary, x: float) -> Vector2:
 
 ## O vertice so conta se estiver a frente do canhao: com o cano apontado para
 ## baixo a parabola continua tendo vertice, mas atras da bala, e dizer "a bala
-## sobe ate aqui" seria mentira.
+## sobe ate aqui" seria mentira. Vale tambem para o Mundo Invertido (a > 0), onde
+## o vertice e o ponto mais BAIXO e fica a frente quando o cano aponta para baixo.
 static func has_arc(s: Dictionary) -> bool:
-	return s.angle_deg > MIN_ARC_DEG
+	return vertex(s).x > s.x_tank + 0.02
+
+
+## Parabola "de boca para cima" (a > 0): so acontece com a gravidade invertida.
+static func opens_up(s: Dictionary) -> bool:
+	return s.a > 0.0
 
 
 ## Vertice (x, y) em metros: x = -b/2a e y = -Δ/4a.
@@ -97,13 +103,39 @@ static func delta(s: Dictionary) -> float:
 	return s.b * s.b - 4.0 * s.a * s.c
 
 
-## Raiz da frente (onde a bala toca o chao), por Bhaskara. Como a < 0, a raiz
-## maior e (-b - √Δ) / 2a.
+## Raiz da frente (onde a bala toca o chao), por Bhaskara: (-b - √Δ) / 2a.
+## Com a < 0 e a raiz da direita (a unica a frente); com a > 0 e a primeira
+## descida ate o chao. Sem raiz (curva que nunca toca o chao), devolve NAN.
 static func root(s: Dictionary) -> float:
 	var d := delta(s)
 	if d < 0.0:
-		return s.x_tank
-	return (-s.b - sqrt(d)) / (2.0 * s.a)
+		return NAN
+	var r: float = (-s.b - sqrt(d)) / (2.0 * s.a)
+	return r if r > s.x_tank else NAN
+
+
+static func has_root(s: Dictionary) -> bool:
+	return not is_nan(root(s))
+
+
+## Delta da equacao ax² + bx + c = h: diz quantas vezes a curva passa pela
+## altura h (2 se > 0, 1 se = 0 -- o vertice encosta na linha --, 0 se < 0).
+static func delta_at(s: Dictionary, h: float) -> float:
+	return s.b * s.b - 4.0 * s.a * (s.c - h)
+
+
+## Os x (a frente do canhao, em ordem) onde a bala esta exatamente na altura h.
+static func crossings(s: Dictionary, h: float) -> Array:
+	var d := delta_at(s, h)
+	if d < 0.0:
+		return []
+	var r1: float = (-s.b - sqrt(d)) / (2.0 * s.a)
+	var r2: float = (-s.b + sqrt(d)) / (2.0 * s.a)
+	var out := []
+	for r in [minf(r1, r2), maxf(r1, r2)]:
+		if r > s.x_tank and not out.has(r):
+			out.append(r)
+	return out
 
 
 ## Faixa no chao onde a bala pode cair, dado o desvio maximo do cano. Amostrado,
@@ -125,9 +157,36 @@ static func landing_band(
 		var ang := angle_deg - spread_deg + 2.0 * spread_deg * float(i) / samples
 		var s := shot(ang, speed_px, gravity_px, pivot, origin_x_px, ground_y_px)
 		var r := root(s)
+		if is_nan(r):
+			continue
 		lo = minf(lo, r)
 		hi = maxf(hi, r)
+	if lo > hi:
+		return Vector2(1, 0)
 	return Vector2(lo, hi)
+
+
+## Quais coeficientes (a, b, c) cada engrenagem -- angulo, forca, gravidade --
+## mexe AGORA, medido mexendo um pouquinho em cada uma. Com o tanque no zero:
+## angulo -> a e b; forca e gravidade -> so a. Com o tanque fora do zero,
+## tudo passa a mexer em b e c tambem. E o que os chips "a b c" da HUD mostram.
+static func gear_effects(
+	angle_deg: float, speed_px: float, gravity_px: float, pivot: Vector2, ox: float, gy: float
+) -> Array:
+	var base := shot(angle_deg, speed_px, gravity_px, pivot, ox, gy)
+	var probes := [
+		shot(angle_deg + 0.5, speed_px, gravity_px, pivot, ox, gy),
+		shot(angle_deg, speed_px * 1.01, gravity_px, pivot, ox, gy),
+		shot(angle_deg, speed_px, gravity_px * 1.01, pivot, ox, gy),
+	]
+	var out := []
+	for p in probes:
+		var letters := ""
+		for k in ["a", "b", "c"]:
+			if absf(p[k] - base[k]) > 1e-6 * maxf(1.0, absf(base[k])):
+				letters += k
+		out.append(letters)
+	return out
 
 
 # ═════════════════════════════════════════════════════════════════════

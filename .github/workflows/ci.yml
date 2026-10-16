@@ -77,3 +77,25 @@ jobs:
           fi
 
           echo 'Importacao concluida sem erros.'
+
+      # Testes do jogo (tools/tests/test_runner.gd): fases venciveis, poligonos
+      # validos, HUD batendo com a queda real da bala, telas abrindo. Rodam
+      # depois do import porque precisam do cache de classes globais.
+      # BV_SAVE_PATH isola o arquivo de progresso.
+      - name: Testes do jogo (headless)
+        run: |
+          set -uo pipefail
+          BV_SAVE_PATH=/tmp/bv_teste.cfg godot --headless \
+            --script res://tools/tests/test_runner.gd 2>&1 | tee tests.log
+          status=${PIPESTATUS[0]}
+
+          if grep -qE 'SCRIPT ERROR|Parse Error' tests.log; then
+            echo '::error::Os testes acusaram erro de script.'
+            grep -nE 'SCRIPT ERROR|Parse Error' tests.log
+            exit 1
+          fi
+
+          if [ "$status" -ne 0 ]; then
+            echo '::error::Algum teste do jogo falhou (veja as linhas FALHA acima).'
+            exit "$status"
+          fi

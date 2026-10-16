@@ -16,6 +16,7 @@ var _body: RichTextLabel
 ## Cor dos numeros calculados, ja escurecida para o papel. Segue a cor "aim" do
 ## mundo, a mesma da curva e do painel.
 var _calc_on_paper: Color = UiTokens.CALCULATED_ON_PAPER
+var _height_line := NAN
 
 
 func _ready() -> void:
@@ -46,6 +47,12 @@ func _ready() -> void:
 	_body.add_theme_font_size_override("normal_font_size", UiTokens.FONT_SM)
 	_body.add_theme_font_size_override("bold_font_size", UiTokens.FONT_SM)
 	col.add_child(_body)
+
+
+## Altura da linha y = h da fase (NAN = sem linha): a gaveta mostra o delta de
+## ax² + bx + c = h, que diz quantas vezes a bala passa por aquela altura.
+func set_height_line(h: float) -> void:
+	_height_line = h
 
 
 func set_accent(color: Color) -> void:
@@ -109,11 +116,19 @@ func set_shot(s: Dictionary) -> void:
 				% [calc, Ballistics.fmt(d, 2)]
 			)
 			+ (
-				"     x = (−b − √delta) / 2a = [color=%s][b]%s m[/b][/color]"
-				% [calc, Ballistics.fmt(r, 1)]
+				"     x = (−b − √delta) / 2a = [color=%s][b]%s[/b][/color]"
+				% [calc, "não toca o chão" if is_nan(r) else Ballistics.fmt(r, 1) + " m"]
 			)
 		)
 	)
+	if not is_nan(_height_line):
+		var dh := Ballistics.delta_at(s, _height_line)
+		var n := Ballistics.crossings(s, _height_line).size()
+		var hs := Ballistics.fmt(_height_line, 0)
+		var line := "[b]Linha y = %s[/b]   delta = b² − 4a(c − %s) = " % [hs, hs]
+		line += "[color=%s][b]%s[/b][/color]" % [calc, Ballistics.fmt(dh, 2)]
+		line += "   →  %d solução(ões) à frente" % n
+		lines.append(line)
 	var small := "[font_size=%d]" % UiTokens.FONT_XS
 	lines.append(small + "Na física: altura máx. = c + v²·sen²θ / 2g   ·   ")
 	lines[-1] += "saindo do chão, alcance = v²·sen(2θ) / g[/font_size]"

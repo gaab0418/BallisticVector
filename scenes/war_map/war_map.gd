@@ -32,6 +32,8 @@ const BASE_CONFIGS: Array = [
 	{"id": "Base_B", "tex": "wide", "flip": false},
 	{"id": "Base_C", "tex": "tower", "flip": false},
 	{"id": "Base_D", "tex": "castle", "flip": true},
+	{"id": "Base_E", "tex": "tower", "flip": true},
+	{"id": "Base_Z", "tex": "wide", "flip": false, "upside_down": true},
 ]
 
 var money_label: Label
@@ -51,6 +53,11 @@ var _attack_blurb: Label
 var _attack_rows: VBoxContainer
 var _attack_btn: Button
 var _stage_group := ButtonGroup.new()
+var _next_page_btn: Button
+var _prev_page_btn: Button
+var _pulse: Tween
+## Foco dado pelo proprio mapa ao abrir: nao abre o cartao sozinho.
+var _quiet_focus := false
 
 
 func _ready() -> void:
@@ -71,9 +78,22 @@ func _ready() -> void:
 
 	AudioManager.play_bgm("res://assets/audio/musica_fundo.wav")
 	_table.resized.connect(_layout_markers)
+	_table.view_changed.connect(_layout_markers)
+	_table.view_changed.connect(_hide_card)
+	_build_page_arrows()
 	_layout_markers.call_deferred()
 	_refresh_all()
+	# Abre na tela da proxima base a conquistar.
+	_table.show_page(WarTable.page_of(_index_of(_next_base_id())), false)
+	_update_page_arrows()
 	_focus_next_base.call_deferred()
+	Global.save_game()
+	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
+	if Global.just_conquered != "":
+		_table.animate_boat(_index_of(Global.just_conquered))
+		Global.just_conquered = ""
+	if Global.grant_emergency_ammo():
+		_toast("Kit de emergência: %d balas Enferrujadas grátis!" % Global.EMERGENCY_AMMO)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -101,13 +121,21 @@ func _build_markers() -> void:
 		var data: Dictionary = Global.get_base_data(id)
 		var marker: BaseMarker = BaseMarkerScript.new()
 		marker.name = id
-		add_child(marker)
+		# Dentro da camada recortada: base da outra tela fica escondida, nao amontoada.
+		_table.map_layer.add_child(marker)
 		marker.setup(
-			id, textures[cfg.tex], cfg.flip, data.get("name", id), Campaign.base(id).chapter
+			id,
+			textures[cfg.tex],
+			cfg.flip,
+			data.get("name", id),
+			Campaign.base(id).chapter,
+			data.get("total_stages", 3)
 		)
+		marker.upside_down = cfg.get("upside_down", false)
 		marker.pressed.connect(_on_base_clicked.bind(id))
 		marker.mouse_entered.connect(_show_card.bind(id))
 		marker.focus_entered.connect(_show_card.bind(id))
+		marker.focus_entered.connect(_follow_focus.bind(id))
 		marker.mouse_exited.connect(_hide_card)
 		marker.focus_exited.connect(_hide_card)
 		_markers[id] = marker
@@ -116,8 +144,13 @@ func _build_markers() -> void:
 func _layout_markers() -> void:
 	for i in range(BASE_CONFIGS.size()):
 		var marker: BaseMarker = _markers[BASE_CONFIGS[i].id]
-		var p := _table.grid_to_screen(_base_grid(i))
+		var p := _table.grid_to_layer(_base_grid(i))
 		marker.position = p - Vector2(BaseMarker.PLAQUE_W * 0.5, BaseMarker.CASTLE * 0.55)
+		# Fora da janela nao recebe clique nem foco por engano.
+		var visible_now := _table.view_rect().has_point(_table.grid_to_screen(_base_grid(i)))
+		marker.mouse_filter = (
+			Control.MOUSE_FILTER_STOP if visible_now else Control.MOUSE_FILTER_IGNORE
+		)
 
 
 func _build_top_bar() -> void:
@@ -194,6 +227,8 @@ func _build_card() -> void:
 
 
 func _show_card(base_id: String) -> void:
+	if _quiet_focus:
+		return
 	var info: Dictionary = Campaign.base(base_id)
 	var data: Dictionary = Global.get_base_data(base_id)
 	_card_title.text = "%s — %s" % [data.get("name", base_id), info.chapter]
@@ -252,9 +287,10 @@ func _show_card(base_id: String) -> void:
 
 	# Ao lado da base, do lado que tiver espaco.
 	var marker: BaseMarker = _markers[base_id]
-	var at := marker.position + Vector2(BaseMarker.PLAQUE_W + 8.0, 0)
+	var mp := marker.global_position
+	var at := mp + Vector2(BaseMarker.PLAQUE_W + 8.0, 0)
 	if at.x + CARD_W > size.x - 8.0:
-		at.x = marker.position.x - CARD_W - 8.0
+		at.x = mp.x - CARD_W - 8.0
 	at.y = clampf(at.y, TOP_BAR_H + 8.0, size.y - 260.0)
 	_card.position = at
 	_card.visible = true
@@ -340,7 +376,7 @@ func _refresh_all() -> void:
 	if money_label:
 		money_label.text = str(Global.money)
 	if stars_label:
-		stars_label.text = "%d / %d" % [Global.total_stars(), BASE_CONFIGS.size() * 9]
+		stars_label.text = "%d / %d" % [Global.total_stars(), Global.max_stars()]
 	for cfg in BASE_CONFIGS:
 		var id: String = cfg.id
 		var data: Dictionary = Global.get_base_data(id)
@@ -357,10 +393,44 @@ func _refresh_all() -> void:
 		)
 	if _table:
 		var done := []
-		for i in range(BASE_CONFIGS.size() - 1):
-			done.append(Global.is_base_complete(BASE_CONFIGS[i].id))
+		var progress := []
+		for i in range(BASE_CONFIGS.size()):
+			var id: String = BASE_CONFIGS[i].id
+			var data: Dictionary = Global.get_base_data(id)
+			done.append(Global.is_base_complete(id))
+			(
+				progress
+				. append(
+					{
+						"cleared": data.get("stages_cleared", 0),
+						"total": data.get("total_stages", 3),
+						"stars": data.get("stars", []),
+						"locked": not Global.is_base_unlocked(id),
+					}
+				)
+			)
 		_table.done_routes = done
+		_table.progress = progress
 		_table.queue_redraw()
+
+
+## Aviso curto embaixo da barra do topo, que some sozinho.
+func _toast(text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.theme_type_variation = &"OverlayLabel"
+	label.add_theme_color_override("font_color", UiTokens.EDITABLE)
+	label.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.z_index = 10
+	add_child(label)
+	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	label.offset_top = TOP_BAR_H + 16.0
+	var tw := create_tween()
+	tw.tween_interval(3.5)
+	tw.tween_property(label, "modulate:a", 0.0, 0.6)
+	tw.tween_callback(label.queue_free)
 
 
 func _index_of(base_id: String) -> int:
@@ -370,11 +440,74 @@ func _index_of(base_id: String) -> int:
 	return 0
 
 
-func _focus_next_base() -> void:
+func _next_base_id() -> String:
 	for cfg in BASE_CONFIGS:
 		if Global.is_base_unlocked(cfg.id) and not Global.is_base_complete(cfg.id):
-			_markers[cfg.id].grab_focus()
-			return
+			return cfg.id
+	return BASE_CONFIGS[0].id
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  TELAS DO MAPA
+# ═════════════════════════════════════════════════════════════════════
+
+
+## Botoes para deslizar entre as telas do mapa, na faixa de baixo (entre Loja e
+## Voltar), longe das ilhas. A seta e texto, com o fallback de fonte para "→".
+func _build_page_arrows() -> void:
+	_next_page_btn = _page_button("Continue a rota  →")
+	_next_page_btn.pressed.connect(_go_page.bind(1))
+	_prev_page_btn = _page_button("←  Voltar ao início")
+	_prev_page_btn.pressed.connect(_go_page.bind(0))
+
+
+func _page_button(text: String) -> Button:
+	var btn := UiButton.create(text, UiButton.Kind.PRIMARY, null, true)
+	btn.custom_minimum_size = Vector2(260, 52)
+	add_child(btn)
+	btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	btn.offset_left = -130.0
+	btn.offset_right = 130.0
+	btn.offset_top = -20.0 - 52.0
+	btn.offset_bottom = -20.0
+	return btn
+
+
+func _go_page(page: int) -> void:
+	_hide_card()
+	_table.show_page(page)
+	_update_page_arrows(page)
+
+
+## Mostra a seta que leva para a outra tela; ela pulsa quando a proxima base a
+## conquistar esta do outro lado ("e por aqui que a campanha continua").
+func _update_page_arrows(page: int = -1) -> void:
+	var current := _table.current_page() if page < 0 else page
+	_next_page_btn.visible = current == 0
+	_prev_page_btn.visible = current == 1
+	if _pulse:
+		_pulse.kill()
+	var next_page := WarTable.page_of(_index_of(_next_base_id()))
+	var btn := _next_page_btn if current == 0 else _prev_page_btn
+	btn.scale = Vector2.ONE
+	if next_page != current:
+		btn.pivot_offset = btn.custom_minimum_size * 0.5
+		_pulse = create_tween().set_loops()
+		_pulse.tween_property(btn, "scale", Vector2(1.08, 1.08), 0.45)
+		_pulse.tween_property(btn, "scale", Vector2.ONE, 0.45)
+
+
+## Foco por teclado numa base da outra tela: o mapa desliza ate ela.
+func _follow_focus(base_id: String) -> void:
+	var page := WarTable.page_of(_index_of(base_id))
+	if page != _table.current_page():
+		_go_page(page)
+
+
+func _focus_next_base() -> void:
+	_quiet_focus = true
+	_markers[_next_base_id()].grab_focus()
+	_quiet_focus = false
 
 
 # ═════════════════════════════════════════════════════════════════════

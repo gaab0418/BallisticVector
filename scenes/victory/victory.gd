@@ -4,7 +4,7 @@ extends EndScreen
 
 func _ready() -> void:
 	var stars := Global.total_stars()
-	var total := Global.bases.size() * 9
+	var total := Global.max_stars()
 	var lines := [
 		"%d de %d estrelas" % [stars, total],
 	]

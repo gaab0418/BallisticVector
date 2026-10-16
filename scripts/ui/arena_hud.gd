@@ -39,6 +39,10 @@ var _stage_phase_label: Label
 var _goals_btn: Button
 var _goals_count: Label
 var _toast: Label
+var _badge: Control
+var _strip: Control
+var _right_row: Control
+var _left_col: Control
 var _toast_tween: Tween
 
 
@@ -57,6 +61,16 @@ func top_panel_rect() -> Rect2:
 	if parabola == null:
 		return Rect2()
 	return parabola.get_global_rect()
+
+
+## Todos os paineis da HUD em coordenadas de tela: a trajetoria nao poe rotulo
+## em cima deles e troca o vertice escondido por uma seta.
+func occluder_rects() -> Array:
+	var out := []
+	for c in [parabola, formula, _badge, _strip, _right_row, _left_col]:
+		if c != null and c.visible:
+			out.append(c.get_global_rect())
+	return out
 
 
 func _build_center() -> void:
@@ -95,7 +109,9 @@ func _build_left() -> void:
 	pause_btn.pressed.connect(func(): pause_pressed.emit())
 	column.add_child(pause_btn)
 
+	_left_col = pause_btn
 	var badge := PanelContainer.new()
+	_badge = badge
 	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badge.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.HUD))
 	column.add_child(badge)
@@ -117,6 +133,7 @@ func _build_left() -> void:
 
 func _build_right() -> void:
 	var row := HBoxContainer.new()
+	_right_row = row
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_theme_constant_override("separation", 8)
 	add_child(row)
@@ -153,6 +170,7 @@ func _build_right() -> void:
 
 func _build_bottom() -> void:
 	var strip := PanelContainer.new()
+	_strip = strip
 	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# Moldura fina: a faixa mora no chao, entre a regua e a borda da tela.
 	strip.add_theme_stylebox_override(
@@ -218,9 +236,10 @@ func _build_toast() -> void:
 
 func set_ammo(count: int, color: Color, ammo_name: String) -> void:
 	if _ammo_label:
-		_ammo_label.text = "×" + str(count)
+		# count < 0 = infinita (Laboratório).
+		_ammo_label.text = "livre" if count < 0 else "×" + str(count)
 		_ammo_label.add_theme_color_override(
-			"font_color", UiTokens.DANGER if count <= 0 else UiTokens.TEXT
+			"font_color", UiTokens.DANGER if count == 0 else UiTokens.TEXT
 		)
 	if _ammo_icon:
 		_ammo_icon.ammo_color = color
@@ -239,6 +258,13 @@ func set_armor(value: float, max_value: float) -> void:
 func set_move_hint(on: bool) -> void:
 	if _move_hint:
 		_move_hint.visible = on
+
+
+## Laboratório: selo próprio e sem botão de missão.
+func set_lab(world_name: String) -> void:
+	_stage_name_label.text = "Laboratório"
+	_stage_phase_label.text = "Mundo: %s\nTiros grátis" % world_name
+	_goals_btn.visible = false
 
 
 func set_stage(base_name: String, chapter: String, number: int, total: int, title: String) -> void:

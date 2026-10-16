@@ -32,6 +32,7 @@ const GROUND_Y := 640.0
 var spawn_timer: float = 0.0
 var audio_modal: CanvasLayer
 var credits_modal: CanvasLayer
+var reset_modal: CanvasLayer
 var _rig: Node2D
 var _barrel_pivot: Node2D
 var _shot: Node2D
@@ -155,9 +156,16 @@ func _setup_ui() -> void:
 	audio_modal = _build_audio_modal(hud)
 	credits_modal = _build_credits_modal(hud)
 
-	var btn_play := UiButton.create("JOGAR", UiButton.Kind.PRIMARY, null, true)
+	# Com progresso salvo, o botão principal diz "continuar".
+	var play_text := "CONTINUAR" if Global.has_progress() else "JOGAR"
+	var btn_play := UiButton.create(play_text, UiButton.Kind.PRIMARY, null, true)
 	btn_play.pressed.connect(func(): get_tree().change_scene_to_file(WAR_MAP_SCENE))
 	column.add_child(btn_play)
+
+	var btn_lab := UiButton.create("LABORATÓRIO", UiButton.Kind.SECONDARY, null, true)
+	btn_lab.tooltip_text = "Modo livre: teste a parábola sem inimigos, com tabela de pontos"
+	btn_lab.pressed.connect(_open_lab)
+	column.add_child(btn_lab)
 
 	_teacher_btn = UiButton.create("", UiButton.Kind.SECONDARY, null, true)
 	_teacher_btn.toggle_mode = true
@@ -167,25 +175,46 @@ func _setup_ui() -> void:
 	_on_teacher_toggled(Global.teacher_mode)
 	column.add_child(_teacher_btn)
 
-	var btn_audio := UiButton.create("CONFIGURAÇÕES DE ÁUDIO", UiButton.Kind.SECONDARY, null, true)
+	# Áudio e créditos dividem uma linha: com o Laboratório e o "recomeçar", sete
+	# botões empilhados passariam da altura da tela.
+	var pair := HBoxContainer.new()
+	pair.add_theme_constant_override("separation", UiTokens.GAP)
+	column.add_child(pair)
+	var btn_audio := UiButton.create("ÁUDIO", UiButton.Kind.SECONDARY, null, true)
+	btn_audio.custom_minimum_size = Vector2(134, 52)
+	btn_audio.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_audio.pressed.connect(audio_modal.open)
-	column.add_child(btn_audio)
-
+	pair.add_child(btn_audio)
 	var btn_credits := UiButton.create("CRÉDITOS", UiButton.Kind.SECONDARY, null, true)
+	btn_credits.custom_minimum_size = Vector2(134, 52)
+	btn_credits.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_credits.pressed.connect(credits_modal.open)
-	column.add_child(btn_credits)
+	pair.add_child(btn_credits)
+
+	reset_modal = _build_reset_modal(hud)
+	var btn_reset := UiButton.create("RECOMEÇAR CAMPANHA", UiButton.Kind.SECONDARY, null, true)
+	btn_reset.pressed.connect(reset_modal.open)
+	btn_reset.visible = Global.has_progress()
+	column.add_child(btn_reset)
 
 	var btn_quit := UiButton.create("ABANDONAR POSTO", UiButton.Kind.SECONDARY, null, true)
 	btn_quit.pressed.connect(func(): get_tree().quit())
 	column.add_child(btn_quit)
 
-	_buttons = [btn_play, _teacher_btn, btn_audio, btn_credits, btn_quit]
+	_buttons = [btn_play, btn_lab, _teacher_btn, btn_audio, btn_credits, btn_reset, btn_quit]
 	_animate_entry(panel)
 	btn_play.grab_focus.call_deferred()
 
 
+func _open_lab() -> void:
+	Global.lab_mode = true
+	Global.reset_armor()
+	get_tree().change_scene_to_file("res://scenes/arena/arena.tscn")
+
+
 func _on_teacher_toggled(on: bool) -> void:
 	Global.teacher_mode = on
+	Global.save_game()
 	_teacher_btn.text = "MODO PROFESSOR: " + ("LIGADO" if on else "DESLIGADO")
 	_teacher_btn.add_theme_color_override("font_color", UiTokens.EDITABLE if on else UiTokens.TEXT)
 	_teacher_btn.add_theme_color_override(
@@ -261,8 +290,39 @@ func _build_audio_modal(parent: CanvasLayer) -> CanvasLayer:
 	var btn_close := UiButton.create("VOLTAR AO COMANDO", UiButton.Kind.SECONDARY, null, true)
 	btn_close.pressed.connect(modal.close)
 	modal.body.add_child(btn_close)
-	modal.closed.connect(func(): _buttons[2].grab_focus())
+	modal.closed.connect(func(): _buttons[3].grab_focus())
 	return modal
+
+
+## Confirmação antes de apagar o progresso: Enter por engano não pode zerar
+## as estrelas de ninguém, então o foco começa no "não".
+func _build_reset_modal(parent: CanvasLayer) -> CanvasLayer:
+	var modal = UiModalScript.new()
+	parent.add_child(modal)
+	modal.title_label.text = "RECOMEÇAR?"
+	var text := Label.new()
+	text.text = "Todas as estrelas e bases conquistadas serão apagadas."
+	text.text += "\nO ouro e a munição voltam ao início."
+	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.custom_minimum_size = Vector2(420, 0)
+	modal.body.add_child(text)
+	var no := UiButton.create("NÃO, VOLTAR", UiButton.Kind.SECONDARY, null, true)
+	no.pressed.connect(modal.close)
+	modal.body.add_child(no)
+	var yes := UiButton.create("SIM, APAGAR TUDO", UiButton.Kind.DANGER, null, true)
+	yes.pressed.connect(
+		func():
+			Global.reset_progress()
+			get_tree().reload_current_scene()
+	)
+	modal.body.add_child(yes)
+	modal.visibility_changed.connect(_focus_if_visible.bind(modal, no))
+	return modal
+
+
+func _focus_if_visible(modal: CanvasLayer, button: Button) -> void:
+	if modal.visible:
+		button.grab_focus.call_deferred()
 
 
 func _build_credits_modal(parent: CanvasLayer) -> CanvasLayer:
@@ -292,5 +352,5 @@ func _build_credits_modal(parent: CanvasLayer) -> CanvasLayer:
 	var btn_close := UiButton.create("VOLTAR", UiButton.Kind.SECONDARY, null, true)
 	btn_close.pressed.connect(modal.close)
 	modal.body.add_child(btn_close)
-	modal.closed.connect(func(): _buttons[3].grab_focus())
+	modal.closed.connect(func(): _buttons[4].grab_focus())
 	return modal
