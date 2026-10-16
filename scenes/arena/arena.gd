@@ -82,6 +82,8 @@ var stage_data: Dictionary = {}
 var world_theme: Dictionary = UiTokens.WORLD_EARTH
 var goals := StageGoals.new()
 var move_zone := Vector2(1, 0)
+## Metros que o tanque ainda pode andar; INF = faixa livre (Base Delta).
+var fuel_m := INF
 var _tank_start_x: float = 0.0
 var _money_at_start: int = 0
 var _last_planet := ""
@@ -107,6 +109,10 @@ const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const LabControllerScript = preload("res://scenes/arena/lab_controller.gd")
 const ImpactWatcherScript = preload("res://scenes/arena/impact_watcher.gd")
 const AdaCoachScript = preload("res://scenes/arena/ada_coach.gd")
+const ShotTrailScript = preload("res://scenes/arena/shot_trail.gd")
+const TankFlagScript = preload("res://scenes/arena/tank_flag.gd")
+## Ponta da antena do sprite do tanque, em coordenadas do Player.
+const ANTENNA_TIP := Vector2(-62, -6)
 
 const SFX_HOVER := "res://assets/audio/menu_hover_.ogg"
 const SFX_CLICK := "res://assets/audio/menu_click.ogg"
@@ -130,14 +136,19 @@ func _ready() -> void:
 		stage_data = Campaign.stage(Global.current_base_id, Global.current_stage)
 	world_theme = WORLDS.get(stage_data.get("planet", ""), UiTokens.WORLD_EARTH)
 	move_zone = stage_data.get("move_zone", Vector2(1, 0))
+	fuel_m = stage_data.get("fuel_m", INF)
 	inverted = stage_data.get("inverted", false)
 	# Platô: o tanque sobe junto, e a altura do canhão (o "c") cresce com ele.
 	player.position.y -= Ballistics.to_px(stage_data.get("tank_height", 0.0))
 	trajectory.height_line = stage_data.get("height_line", NAN)
+	# Continua redesenhando com o jogo pausado (falas da Ada): senao a curva fica
+	# com os rotulos calculados antes de a HUD terminar o layout.
+	trajectory.process_mode = Node.PROCESS_MODE_ALWAYS
 	_tank_start_x = player.position.x
 	_money_at_start = Global.money
 
 	_build_world()
+	_dress_player()
 	_fx = ImpactWatcherScript.new()
 	add_child(_fx)
 	_fx.setup(self, camera, ProjectileScript)
@@ -445,7 +456,7 @@ func _on_gear_dragged(index: int, delta_rad: float) -> void:
 ## Andar com o tanque é a translação da parábola: a curva inteira escorrega e, na
 ## equação, só b e c mudam. Por isso a faixa existe só nas fases que ensinam isso.
 func _poll_movement(delta: float) -> void:
-	if move_zone.y <= move_zone.x:
+	if move_zone.y <= move_zone.x or fuel_m <= 0.0:
 		return
 	var dir := 0.0
 	if Input.is_key_pressed(KEY_A):
@@ -460,6 +471,11 @@ func _poll_movement(delta: float) -> void:
 	)
 	if is_equal_approx(x, player.position.x):
 		return
+	if not is_inf(fuel_m):
+		fuel_m = maxf(fuel_m - Ballistics.to_m(absf(x - player.position.x)), 0.0)
+		hud.set_fuel(fuel_m)
+		if fuel_m <= 0.0:
+			hud.show_toast("Acabou o combustível! Agora é só no ângulo e na força.", UiTokens.DANGER)
 	player.position.x = x
 	# Balanço de esteira: um pixel para cima e para baixo enquanto anda.
 	player.get_node("Body").position.y = 6.0 + (1.0 if int(x / 6.0) % 2 == 0 else 0.0)
@@ -586,7 +602,7 @@ func _refresh_math() -> void:
 					Campaign.GROUND_Y
 				),
 				"planet": Campaign.planet_like(s.g),
-				"vertex_form": move_zone.y > move_zone.x,
+				"vertex_form": move_zone.y > move_zone.x and is_inf(fuel_m),
 			}
 		)
 	)
@@ -648,6 +664,7 @@ func _fire_projectile() -> void:
 	projectile.set_meta("shot", _shot_for(_angle_deg(), _speed_px(), gravity_override))
 
 	add_child(projectile)
+	_attach_trail(projectile)
 	coach.on_fire()
 	if lab:
 		lab.on_fired(projectile)
@@ -783,6 +800,8 @@ func _on_stage_cleared() -> void:
 	# Recompensar o jogador
 	Global.money += 250
 	goals.finish()
+	if not Global.lab_mode:
+		Global.brass += Global.BRASS_PER_WIN
 	coach.on_stage_cleared()
 	var stars := goals.stars()
 	Global.record_stars(Global.current_base_id, Global.current_stage, stars)
@@ -810,6 +829,26 @@ func _finish_base() -> void:
 	_save_progress(_total_stages())
 	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+
+
+## Visual da Oficina: camuflagem nos sprites e bandeirinha na antena.
+func _dress_player() -> void:
+	Cosmetics.dress_tank([player.get_node("Body"), cannon.get_node("Barrel")])
+	var flag := Node2D.new()
+	flag.set_script(TankFlagScript)
+	flag.position = ANTENNA_TIP
+	player.add_child(flag)
+	flag.setup(Cosmetics.equipped("flag"))
+
+
+func _attach_trail(projectile: Node2D) -> void:
+	var trail_data := Cosmetics.equipped("trail")
+	var trail := Node2D.new()
+	trail.set_script(ShotTrailScript)
+	trail.target = projectile
+	trail.style = trail_data.style
+	trail.color = Color(trail_data.color)
+	add_child(trail)
 
 
 func _total_stages() -> int:
@@ -859,14 +898,13 @@ func _build_hud() -> void:
 	hud.help_pressed.connect(_on_help_pressed)
 	hud.pause_pressed.connect(_on_pause_pressed)
 	hud.set_move_hint(move_zone.y > move_zone.x)
+	if not is_inf(fuel_m):
+		hud.set_fuel(fuel_m)
 	# A cor do que é calculado depende do céu: laranja na Terra, azul nos outros.
 	var aim: Color = world_theme.aim
 	hud.parabola.set_accent(aim)
 	hud.formula.set_accent(aim)
 	trajectory.aim = aim
-	# Modo Professor: a conta já começa aberta, para mostrar à turma.
-	if Global.teacher_mode:
-		hud.formula.visible = true
 
 	help_overlay = HelpOverlayScript.new()
 	add_child(help_overlay)

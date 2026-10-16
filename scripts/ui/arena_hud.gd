@@ -23,6 +23,7 @@ const ICON_GEAR = preload("res://assets/sprites/icons/gear_white.png")
 const AMMO_ICON_SIZE := Vector2(28, 28)
 const ARMOR_BAR_SIZE := Vector2(150, 22)
 const MARGIN := 14.0
+const BADGE_TEXT_W := 168.0
 
 var parabola: Control
 var formula: FormulaDrawer
@@ -93,7 +94,9 @@ func _build_center() -> void:
 
 
 func _build_left() -> void:
-	var column := VBoxContainer.new()
+	# Engrenagem e insignia lado a lado no topo: o lado esquerdo da tela fica
+	# livre para o tanque, a curva subindo e a Ada.
+	var column := HBoxContainer.new()
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_theme_constant_override("separation", 8)
 	add_child(column)
@@ -103,7 +106,7 @@ func _build_left() -> void:
 
 	var pause_btn := UiButton.create("", UiButton.Kind.ICON, ICON_GEAR)
 	pause_btn.tooltip_text = "Pausa (Esc)"
-	pause_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	pause_btn.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	pause_btn.pressed.connect(func(): pause_pressed.emit())
 	column.add_child(pause_btn)
 
@@ -120,12 +123,17 @@ func _build_left() -> void:
 
 	_stage_name_label = Label.new()
 	_stage_name_label.theme_type_variation = &"TitleLabel"
-	_stage_name_label.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
+	_stage_name_label.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
 	text_column.add_child(_stage_name_label)
 
+	# Largura fixa com reticencias: a insignia nao pode empurrar o painel da
+	# equacao, que comeca logo ao lado.
 	_stage_phase_label = Label.new()
 	_stage_phase_label.theme_type_variation = &"CaptionLabel"
 	_stage_phase_label.add_theme_color_override("font_color", UiTokens.TEXT_DIM)
+	_stage_phase_label.custom_minimum_size = Vector2(BADGE_TEXT_W, 0)
+	_stage_phase_label.clip_text = true
+	_stage_phase_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text_column.add_child(_stage_phase_label)
 
 
@@ -256,19 +264,30 @@ func set_move_hint(on: bool) -> void:
 		_move_hint.visible = on
 
 
+## Fases com combustivel: o aviso de andar vira medidor e apaga quando acaba.
+func set_fuel(meters: float) -> void:
+	if not _move_hint:
+		return
+	if meters <= 0.0:
+		_move_hint.text = "sem combustível"
+		_move_hint.add_theme_color_override("font_color", UiTokens.TEXT_DISABLED)
+	else:
+		_move_hint.text = "A ← → D  andar · combustível %s m" % ("%.1f" % meters).replace(".", ",")
+
+
 ## Laboratório: selo próprio e sem botão de missão.
 func set_lab(world_name: String) -> void:
 	_stage_name_label.text = "Laboratório"
-	_stage_phase_label.text = "Mundo: %s\nTiros grátis" % world_name
+	_stage_phase_label.text = "Mundo: %s · tiros grátis" % world_name
 	_goals_btn.visible = false
 
 
 func set_stage(base_name: String, chapter: String, number: int, total: int, title: String) -> void:
 	if _stage_name_label:
-		_stage_name_label.text = base_name
+		_stage_name_label.text = "%s · %d/%d" % [base_name, number, total]
 	if _stage_phase_label:
-		_stage_phase_label.text = "Fase %d de %d\n%s" % [number, total, title]
-	_stage_phase_label.tooltip_text = chapter
+		_stage_phase_label.text = title
+		_stage_phase_label.tooltip_text = "%s · %s" % [chapter, title]
 
 
 ## Placar da estrela: estrelas garantidas ate agora.

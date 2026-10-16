@@ -26,6 +26,7 @@ const GROUND_Y := 640.0
 var spawn_timer: float = 0.0
 var audio_modal: CanvasLayer
 var credits_modal: CanvasLayer
+var notebook_modal: CanvasLayer
 var reset_modal: CanvasLayer
 var _rig: Node2D
 var _barrel_pivot: Node2D
@@ -69,6 +70,14 @@ func _build_tank() -> void:
 	var hull := Sprite2D.new()
 	hull.texture = HULL_TEX
 	_rig.add_child(hull)
+	Cosmetics.dress_tank([hull, barrel])
+	# Bandeirinha na antena, em pixels do sprite original (o rig ja escala).
+	var flag := Node2D.new()
+	flag.set_script(load("res://scenes/arena/tank_flag.gd"))
+	flag.position = Vector2(90, 136) - IMG_CENTER
+	flag.scale = Vector2(-4, 4)
+	_rig.add_child(flag)
+	flag.setup(Cosmetics.equipped("flag"))
 
 	_shot = MenuShotScript.new()
 	_shot.visible = false
@@ -153,15 +162,28 @@ func _setup_ui() -> void:
 	btn_play.pressed.connect(func(): get_tree().change_scene_to_file(WAR_MAP_SCENE))
 	column.add_child(btn_play)
 
+	notebook_modal = NotebookPanel.new()
+	hud.add_child(notebook_modal)
+	var tools_row := HBoxContainer.new()
+	tools_row.add_theme_constant_override("separation", UiTokens.GAP)
+	column.add_child(tools_row)
 	var btn_lab := UiButton.create("LABORATÓRIO", UiButton.Kind.SECONDARY, null, true)
 	btn_lab.tooltip_text = "Modo livre: teste a parábola sem inimigos, com tabela de pontos"
+	btn_lab.custom_minimum_size = Vector2(134, 52)
+	btn_lab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_lab.pressed.connect(_open_lab)
-	column.add_child(btn_lab)
+	tools_row.add_child(btn_lab)
+	var btn_book := UiButton.create("CADERNO", UiButton.Kind.SECONDARY, null, true)
+	btn_book.tooltip_text = "O caderno da Ada: uma animação para cada fase vencida"
+	btn_book.custom_minimum_size = Vector2(134, 52)
+	btn_book.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_book.pressed.connect(notebook_modal.open)
+	tools_row.add_child(btn_book)
 
 	_teacher_btn = UiButton.create("", UiButton.Kind.SECONDARY, null, true)
 	_teacher_btn.toggle_mode = true
 	_teacher_btn.button_pressed = Global.teacher_mode
-	_teacher_btn.tooltip_text = "Libera todas as bases e já mostra a conta da parábola"
+	_teacher_btn.tooltip_text = "Libera todas as bases para o professor ir direto à lição"
 	_teacher_btn.toggled.connect(_on_teacher_toggled)
 	_on_teacher_toggled(Global.teacher_mode)
 	column.add_child(_teacher_btn)

@@ -3,6 +3,8 @@ extends Node
 ## Arquivo de progresso. user:// e a pasta de dados do jogo no sistema do
 ## jogador (no Linux, ~/.local/share/godot/app_userdata/BallisticVector).
 const SAVE_PATH := "user://progresso.cfg"
+## Por caminho: este autoload compila antes do cache de classes globais.
+const CosmeticsData := preload("res://scripts/cosmetics.gd")
 const SAVE_VERSION := 1
 ## Kit de emergencia: municao gratis quando a crianca fica sem bala e sem ouro
 ## para comprar (senao ela fica presa, sem poder jogar nem comprar).
@@ -11,6 +13,13 @@ const CHEAPEST_AMMO_PRICE := 10
 
 # ── Recursos do jogador ──────────────────────────────────────────────
 var money: int = 150
+## Latao: moeda da Oficina da Ada (camuflagens, rastros, bandeiras).
+const BRASS_PER_WIN := 100
+var brass: int = 0
+var owned: Dictionary = {}
+var equipped: Dictionary = {"camo": "camo_original", "trail": "trail_smoke", "flag": "flag_none"}
+## Paginas do Caderno da Ada que a crianca ja abriu (id -> true).
+var notebook_seen: Dictionary = {}
 var ammo_inventory: Dictionary = {"Enferrujada": 15, "Perfurante": 5}
 
 # ── Estado de jogo ───────────────────────────────────────────────────
@@ -174,6 +183,10 @@ func save_game() -> void:
 	cfg.set_value("player", "money", money)
 	cfg.set_value("player", "ammo", ammo_inventory)
 	cfg.set_value("player", "teacher_mode", teacher_mode)
+	cfg.set_value("player", "brass", brass)
+	cfg.set_value("player", "owned", owned)
+	cfg.set_value("player", "equipped", equipped)
+	cfg.set_value("player", "notebook_seen", notebook_seen)
 	cfg.set_value("player", "tutorial_done", tutorial_done)
 	cfg.set_value("player", "map_intro_done", map_intro_done)
 	for base_id in bases:
@@ -196,6 +209,17 @@ func load_game() -> void:
 		for k in ammo:
 			ammo_inventory[k] = int(ammo[k])
 	teacher_mode = bool(cfg.get_value("player", "teacher_mode", teacher_mode))
+	brass = int(cfg.get_value("player", "brass", brass))
+	var own = cfg.get_value("player", "owned", owned)
+	if own is Dictionary:
+		owned = own
+	var seen = cfg.get_value("player", "notebook_seen", notebook_seen)
+	if seen is Dictionary:
+		notebook_seen = seen
+	var eq = cfg.get_value("player", "equipped", equipped)
+	if eq is Dictionary:
+		for k in eq:
+			equipped[k] = str(eq[k])
 	tutorial_done = bool(cfg.get_value("player", "tutorial_done", tutorial_done))
 	map_intro_done = bool(cfg.get_value("player", "map_intro_done", map_intro_done))
 	for base_id in bases:
@@ -212,10 +236,37 @@ func load_game() -> void:
 ## Comeca a campanha do zero (botao do menu, com confirmacao).
 func reset_progress() -> void:
 	money = 150
+	brass = 0
+	owned = {}
+	equipped = {"camo": "camo_original", "trail": "trail_smoke", "flag": "flag_none"}
+	notebook_seen = {}
 	ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
 	bases = _fresh_bases()
 	just_conquered = ""
 	save_game()
+
+
+func owns(item_id: String) -> bool:
+	return owned.has(item_id) or CosmeticsData.item(item_id).get("price", 1) == 0
+
+
+## Compra um item da oficina; devolve false se nao tem latao.
+func buy_cosmetic(item_id: String) -> bool:
+	var price: int = CosmeticsData.item(item_id).get("price", 0)
+	if owns(item_id):
+		return true
+	if brass < price:
+		return false
+	brass -= price
+	owned[item_id] = true
+	save_game()
+	return true
+
+
+func equip(slot: String, item_id: String) -> void:
+	if owns(item_id):
+		equipped[slot] = item_id
+		save_game()
 
 
 func has_progress() -> bool:

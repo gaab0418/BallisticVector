@@ -150,7 +150,7 @@ func _place(_bottom: bool) -> void:
 	visible = true
 	_dock.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
 	_dock.offset_left = 16.0
-	_dock.offset_top = 196.0
+	_dock.offset_top = 150.0
 	_skip.visible = _mode == "say"
 	_dock.modulate.a = 0.0
 	var tw := create_tween()

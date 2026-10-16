@@ -655,7 +655,25 @@ static func base(base_id: String) -> Dictionary:
 
 static func stage(base_id: String, index: int) -> Dictionary:
 	var stages: Array = base(base_id)["stages"]
-	return stages[clampi(index, 0, stages.size() - 1)]
+	var st: Dictionary = stages[clampi(index, 0, stages.size() - 1)]
+	return with_fuel(base_id, st)
+
+
+## Fora da Delta (que ensina a translacao com faixa livre), o tanque anda pouco:
+## um tanque de combustivel por fase, para ajustar a posicao sem virar a licao.
+## Alpha fica parada (tutorial) e o plato nao tem chao para andar.
+const FUEL_BASES := ["Base_B", "Base_C", "Base_E"]
+const FUEL_M := 3.0
+const FUEL_ZONE := Vector2(40.0, 250.0)
+
+
+static func with_fuel(base_id: String, st: Dictionary) -> Dictionary:
+	if not base_id in FUEL_BASES or st.has("move_zone") or st.has("tank_height"):
+		return st
+	var out := st.duplicate()
+	out["move_zone"] = FUEL_ZONE
+	out["fuel_m"] = FUEL_M
+	return out
 
 
 ## Frase curta do desafio, para o briefing, a HUD e a tela de resultado.

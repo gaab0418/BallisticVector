@@ -78,7 +78,10 @@ func _build_content() -> void:
 func show_result(stars: int, goals: Array, states: Array, gold: int, last_stage: bool) -> void:
 	_headline.text = "BASE CONQUISTADA!" if last_stage else "FASE VENCIDA!"
 	_next.visible = not last_stage
-	_reward.text = "+%d de ouro" % gold
+	_reward.text = "+%d de ouro  ·  +%d de latão para a Oficina" % [gold, Global.BRASS_PER_WIN]
+	var page := Notebook.page_for(Global.current_base_id, Global.current_stage)
+	if not page.is_empty() and not Global.notebook_seen.has(Notebook.page_id(page)):
+		_reward.text += "\nNova página no Caderno da Ada: \"%s\"" % page.title
 	var says := [
 		"Vitória! Tente os desafios para ganhar mais estrelas.",
 		"Muito bem! Falta pouco para as três estrelas.",

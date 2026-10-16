@@ -27,6 +27,7 @@ const NAMES := [
 	"arrow_right",
 	"cross",
 	"formula",
+	"parabola",
 ]
 
 @export var icon := "star":
@@ -191,6 +192,12 @@ static func _shape(ci: CanvasItem, n: String, r: Rect2, col: Color, shadow: bool
 		"arrow_right":
 			_poly(ci, r, [Vector2(15, 8), Vector2(7, 1), Vector2(7, 15)], col)
 			_box(ci, r, 1, 5.5, 7, 10.5, col)
+		"parabola":
+			var pts := []
+			for i in range(9):
+				var t := -1.0 + 2.0 * i / 8.0
+				pts.append(Vector2(8 + t * 6.5, 3 + t * t * 10))
+			_line(ci, r, pts, col, 2.4)
 		"formula":
 			_line(
 				ci, r, [Vector2(11, 2), Vector2(8, 2), Vector2(6.5, 14), Vector2(4, 14)], col, 2.0

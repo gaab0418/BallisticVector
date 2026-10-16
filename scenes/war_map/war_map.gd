@@ -35,6 +35,11 @@ const BASE_CONFIGS: Array = [
 ]
 
 var money_label: Label
+var brass_label: Label
+var workshop: CanvasLayer
+var notebook: CanvasLayer
+var _ada: AdaDialog
+var _notebook_badge: Label
 var stars_label: Label
 var attack_modal: CanvasLayer
 var shop: CanvasLayer
@@ -86,12 +91,14 @@ func _ready() -> void:
 	_update_page_arrows()
 	_focus_next_base.call_deferred()
 	# Um recado da Ada por vez; o ultimo que se aplicar (o mais importante) vence.
-	var ada := AdaDialog.new()
-	add_child(ada)
+	_ada = AdaDialog.new()
+	add_child(_ada)
 	var line := ""
 	if not Global.map_intro_done:
 		line = "Este é o mapa de guerra! Cada ilha é um capítulo. Clique numa ilha para escolher a fase."
 		Global.map_intro_done = true
+	elif Notebook.unseen_count() > 0:
+		line = "Nova página no meu caderno! Clique em \"Caderno\" para ver a animação."
 	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
 	if Global.just_conquered != "":
 		_table.animate_boat(_index_of(Global.just_conquered))
@@ -102,7 +109,7 @@ func _ready() -> void:
 			"Acabou a munição? Tome %d balas Enferrujadas, por minha conta!" % Global.EMERGENCY_AMMO
 		)
 	if line != "":
-		ada.pop(line, "happy", 6.0)
+		_ada.pop(line, "happy", 6.0)
 	Global.save_game()
 
 
@@ -192,6 +199,13 @@ func _build_top_bar() -> void:
 	money_label.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
 	money_label.add_theme_color_override("font_color", UiTokens.GOLD)
 	gold.add_child(money_label)
+	gold.add_child(UiIcon.make("gear", UiTokens.BRASS, 30.0))
+	brass_label = Label.new()
+	brass_label.add_theme_font_override("font", UiTheme.body_font(UiTokens.WEIGHT_BOLD))
+	brass_label.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
+	brass_label.add_theme_color_override("font_color", UiTokens.BRASS_LIGHT)
+	brass_label.tooltip_text = "Latão: gaste na Oficina da Ada"
+	gold.add_child(brass_label)
 
 	var title := Label.new()
 	title.name = "MapTitle"
@@ -343,6 +357,13 @@ func _build_attack_modal() -> void:
 
 
 func _build_shop() -> void:
+	workshop = WorkshopPanel.new()
+	add_child(workshop)
+	workshop.changed.connect(_refresh_all)
+	workshop.closed.connect(_refresh_all)
+	notebook = NotebookPanel.new()
+	add_child(notebook)
+	notebook.closed.connect(_refresh_all)
 	shop = ShopPanelScript.new()
 	add_child(shop)
 	# O ouro do topo tambem muda quando o jogador compra.
@@ -363,6 +384,43 @@ func _build_bottom_buttons() -> void:
 	shop_btn.offset_right = 20.0 + NAV_BUTTON_SIZE.x
 	shop_btn.offset_bottom = -20.0
 
+	var work_btn := UiButton.create("Oficina", UiButton.Kind.SECONDARY, null, true)
+	work_btn.name = "WorkshopButton"
+	work_btn.tooltip_text = "Camuflagens, rastros e bandeiras"
+	work_btn.custom_minimum_size = NAV_BUTTON_SIZE
+	work_btn.pressed.connect(func(): _open_panel(workshop))
+	add_child(work_btn)
+	work_btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	work_btn.offset_left = 30.0 + NAV_BUTTON_SIZE.x
+	work_btn.offset_top = -20.0 - NAV_BUTTON_SIZE.y
+	work_btn.offset_right = 30.0 + NAV_BUTTON_SIZE.x * 2.0
+	work_btn.offset_bottom = -20.0
+	var gear := UiIcon.make("gear", UiTokens.BRASS, 24.0)
+	work_btn.add_child(gear)
+	gear.position = Vector2(16, 14)
+
+	var book_btn := UiButton.create("Caderno", UiButton.Kind.SECONDARY, null, true)
+	book_btn.name = "NotebookButton"
+	book_btn.tooltip_text = "O caderno da Ada: uma animação para cada fase vencida"
+	book_btn.custom_minimum_size = NAV_BUTTON_SIZE
+	book_btn.pressed.connect(func(): _open_panel(notebook))
+	add_child(book_btn)
+	book_btn.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	book_btn.offset_left = 40.0 + NAV_BUTTON_SIZE.x * 2.0
+	book_btn.offset_top = -20.0 - NAV_BUTTON_SIZE.y
+	book_btn.offset_right = 40.0 + NAV_BUTTON_SIZE.x * 3.0
+	book_btn.offset_bottom = -20.0
+	var book_icon := UiIcon.make("parabola", UiTokens.CALCULATED, 24.0)
+	book_btn.add_child(book_icon)
+	book_icon.position = Vector2(16, 14)
+	# Selo de "pagina nova" no canto do botao.
+	_notebook_badge = Label.new()
+	_notebook_badge.text = "!"
+	_notebook_badge.theme_type_variation = &"TitleLabel"
+	_notebook_badge.add_theme_color_override("font_color", UiTokens.DANGER)
+	_notebook_badge.position = Vector2(NAV_BUTTON_SIZE.x - 22.0, -8.0)
+	book_btn.add_child(_notebook_badge)
+
 	var back_btn := UiButton.create("Voltar", UiButton.Kind.SECONDARY, ICON_ARROW_BACK, true)
 	back_btn.name = "BackButton"
 	back_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -381,9 +439,20 @@ func _build_bottom_buttons() -> void:
 # ═════════════════════════════════════════════════════════════════════
 
 
+## O balao da Ada fica numa camada acima dos modais: sai antes de abrir um.
+func _open_panel(panel: UiModal) -> void:
+	if _ada:
+		_ada.hide_now()
+	panel.open()
+
+
 func _refresh_all() -> void:
 	if money_label:
 		money_label.text = str(Global.money)
+	if brass_label:
+		brass_label.text = str(Global.brass)
+	if _notebook_badge:
+		_notebook_badge.visible = Notebook.unseen_count() > 0
 	if stars_label:
 		stars_label.text = "%d / %d" % [Global.total_stars(), Global.max_stars()]
 	for cfg in BASE_CONFIGS:
@@ -456,8 +525,9 @@ func _page_button(text: String) -> Button:
 	btn.custom_minimum_size = Vector2(260, 52)
 	add_child(btn)
 	btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	btn.offset_left = -130.0
-	btn.offset_right = 130.0
+	# Deslocado para a direita: a esquerda da faixa e de Loja, Oficina e Caderno.
+	btn.offset_left = 55.0
+	btn.offset_right = 315.0
 	btn.offset_top = -20.0 - 52.0
 	btn.offset_bottom = -20.0
 	return btn
@@ -589,7 +659,7 @@ func _on_cancel_popup() -> void:
 
 
 func _on_shop_open() -> void:
-	shop.open()
+	_open_panel(shop)
 
 
 func _on_back_pressed() -> void:
