@@ -1,25 +1,31 @@
 extends Node2D
 
-# === Icones reutilizados (const preload evita recarregar o recurso) ===
-
 # =============================================================================
 #  Arena de Combate — arena.gd
-#  Gerencia o combate por turnos: canhão do jogador, inimigos dinâmicos,
-#  obstáculos, sistema de fases e HUD.
+#  Gerencia o combate por turnos: canhão do jogador, inimigos, obstáculos,
+#  a parábola visível (equação, vértice, raiz, régua) e os desafios da fase.
+#
+#  O conteúdo de cada fase (cenário, inimigos, lição, desafios) vem de
+#  Campaign; a matemática do tiro vem de Ballistics — a mesma conta alimenta a
+#  física do disparo, a curva desenhada e os números do painel.
 # =============================================================================
 
 # === Referências dos nós (cena) ===
 @onready var player: Node2D = $Player
 @onready var cannon: Node2D = $Player/Cannon
-@onready var aim_line: Line2D = $Player/Cannon/AimLine
-@onready var bg: ColorRect = $BackgroundColorRect
 @onready var obstacles_node: Node2D = $Obstacles
+@onready var backdrop: Node2D = $Backdrop
+@onready var terrain: Node2D = $Terrain
+@onready var ruler: Node2D = $Ruler
+@onready var trajectory: Node2D = $Trajectory
+@onready var camera: Camera2D = $Camera
 
 # === Variáveis de UI ===
 var hud: CanvasLayer
-var aim_preview: Node2D
 var help_overlay: CanvasLayer
 var pause_menu: CanvasLayer
+var briefing: StageBriefing
+var result: StageResult
 
 # === Configurações ===
 const ROTATION_SPEED: float = 1.5  # Velocidade de rotação do canhão (rad/s)
@@ -36,20 +42,21 @@ const FINE_STEP_MULT: float = 0.2  # passo fino do Shift, o mesmo que o jogo já
 const POWER_RATE: float = 0.5  # fração de força por segundo de tecla
 const MIN_POWER: float = 0.05
 const GRAVITY_RATE: float = 250.0  # px/s² por segundo de tecla
-const MIN_GRAVITY: float = 100.0  # 2 m/s² — a Lua
+const MIN_GRAVITY: float = 80.0  # 1,6 m/s² — a Lua
 const MAX_GRAVITY: float = 1250.0  # 25 m/s² — Júpiter
 const GEAR_SPIN_SPEED: float = 3.0  # rad/s de giro visual da engrenagem
 # Duas voltas de mouse varrem a faixa inteira: devagar o bastante para dar precisão,
 # rápido o bastante para não cansar a mão.
 const DRAG_TURNS_FULL_RANGE: float = 2.0
 
+# === Movimento do tanque (fases da Base Delta) ===
+const MOVE_SPEED: float = 90.0  # px/s
+
 # === Precisão do disparo ===
-# Boca do cano, em coordenadas locais do Cannon. Era literal em dois lugares.
-const BARREL_TIP := Vector2(50, 0)
-# Era 0.12, com o resto do erro vindo de um tremor por frame no projétil. O tremor saiu
-# (ver projectile.gd) e o fator subiu para concentrar toda a imprecisão no ângulo, que é
-# a única fonte previsível o bastante para virar o "± N m" da HUD. Calibrado para
-# reproduzir a dispersão total que o jogo tinha antes.
+# Comprimento do cano, do munhão até a boca, em coordenadas locais do Cannon.
+const BARREL_TIP := Vector2(59, 0)
+# Toda a imprecisão do tiro está no ângulo, a única fonte previsível o bastante
+# para virar a faixa "a bala pode cair aqui" desenhada sobre a régua.
 const IMPRECISION_FACTOR: float = 0.14
 const ARMOR_PENALTY_MAX: float = 0.15
 
@@ -60,14 +67,26 @@ var ammo_counts: Array[int] = []  # Quantidade restante de cada tipo
 
 # === Variáveis de estado ===
 var _tab_was_pressed: bool = false
+var _help_was_pressed: bool = false
+var _formula_was_pressed: bool = false
 var current_power: float = 1.0
-# Gravidade em px/s² desta arena. Comeca na da municao e a engrenagem ajusta a partir dai.
-# NUNCA escrever em ammo.gravity: Resource e cacheado pelo Godot e o valor vazaria para as
-# fases seguintes, que sao carregadas com reload_current_scene().
+# Gravidade em px/s² desta arena. Comeca na da municao (ou do planeta da fase) e a
+# engrenagem ajusta a partir dai. NUNCA escrever em ammo.gravity: Resource e
+# cacheado pelo Godot e o valor vazaria para as fases seguintes.
 var gravity_override: float = 500.0
 var selected_gear: int = GEAR_ANGULO
 var _at_limit: bool = false  # borda do limite, para o som de erro tocar uma vez só
-var _help_was_pressed: bool = false
+
+# === Fase ===
+var stage_data: Dictionary = {}
+var world_theme: Dictionary = UiTokens.WORLD_EARTH
+var goals := StageGoals.new()
+var move_zone := Vector2(1, 0)
+var _tank_start_x: float = 0.0
+var _money_at_start: int = 0
+var _shake: float = 0.0
+var _prev_goal_states: Array = []
+var _last_planet := ""
 
 # === Sistema de inimigos ===
 var active_enemies: Array = []  # Lista de inimigos vivos na cena
@@ -75,56 +94,85 @@ var stage_cleared: bool = false  # Se todos os inimigos morreram nesta fase
 
 # === Polígonos de obstáculos em coordenadas globais (calculados uma vez) ===
 var _obstacle_polygons_cache: Array = []
+# Projéteis em voo: id -> última posição, para o impacto no chão virar poeira.
+var _tracked: Dictionary = {}
 
 # === Preload dos scripts ===
 const ProjectileScript = preload("res://scenes/arena/projectile.gd")
 const ArenaHudScript = preload("res://scripts/ui/arena_hud.gd")
 const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
-const AimPreviewScript = preload("res://scripts/aim_preview.gd")
-const AirplaneScript = preload("res://scenes/arena/airplane_enemy.gd")
 
-# === Configuração de inimigos por fase ===
-# Cada fase tem: boss_hp, num_airplanes, airplane_hp
-const STAGE_CONFIG: Array = [
-	{"boss_hp": 3, "num_airplanes": 2, "airplane_hp": 1},
-	{"boss_hp": 3, "num_airplanes": 3, "airplane_hp": 1},
-	{"boss_hp": 3, "num_airplanes": 3, "airplane_hp": 2},
-]
+const SFX_HOVER := "res://assets/audio/menu_hover_.ogg"
+const SFX_CLICK := "res://assets/audio/menu_click.ogg"
+const SFX_BACK := "res://assets/audio/menu_back.ogg"
+const SFX_ERROR := "res://assets/audio/erro.ogg"
+const SFX_FIRE := "res://assets/audio/cannon_fire.ogg"
+
+const WORLDS := {
+	"moon": UiTokens.WORLD_MOON,
+	"mars": UiTokens.WORLD_MARS,
+	"jupiter": UiTokens.WORLD_JUPITER,
+}
 
 
 func _ready() -> void:
 	randomize()
-	# Fundo aleatório
-	if bg:
-		bg.color = Color(
-			randf_range(0.15, 0.6), randf_range(0.15, 0.6), randf_range(0.15, 0.6), 1.0
-		)
+	stage_data = Campaign.stage(Global.current_base_id, Global.current_stage)
+	world_theme = WORLDS.get(stage_data.get("planet", ""), UiTokens.WORLD_EARTH)
+	move_zone = stage_data.get("move_zone", Vector2(1, 0))
+	_tank_start_x = player.position.x
+	_money_at_start = Global.money
 
-	# Calcular polígonos de obstáculos em coordenadas globais (uma vez)
-	_cache_obstacle_polygons()
+	_build_world()
 
 	# Carregar munições dos Resources
 	_load_ammo_types()
-	gravity_override = _get_current_ammo().gravity
+	gravity_override = _stage_gravity()
 
-	aim_preview = AimPreviewScript.new()
-	cannon.add_child(aim_preview)
-	aim_preview.setup(cannon, aim_line)
-	aim_preview.set_obstacles(_obstacle_polygons_cache)
+	goals.setup(stage_data.get("goals", []))
+	goals.changed.connect(_on_goals_changed)
+	_prev_goal_states = goals.states.duplicate()
 
 	_build_hud()
 	AudioManager.play_bgm("res://assets/audio/Battle.mp3")
 
 	# Inicializar HUD
 	_update_hud()
-	_refresh_parabola_hud()
-	_update_aim_line()
 	_update_armor_hud()
 	_update_stage_label()
+	_refresh_goals()
+	_refresh_math()
 
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
+
+	var base_data: Dictionary = Global.get_base_data(Global.current_base_id)
+	briefing.show_stage(
+		base_data.get("name", ""),
+		Campaign.base(Global.current_base_id).chapter,
+		Global.current_stage + 1,
+		stage_data
+	)
+
+
+# =============================================================================
+#  MUNDO (fundo, obstáculos, chão, régua)
+# =============================================================================
+
+
+func _build_world() -> void:
+	var seed_value := hash(Global.current_base_id) + Global.current_stage * 97
+	backdrop.setup(world_theme, Campaign.GROUND_Y, seed_value)
+	terrain.setup(world_theme, Campaign.GROUND_Y, seed_value + 5)
+	ruler.setup(Campaign.ORIGIN_X, Campaign.GROUND_Y, move_zone)
+
+	StageBuilder.build_obstacles(
+		obstacles_node, stage_data, world_theme.rock, terrain.collision_polygon()
+	)
+
+	_cache_obstacle_polygons()
+	trajectory.obstacles = _mountain_polygons()
 
 
 # === Calcular polígonos dos obstáculos em coordenadas globais ===
@@ -144,7 +192,15 @@ func _cache_obstacle_polygons() -> void:
 				_obstacle_polygons_cache.append(global_poly)
 
 
-# === Retorna os polígonos de obstáculos (usado pelos projéteis inimigos) ===
+## Só as montanhas: a trajetória desenha a queda no chão como raiz, não como batida.
+func _mountain_polygons() -> Array:
+	var out: Array = []
+	for i in range(_obstacle_polygons_cache.size() - 1):
+		out.append(_obstacle_polygons_cache[i])
+	return out
+
+
+# === Retorna os polígonos de obstáculos (usado pelos aviões e projéteis inimigos) ===
 func get_obstacle_polygons() -> Array:
 	return _obstacle_polygons_cache
 
@@ -169,54 +225,17 @@ func _get_current_ammo() -> AmmoData:
 	return ammo_types[current_ammo_index]
 
 
+## Na Terra cada munição traz a sua gravidade (como sempre foi); num planeta, a
+## gravidade é do planeta e vale para qualquer bala.
+func _stage_gravity() -> float:
+	return stage_data.get("gravity", _get_current_ammo().gravity)
+
+
 # =============================================================================
 #  SPAWNING DE INIMIGOS
 # =============================================================================
 func _spawn_enemies() -> void:
-	active_enemies.clear()
-	var stage = Global.current_stage
-	var config = STAGE_CONFIG[clampi(stage, 0, STAGE_CONFIG.size() - 1)]
-
-	# --- Spawnar o Boss ---
-	var boss = _create_boss(config.boss_hp)
-	boss.position = Vector2(1100, 640)
-	add_child(boss)
-	active_enemies.append(boss)
-
-	# --- Spawnar aviões ---
-	for i in range(config.num_airplanes):
-		var airplane = AirplaneScript.new()
-		airplane.name = "Airplane"
-		airplane.position = Vector2(randf_range(750.0, 1200.0), randf_range(200.0, 480.0))
-		airplane.hp = config.airplane_hp
-		airplane.player_ref = player
-		add_child(airplane)
-		active_enemies.append(airplane)
-
-
-# --- Cria o nó do Boss (Node2D com Sprite2D) ---
-func _create_boss(boss_hp: int) -> Node2D:
-	var boss = Node2D.new()
-	boss.name = "Boss"
-
-	# Visual do boss (usando Sprite2D no lugar do ColorRect)
-	var body = Sprite2D.new()
-	body.name = "Body"
-
-	# ALERTA: Mude o caminho abaixo para a pasta onde está o PNG do seu boss!
-	body.texture = preload("res://assets/sprites/boss.png")
-
-	# Ajuste a escala do PNG aqui se ele ficar muito grande ou muito pequeno
-	body.scale = Vector2(0.5, 0.5)
-
-	boss.add_child(body)
-
-	# Variáveis de HP no boss
-	boss.set_meta("hp", boss_hp)
-	boss.set_meta("max_hp", boss_hp)
-	boss.set_meta("is_boss", true)
-
-	return boss
+	active_enemies = StageBuilder.spawn_enemies(self, stage_data, player)
 
 
 # =============================================================================
@@ -225,14 +244,18 @@ func _create_boss(boss_hp: int) -> Node2D:
 func _process(delta: float) -> void:
 	# Fora do early-return de propósito: a ajuda abre mesmo com a fase já limpa.
 	_poll_help_hotkey()
+	_poll_formula_hotkey()
+	_track_projectiles()
+	_update_shake(delta)
 
 	# Não processar input se a fase foi limpa
 	if stage_cleared:
 		return
 
-	# === Engrenagens: cima/baixo escolhem, esquerda/direita giram ===
+	# === Engrenagens: esquerda/direita escolhem, cima/baixo giram ===
 	_poll_gear_selection()
 	_poll_gear_rotation(delta)
+	_poll_movement(delta)
 
 	# === Disparo com espaço ===
 	if Input.is_action_just_pressed("ui_accept"):
@@ -269,7 +292,7 @@ func _select_gear(index: int) -> void:
 		return
 	selected_gear = index
 	_at_limit = false
-	AudioManager.play_sfx("res://assets/audio/menu_hover_.ogg")
+	AudioManager.play_sfx(SFX_HOVER)
 	hud.parabola.set_selected(selected_gear)
 
 
@@ -292,21 +315,40 @@ func _poll_gear_rotation(delta: float) -> void:
 	if _adjust_selected_gear(dir, delta, mult):
 		_at_limit = false
 		hud.parabola.spin_selected(selected_gear, dir * mult * delta * GEAR_SPIN_SPEED)
-		_refresh_parabola_hud()
-		_update_aim_line()
+		_after_gear_change()
 		return
 
 	# No limite a engrenagem trava (não recebe spin) e o valor pisca. O som toca uma vez
 	# só: o AudioManager tem um único sfx_player e repetir a 60 Hz cortaria todo o resto.
+	_hit_limit()
+
+
+func _hit_limit() -> void:
 	hud.parabola.flash_selected(selected_gear)
 	if not _at_limit:
 		_at_limit = true
-		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+		AudioManager.play_sfx(SFX_ERROR)
+
+
+func _after_gear_change() -> void:
+	if selected_gear == GEAR_GRAVIDADE:
+		goals.on_gravity_touched()
+		_announce_planet()
+	_refresh_math()
+
+
+## Ao girar a gravidade até o valor de um lugar de verdade, avisa qual é: liga o
+## número a uma ideia ("10 é a Terra, 1,6 é a Lua").
+func _announce_planet() -> void:
+	var planet := Campaign.planet_like(Ballistics.to_m(gravity_override))
+	if planet != "" and planet != _last_planet:
+		var where := ("da " if planet in ["Terra", "Lua"] else "de ") + planet
+		hud.show_toast("Gravidade parecida com a " + where + "!", UiTokens.EDITABLE)
+	_last_planet = planet
 
 
 ## Passo por segundo de tecla. Devolve true se o valor mudou; false = bateu no limite.
-## A conta do ângulo é a mesma de sempre (ROTATION_SPEED e compensação por impulso),
-## só que com o sinal invertido: elevar o cano é diminuir cannon.rotation.
+## Elevar o cano é diminuir cannon.rotation.
 func _adjust_selected_gear(dir: float, delta: float, mult: float) -> bool:
 	match selected_gear:
 		GEAR_FORCA:
@@ -364,18 +406,46 @@ func _on_gear_dragged(index: int, delta_rad: float) -> void:
 		_at_limit = false
 		# A engrenagem acompanha o cursor exatamente, sem fator de escala.
 		hud.parabola.spin_selected(selected_gear, delta_rad)
-		_refresh_parabola_hud()
-		_update_aim_line()
+		_after_gear_change()
 		return
-
-	hud.parabola.flash_selected(selected_gear)
-	if not _at_limit:
-		_at_limit = true
-		AudioManager.play_sfx("res://assets/audio/erro.ogg")
+	_hit_limit()
 
 
 # =============================================================================
-#  TELA DE AJUDA
+#  MOVIMENTO DO TANQUE (A/D, só nas fases com faixa de manobra)
+# =============================================================================
+
+
+## Andar com o tanque é a translação da parábola: a curva inteira escorrega e, na
+## equação, só b e c mudam. Por isso a faixa existe só nas fases que ensinam isso.
+func _poll_movement(delta: float) -> void:
+	if move_zone.y <= move_zone.x:
+		return
+	var dir := 0.0
+	if Input.is_key_pressed(KEY_A):
+		dir -= 1.0
+	if Input.is_key_pressed(KEY_D):
+		dir += 1.0
+	if is_zero_approx(dir):
+		return
+	var offset := cannon.position.x
+	var x := clampf(
+		player.position.x + dir * MOVE_SPEED * delta, move_zone.x - offset, move_zone.y - offset
+	)
+	if is_equal_approx(x, player.position.x):
+		return
+	player.position.x = x
+	# Balanço de esteira: um pixel para cima e para baixo enquanto anda.
+	player.get_node("Body").position.y = 6.0 + (1.0 if int(x / 6.0) % 2 == 0 else 0.0)
+	_refresh_math()
+
+
+func _moved_meters() -> float:
+	return Ballistics.to_m(absf(player.position.x - _tank_start_x))
+
+
+# =============================================================================
+#  TELA DE AJUDA E "VER CONTA"
 # =============================================================================
 
 
@@ -387,16 +457,24 @@ func _poll_help_hotkey() -> void:
 	_help_was_pressed = Input.is_key_pressed(KEY_H)
 
 
+func _poll_formula_hotkey() -> void:
+	if Input.is_key_pressed(KEY_F) == false and _formula_was_pressed and not get_tree().paused:
+		hud.formula.toggle()
+		AudioManager.play_sfx(SFX_CLICK)
+		_refresh_math()
+	_formula_was_pressed = Input.is_key_pressed(KEY_F)
+
+
 func _on_help_pressed() -> void:
 	if help_overlay == null or help_overlay.visible:
 		return
-	AudioManager.play_sfx("res://assets/audio/menu_click.ogg")
+	AudioManager.play_sfx(SFX_CLICK)
 	help_overlay.open()
 	get_tree().paused = true
 
 
 func _on_help_closed() -> void:
-	AudioManager.play_sfx("res://assets/audio/menu_back.ogg")
+	AudioManager.play_sfx(SFX_BACK)
 	# Deferido de propósito: despausar agora faria o _process rodar ainda neste frame,
 	# lendo o mesmo estado de teclado — e polling não é bloqueado por
 	# set_input_as_handled(). Sem isto, fechar com Esc podia disparar o canhão.
@@ -404,10 +482,12 @@ func _on_help_closed() -> void:
 
 
 # =============================================================================
-#  LINHA DE MIRA
+#  A PARÁBOLA VISÍVEL (mira, painel, régua)
 # =============================================================================
-## Desvio máximo para cada lado, em radianos. Fonte única: o disparo real e o "± N m"
-## exibido na HUD saem daqui, então o número mostrado é o erro que de fato acontece.
+
+
+## Desvio máximo para cada lado, em radianos. Fonte única: o disparo real e a faixa
+## desenhada na régua saem daqui, então o que a tela mostra é o erro que de fato acontece.
 func _current_spread() -> float:
 	var ammo = _get_current_ammo()
 	var armor_ratio: float = Global.player_armor / Global.max_player_armor
@@ -415,16 +495,78 @@ func _current_spread() -> float:
 	return (1.0 - ammo.precision) * IMPRECISION_FACTOR + armor_penalty
 
 
-func _update_aim_line() -> void:
-	if aim_preview == null:
-		return
-	var ammo = _get_current_ammo()
-	aim_preview.update_preview(
-		cannon.to_global(BARREL_TIP),
-		cannon.global_rotation,
-		ammo.impulse * current_power,
-		gravity_override
+func _angle_deg() -> float:
+	# Em Godot 2D o Y cresce para baixo: rotation negativa é o cano para cima.
+	return -rad_to_deg(cannon.rotation)
+
+
+func _speed_px() -> float:
+	return _get_current_ammo().impulse * current_power
+
+
+func _shot_for(angle_deg: float, speed_px: float, gravity_px: float) -> Dictionary:
+	return Ballistics.shot(
+		angle_deg,
+		speed_px,
+		gravity_px,
+		cannon.global_position,
+		Campaign.ORIGIN_X,
+		Campaign.GROUND_Y
 	)
+
+
+## Recalcula a equação e empurra para painel, gaveta e curva.
+func _refresh_math() -> void:
+	if hud == null:
+		return
+	var angle := _angle_deg()
+	var speed := _speed_px()
+	var s := _shot_for(angle, speed, gravity_override)
+	var band := Ballistics.landing_band(
+		angle,
+		rad_to_deg(_current_spread()),
+		speed,
+		gravity_override,
+		cannon.global_position,
+		Campaign.ORIGIN_X,
+		Campaign.GROUND_Y
+	)
+	(
+		hud
+		. parabola
+		. set_state(
+			{
+				"angle_deg": angle,
+				"power": current_power,
+				"shot": s,
+				"effects": _gear_effects(s, angle, speed),
+				"planet": Campaign.planet_like(s.g),
+				"vertex_form": move_zone.y > move_zone.x,
+			}
+		)
+	)
+	hud.formula.set_shot(s)
+	trajectory.show_cannon_height = hud.formula.visible
+	trajectory.occluders = [hud.top_panel_rect()]
+	trajectory.update_shot(s, cannon.global_position, band)
+
+
+## Quais coeficientes cada engrenagem mexe AGORA, medido mexendo um pouquinho em
+## cada uma. Com o tanque no zero: ângulo -> a e b; força e gravidade -> só a.
+func _gear_effects(base: Dictionary, angle: float, speed: float) -> Array:
+	var probes := [
+		_shot_for(angle + 0.5, speed, gravity_override),
+		_shot_for(angle, speed * 1.01, gravity_override),
+		_shot_for(angle, speed, gravity_override * 1.01),
+	]
+	var out := []
+	for p in probes:
+		var letters := ""
+		for k in ["a", "b", "c"]:
+			if absf(p[k] - base[k]) > 1e-6 * maxf(1.0, absf(base[k])):
+				letters += k
+		out.append(letters)
+	return out
 
 
 # =============================================================================
@@ -434,34 +576,44 @@ func _fire_projectile() -> void:
 	var ammo = _get_current_ammo()
 
 	if ammo_counts[current_ammo_index] <= 0:
+		AudioManager.play_sfx(SFX_ERROR)
+		hud.show_toast("Sem munição! Tab troca o tipo.", UiTokens.DANGER)
 		return
 
-	AudioManager.play_sfx("res://assets/audio/cannon_fire.ogg")
+	AudioManager.play_sfx(SFX_FIRE)
 	ammo_counts[current_ammo_index] -= 1
 	Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
 	_update_hud()
+	goals.on_fire(_angle_deg())
+	_refresh_goals()
 
-	# Criar o projétil usando o Script carregado
 	var projectile = ProjectileScript.new()
+	# A bala nasce no munhão: é a origem da equação y = ax² + bx + c que o painel mostra.
+	# O cano é desenhado por cima, então ela aparece saindo da boca.
+	projectile.position = cannon.global_position
 
-	projectile.position = cannon.to_global(BARREL_TIP)
-
-	# Mesmo _current_spread() que alimenta o "± N m" da HUD: o erro possível do tiro é o
-	# erro que o jogador leu na tela antes de atirar.
+	# Mesmo _current_spread() que desenha a faixa na régua: o erro possível do tiro é
+	# o erro que o jogador viu na tela antes de atirar.
 	var angle_deviation = randf_range(-1.0, 1.0) * _current_spread()
 	var fire_direction = Vector2.RIGHT.rotated(cannon.global_rotation + angle_deviation)
 
 	# Configurar o projétil com dados do Resource
-	projectile.velocity = fire_direction * (ammo.impulse * current_power)
+	projectile.velocity = fire_direction * _speed_px()
 	projectile.gravity = gravity_override
 	projectile.bullet_color = ammo.color
 	projectile.damage = ammo.damage
 	projectile.enemy_nodes = active_enemies.duplicate()
 	projectile.obstacle_polygons = _obstacle_polygons_cache
 	projectile.is_enemy_projectile = false
+	# O que os desafios precisam saber quando esta bala acertar algo.
+	projectile.set_meta("angle", _angle_deg())
+	projectile.set_meta("power", current_power)
+	projectile.set_meta("moved", _moved_meters())
+	projectile.set_meta("shot", _shot_for(_angle_deg(), _speed_px(), gravity_override))
 
-	# Adicionar à cena
 	add_child(projectile)
+	ArenaFx.spawn(self, cannon.to_global(BARREL_TIP), ArenaFx.Kind.MUZZLE, fire_direction)
+	_kick(2.0)
 
 
 # =============================================================================
@@ -474,6 +626,9 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 	if not enemy or not is_instance_valid(enemy):
 		return
 
+	_report_hit_to_goals(enemy)
+	ArenaFx.spawn(self, enemy.global_position, ArenaFx.Kind.SPARK)
+
 	# Verificar se o inimigo tem o método take_damage (aviões com script)
 	if enemy.has_method("take_damage"):
 		enemy.take_damage(dmg)
@@ -482,22 +637,49 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 		var current_hp = enemy.get_meta("hp", 0)
 		current_hp -= 1
 		enemy.set_meta("hp", current_hp)
-		_flash_enemy(enemy)
+		ArenaFx.flash_sprite(enemy.get_node_or_null("Body"))
+		_kick(5.0)
+		ArenaFx.float_text(self, enemy.global_position + Vector2(0, -70), "−1", UiTokens.DANGER)
 		if current_hp <= 0:
 			on_enemy_destroyed(enemy)
 			enemy.queue_free()
+
+
+## A bala que acertou ainda existe neste instante (o projétil só se libera depois de
+## chamar a arena): a mais perto do alvo é ela.
+func _report_hit_to_goals(enemy: Node2D) -> void:
+	var best: Node = null
+	var best_d := INF
+	for child in get_children():
+		if child.get_script() == ProjectileScript and child.has_meta("shot"):
+			var d: float = child.position.distance_to(enemy.global_position)
+			if d < best_d:
+				best_d = d
+				best = child
+	if best == null:
+		return
+	if enemy.has_meta("is_boss"):
+		goals.on_boss_hit(best.get_meta("angle"), best.get_meta("power"), best.get_meta("moved"))
+		return
+	var s: Dictionary = best.get_meta("shot")
+	if Ballistics.has_arc(s):
+		var v := Ballistics.vertex(s)
+		var vp := Ballistics.point_px(s, v.x)
+		goals.on_plane_hit(Ballistics.to_m(vp.distance_to(best.position)))
 
 
 # --- Projétil inimigo acertou o jogador ---
 func on_player_hit(dmg: int) -> void:
 	Global.player_armor -= dmg
 	Global.player_armor = max(Global.player_armor, 0.0)
+	goals.on_damage()
 	_update_armor_hud()
-	# A armadura entra em _current_spread(): levar dano aumenta o "± N m" na hora, em vez
-	# de piorar a mira em silêncio como acontecia antes.
-	_refresh_parabola_hud()
-	_update_aim_line()
-	_flash_player()
+	# A armadura entra em _current_spread(): levar dano alarga a faixa de queda na hora.
+	_refresh_math()
+	ArenaFx.flash_sprite(player.get_node_or_null("Body"))
+	_kick(8.0)
+	ArenaFx.spawn(self, player.global_position, ArenaFx.Kind.EXPLOSION)
+	ArenaFx.float_text(self, player.global_position + Vector2(0, -60), "−%d" % dmg, UiTokens.DANGER)
 
 	# Verificar game over
 	if Global.player_armor <= 0:
@@ -506,21 +688,45 @@ func on_player_hit(dmg: int) -> void:
 
 # --- Inimigo foi destruído (chamado pelo airplane_enemy.gd ou internamente) ---
 func on_enemy_destroyed(enemy: Node2D) -> void:
-	if enemy.name == "Boss":
-		Global.money += 150
-	else:
-		Global.money += 25
+	var reward := 150 if enemy.name == "Boss" else 25
+	Global.money += reward
+	ArenaFx.spawn(self, enemy.global_position, ArenaFx.Kind.EXPLOSION)
+	ArenaFx.float_text(
+		self, enemy.global_position + Vector2(0, -30), "+%d ouro" % reward, UiTokens.GOLD
+	)
 
 	active_enemies.erase(enemy)
 	# Limpar referências inválidas
 	var still_alive: Array = []
 	for e in active_enemies:
-		if e and is_instance_valid(e):
+		if e and is_instance_valid(e) and e != enemy:
 			still_alive.append(e)
 	active_enemies = still_alive
 
 	if active_enemies.size() == 0:
 		_on_stage_cleared()
+
+
+## Projétil que some sem acertar ninguém bateu no chão ou numa montanha: poeira.
+## Feito aqui, observando, para não mexer na física de projectile.gd.
+func _track_projectiles() -> void:
+	var alive := {}
+	for child in get_children():
+		if child.get_script() == ProjectileScript and not child.is_queued_for_deletion():
+			alive[child.get_instance_id()] = child.position
+	for id in _tracked:
+		if not alive.has(id):
+			var p: Vector2 = _tracked[id]
+			if p.y > Campaign.GROUND_Y - 6.0 or _inside_mountain(p):
+				ArenaFx.spawn(self, p, ArenaFx.Kind.DUST)
+	_tracked = alive
+
+
+func _inside_mountain(p: Vector2) -> bool:
+	for poly in _mountain_polygons():
+		if Geometry2D.is_point_in_polygon(p + Vector2(0, 6), poly):
+			return true
+	return false
 
 
 # =============================================================================
@@ -530,35 +736,57 @@ func on_enemy_destroyed(enemy: Node2D) -> void:
 
 # --- Fase limpa — todos os inimigos mortos ---
 func _on_stage_cleared() -> void:
+	if stage_cleared:
+		return
 	stage_cleared = true
 	# Recompensar o jogador
 	Global.money += 250
+	goals.finish()
+	var stars := goals.stars()
+	Global.record_stars(Global.current_base_id, Global.current_stage, stars)
+	# Deixa a explosão do último inimigo acontecer antes da tela de resultado.
+	await get_tree().create_timer(1.0).timeout
+	result.show_result(
+		stars, goals.goals, goals.states, Global.money - _money_at_start, Global.current_stage >= 2
+	)
 
-	# Mostrar botão de próxima fase
-	if Global.current_stage >= 2:
-		hud.show_next_stage("Vitória!")
-	else:
-		hud.show_next_stage("Próxima Fase")
 
-
-# --- Botão "Próxima Fase" pressionado ---
+# --- "Próxima fase" na tela de resultado ---
 func _on_next_stage() -> void:
 	if Global.current_stage < 2:
 		# Avançar para a próxima fase
 		Global.current_stage += 1
-		Global.update_base_cleared(Global.current_base_id, Global.current_stage)
-		# Recarregar a cena da arena
+		_save_progress(Global.current_stage)
+		get_tree().paused = false
 		get_tree().reload_current_scene()
 	else:
-		# Fase final concluída — base totalmente limpa
-		Global.update_base_cleared(Global.current_base_id, 3)
-		get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+		_finish_base()
 
 
-# --- Botão "Voltar ao Mapa" pressionado ---
+## Base inteira concluída: registra e volta ao mapa.
+func _finish_base() -> void:
+	_save_progress(3)
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
+
+
+## Progresso só cresce: rejogar uma fase antiga (para ganhar mais estrelas) não pode
+## apagar as fases já vencidas depois dela.
+func _save_progress(stages_done: int) -> void:
+	var data: Dictionary = Global.get_base_data(Global.current_base_id)
+	var before: int = data.get("stages_cleared", 0)
+	Global.update_base_cleared(Global.current_base_id, maxi(before, stages_done))
+
+
+# --- "Voltar ao Mapa" (pausa ou tela de resultado) ---
 func _on_return_to_map() -> void:
-	# Salvar progresso atual e voltar ao mapa
-	Global.update_base_cleared(Global.current_base_id, Global.current_stage)
+	# Vencer e voltar pelo resultado conta a fase como feita; abandonar pela pausa não.
+	var done := Global.current_stage + (1 if stage_cleared else 0)
+	if done >= 3:
+		_finish_base()
+		return
+	_save_progress(done)
+	get_tree().paused = false
 	get_tree().change_scene_to_file("res://scenes/war_map/war_map.tscn")
 
 
@@ -567,34 +795,17 @@ func _on_return_to_map() -> void:
 # =============================================================================
 
 
-# --- Flash branco no inimigo (para bosses sem script) ---
-func _flash_enemy(enemy: Node2D) -> void:
-	var body = enemy.get_node_or_null("Body")
-	if body and body is Sprite2D:
-		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
-
-		# Espera 0.15 segundos
-		await get_tree().create_timer(0.15).timeout
-
-		# Só devolve a cor se o boss ainda existir
-		if is_instance_valid(body):
-			body.modulate = Color(1.0, 1.0, 1.0, 1.0)
+## Tremida de câmera, em pixels. Curta e pequena: só a sensação do impacto.
+func _kick(amount: float) -> void:
+	_shake = maxf(_shake, amount)
 
 
-# --- Flash branco no jogador ao ser atingido ---
-func _flash_player() -> void:
-	var body = player.get_node_or_null("Body")
-	# Mudamos a checagem de ColorRect para Sprite2D
-	if body and body is Sprite2D:
-		# Modulate faz a imagem ficar branca
-		body.modulate = Color(3.0, 3.0, 3.0, 1.0)
-		var timer = get_tree().create_timer(0.15)
-		var body_ref = body
-		timer.timeout.connect(
-			func():
-				if is_instance_valid(body_ref):
-					body_ref.modulate = Color(1.0, 1.0, 1.0, 1.0)  # Restaura a cor
-		)
+func _update_shake(delta: float) -> void:
+	if _shake <= 0.05:
+		camera.offset = Vector2.ZERO
+		return
+	camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake
+	_shake = move_toward(_shake, 0.0, 30.0 * delta)
 
 
 # =============================================================================
@@ -602,16 +813,26 @@ func _flash_player() -> void:
 # =============================================================================
 
 
-## A HUD, a ajuda e a pausa sao tres CanvasLayer irmaos. A ajuda fica acima da
-## pausa porque e ela que pode ser aberta com a pausa ja no ar (pelo botao "?").
+## A HUD, a ajuda, a pausa e os cartões de fase são CanvasLayer irmãos. A ajuda fica
+## acima da pausa porque é ela que pode ser aberta com a pausa já no ar (pelo "?").
 func _build_hud() -> void:
 	hud = ArenaHudScript.new()
 	add_child(hud)
 	hud.parabola.gear_grabbed.connect(_on_gear_grabbed)
 	hud.parabola.gear_dragged.connect(_on_gear_dragged)
+	hud.parabola.formula_toggled.connect(func(): _refresh_math.call_deferred())
 	hud.help_pressed.connect(_on_help_pressed)
-	hud.next_stage_pressed.connect(_on_next_stage)
 	hud.pause_pressed.connect(_on_pause_pressed)
+	hud.goals_pressed.connect(_on_goals_pressed)
+	hud.set_move_hint(move_zone.y > move_zone.x)
+	# A cor do que é calculado depende do céu: laranja na Terra, azul nos outros.
+	var aim: Color = world_theme.aim
+	hud.parabola.set_accent(aim)
+	hud.formula.set_accent(aim)
+	trajectory.aim = aim
+	# Modo Professor: a conta já começa aberta, para mostrar à turma.
+	if Global.teacher_mode:
+		hud.formula.visible = true
 
 	help_overlay = HelpOverlayScript.new()
 	add_child(help_overlay)
@@ -624,16 +845,59 @@ func _build_hud() -> void:
 	pause_menu.restart_requested.connect(_on_restart_stage)
 	pause_menu.return_to_map_requested.connect(_on_return_to_map)
 
+	briefing = StageBriefing.new()
+	add_child(briefing)
+	briefing.layer = 11
+
+	result = StageResult.new()
+	add_child(result)
+	result.layer = 11
+	result.next_requested.connect(_on_next_stage)
+	result.map_requested.connect(_on_return_to_map)
+
+
+## Botão de estrela: reabre o cartão de missão, agora com o progresso de cada desafio.
+func _on_goals_pressed() -> void:
+	if stage_cleared or briefing.visible or result.visible or help_overlay.visible:
+		return
+	var progress := []
+	for i in range(goals.goals.size()):
+		progress.append(goals.progress_text(i))
+	briefing.show_stage(
+		Global.get_base_data(Global.current_base_id).get("name", ""),
+		Campaign.base(Global.current_base_id).chapter,
+		Global.current_stage + 1,
+		stage_data,
+		goals.states,
+		progress
+	)
+
+
+## Desafio mudou de estado no meio da luta: avisa na tela e faz a estrela pular.
+func _on_goals_changed() -> void:
+	if not stage_cleared:
+		for i in range(goals.states.size()):
+			if i < _prev_goal_states.size() and goals.states[i] != _prev_goal_states[i]:
+				var text := Campaign.goal_text(goals.goals[i])
+				if goals.states[i] == StageGoals.State.DONE:
+					hud.show_toast("Desafio cumprido: " + text, UiTokens.EDITABLE)
+				else:
+					hud.show_toast("Desafio perdido: " + text, UiTokens.TEXT_DIM)
+				hud.pulse_goals()
+	_prev_goal_states = goals.states.duplicate()
+	_refresh_goals()
+
 
 func _on_pause_pressed() -> void:
 	if help_overlay and help_overlay.visible:
+		return
+	if briefing.visible or result.visible:
 		return
 	pause_menu.open()
 
 
 ## Esc chega aqui so quando nenhum modal esta aberto: a ajuda e a pausa tratam a
 ## acao em _input e chamam set_input_as_handled(), que roda antes do unhandled.
-## Sem isso os dois disputariam a mesma tecla.
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		get_viewport().set_input_as_handled()
@@ -649,44 +913,42 @@ func _update_hud() -> void:
 	hud.set_ammo(ammo_counts[current_ammo_index], ammo.color, ammo.ammo_name)
 
 
-## A elevação é -rad_to_deg porque em Godot 2D o Y cresce para baixo: rotation negativa
-## é o cano apontado para cima, que para o jogador é ângulo positivo.
-func _refresh_parabola_hud() -> void:
-	if hud == null:
-		return
-	var ammo = _get_current_ammo()
-	hud.parabola.set_state(
-		-rad_to_deg(cannon.rotation),
-		ammo.impulse * current_power,
-		gravity_override,
-		current_power,
-		_current_spread()
-	)
-
-
 func _update_armor_hud() -> void:
 	hud.set_armor(Global.player_armor, Global.max_player_armor)
 
 
-## Usa o nome de exibicao da base ("Base Alpha"), nao o id ("Base_A"): concatenar
-## "Base " ao id rendia "Base Base_A" na tela.
+## Usa o nome de exibicao da base ("Base Alpha"), nao o id ("Base_A").
 func _update_stage_label() -> void:
 	var data: Dictionary = Global.get_base_data(Global.current_base_id)
 	var base_name: String = data.get("name", "Base desconhecida")
 	var total_stages: int = data.get("total_stages", 3)
-	hud.set_stage(base_name, Global.current_stage + 1, total_stages)
+	hud.set_stage(
+		base_name,
+		Campaign.base(Global.current_base_id).chapter,
+		Global.current_stage + 1,
+		total_stages,
+		stage_data.get("title", "")
+	)
+
+
+func _refresh_goals() -> void:
+	if hud == null:
+		return
+	var progress := []
+	for i in range(goals.goals.size()):
+		progress.append(goals.progress_text(i))
+	hud.set_goals(goals.goals, goals.states, progress)
 
 
 # =============================================================================
-#  CALLBACKS DOS BOTÕES DA HUD (mantidos do original)
+#  CALLBACKS DOS BOTÕES DA HUD
 # =============================================================================
 
 
 func _on_switch_ammo() -> void:
 	current_ammo_index = (current_ammo_index + 1) % ammo_types.size()
-	# gravity e um stat de AmmoData: cada bala cai do seu jeito, entao o ajuste nao carrega.
-	gravity_override = _get_current_ammo().gravity
+	gravity_override = _stage_gravity()
 	_update_hud()
-	_refresh_parabola_hud()
 	hud.parabola.flash_gravity()
-	_update_aim_line()
+	_refresh_math()
+	AudioManager.play_sfx(SFX_HOVER)

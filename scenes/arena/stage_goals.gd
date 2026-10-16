@@ -1,0 +1,126 @@
+class_name StageGoals
+extends RefCounted
+## Acompanha os desafios das estrelas de uma fase, a partir de eventos que a
+## arena informa (tiro, acerto, dano, movimento, engrenagem girada).
+##
+## A primeira estrela e sempre vencer; as outras duas vem de Campaign. Cada
+## desafio tem um estado ao vivo, para a HUD mostrar o progresso durante a luta
+## em vez de so revelar no fim:
+##   PENDING -- ainda da para cumprir
+##   DONE    -- cumprido
+##   FAILED  -- perdido nesta tentativa (ex.: passou do limite de tiros)
+
+enum State { PENDING, DONE, FAILED }
+
+signal changed
+
+var goals: Array = []
+var states: Array = []
+var shots := 0
+
+var _first_angle := NAN
+var _low_twin := false
+var _high_twin := false
+
+
+func setup(goal_list: Array) -> void:
+	goals = goal_list.duplicate(true)
+	states.clear()
+	for g in goals:
+		states.append(State.PENDING)
+
+
+func on_fire(angle_deg: float) -> void:
+	shots += 1
+	if is_nan(_first_angle):
+		_first_angle = angle_deg
+	for i in range(goals.size()):
+		var g: Dictionary = goals[i]
+		match g.type:
+			"max_shots":
+				if shots > int(g.value):
+					_mark(i, State.FAILED)
+			"same_angle":
+				if absf(angle_deg - _first_angle) > 0.75:
+					_mark(i, State.FAILED)
+
+
+func on_boss_hit(angle_deg: float, power: float, moved_m: float) -> void:
+	for i in range(goals.size()):
+		var g: Dictionary = goals[i]
+		match g.type:
+			"angle_hit":
+				if angle_deg >= g.min and angle_deg <= g.max:
+					_mark(i, State.DONE)
+			"power_hit":
+				if power <= g.max + 0.005:
+					_mark(i, State.DONE)
+			"move_hit":
+				if moved_m >= g.value:
+					_mark(i, State.DONE)
+			"twin_angles":
+				if angle_deg < 45.0:
+					_low_twin = true
+				elif angle_deg > 45.0:
+					_high_twin = true
+				if _low_twin and _high_twin:
+					_mark(i, State.DONE)
+
+
+## `dist_m` = distancia entre o ponto do acerto e o vertice daquele tiro.
+func on_plane_hit(dist_m: float) -> void:
+	for i in range(goals.size()):
+		var g: Dictionary = goals[i]
+		if g.type == "vertex_hit" and dist_m <= g.value:
+			_mark(i, State.DONE)
+
+
+func on_damage() -> void:
+	_fail_type("no_damage")
+
+
+func on_gravity_touched() -> void:
+	_fail_type("keep_gravity")
+
+
+## No fim da fase, o que so dependia de "nao errar" vira cumprido.
+func finish() -> void:
+	for i in range(goals.size()):
+		if states[i] != State.PENDING:
+			continue
+		match goals[i].type:
+			"max_shots", "no_damage", "keep_gravity", "same_angle":
+				states[i] = State.DONE
+			_:
+				states[i] = State.FAILED
+	changed.emit()
+
+
+## Estrelas ganhas: 1 por vencer + 1 por desafio cumprido.
+func stars() -> int:
+	var n := 1
+	for s in states:
+		if s == State.DONE:
+			n += 1
+	return n
+
+
+## Texto do contador ao lado de "Vença com até N tiros".
+func progress_text(i: int) -> String:
+	var g: Dictionary = goals[i]
+	if g.type == "max_shots":
+		return "%d/%d" % [shots, int(g.value)]
+	return ""
+
+
+func _fail_type(type_name: String) -> void:
+	for i in range(goals.size()):
+		if goals[i].type == type_name:
+			_mark(i, State.FAILED)
+
+
+func _mark(i: int, state: int) -> void:
+	if states[i] == state or states[i] == State.DONE:
+		return
+	states[i] = state
+	changed.emit()

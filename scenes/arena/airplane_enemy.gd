@@ -131,7 +131,7 @@ func _shoot_at_player() -> void:
 	projectile.position = global_position
 	projectile.velocity = Vector2(vx, vy)
 	projectile.gravity = projectile_gravity
-	projectile.bullet_color = Color(1.0, 0.3, 0.1, 1.0)
+	projectile.bullet_color = UiTokens.ENEMY_SHOT
 	projectile.damage = 8
 	projectile.is_enemy_projectile = true
 	projectile.player_node = player_ref
@@ -156,11 +156,11 @@ func take_damage(amount: int) -> void:
 # --- Efeito de flash branco ao ser atingido ---
 func _flash_white() -> void:
 	if sprite:
-		sprite.modulate = Color(3.0, 3.0, 3.0, 1.0)
+		sprite.modulate = UiTokens.HIT_FLASH
 
 		# Espera 0.15 segundos na mesma linha
 		await get_tree().create_timer(0.15).timeout
 
 		# Só devolve a cor se o sprite ainda existir (se ele não morreu)
 		if is_instance_valid(sprite):
-			sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)
+			sprite.modulate = UiTokens.NO_TINT

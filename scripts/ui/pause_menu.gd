@@ -22,6 +22,9 @@ var _audio_box: VBoxContainer
 var _confirm_box: VBoxContainer
 var _confirm_label: Label
 var _page: int = Page.ROOT
+## Primeiro botao de cada pagina, que recebe o foco ao abrir a pagina: com o
+## jogo pausado as setas podem navegar o menu sem roubar nada da arena.
+var _first: Dictionary = {}
 ## Qual sinal a confirmacao dispara quando o jogador confirma.
 var _pending: Callable = Callable()
 
@@ -51,23 +54,24 @@ func _make_page() -> VBoxContainer:
 
 
 func _build_root() -> void:
-	var resume := UiButton.create("CONTINUAR", UiButton.Kind.PRIMARY)
+	var resume := UiButton.create("CONTINUAR", UiButton.Kind.PRIMARY, null, true)
 	resume.pressed.connect(close)
+	_first[Page.ROOT] = resume
 	_root_box.add_child(resume)
 
-	var audio := UiButton.create("CONFIGURAÇÕES DE ÁUDIO")
+	var audio := UiButton.create("CONFIGURAÇÕES DE ÁUDIO", UiButton.Kind.SECONDARY, null, true)
 	audio.pressed.connect(_show_page.bind(Page.AUDIO))
 	_root_box.add_child(audio)
 
-	var restart := UiButton.create("REINICIAR BATALHA")
+	var restart := UiButton.create("REINICIAR BATALHA", UiButton.Kind.SECONDARY, null, true)
 	restart.pressed.connect(
 		_ask.bind("Reiniciar a batalha do zero?\nO progresso desta fase se perde.", _do_restart)
 	)
 	_root_box.add_child(restart)
 
-	var leave := UiButton.create("VOLTAR AO MAPA DE GUERRA")
+	var leave := UiButton.create("VOLTAR AO MAPA DE GUERRA", UiButton.Kind.SECONDARY, null, true)
 	leave.pressed.connect(
-		_ask.bind("Abandonar o combate?\nA fase atual nao sera concluida.", _do_return_to_map)
+		_ask.bind("Abandonar o combate?\nA fase atual não será concluída.", _do_return_to_map)
 	)
 	_root_box.add_child(leave)
 
@@ -75,8 +79,9 @@ func _build_root() -> void:
 func _build_audio() -> void:
 	_audio_box.add_child(AudioSettingsScript.new())
 
-	var back := UiButton.create("VOLTAR")
+	var back := UiButton.create("VOLTAR", UiButton.Kind.SECONDARY, null, true)
 	back.pressed.connect(_show_page.bind(Page.ROOT))
+	_first[Page.AUDIO] = back
 	_audio_box.add_child(back)
 
 
@@ -87,20 +92,22 @@ func _build_confirm() -> void:
 	_confirm_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_confirm_box.add_child(_confirm_label)
 
-	var yes := UiButton.create("CONFIRMAR", UiButton.Kind.DANGER)
+	var yes := UiButton.create("CONFIRMAR", UiButton.Kind.DANGER, null, true)
 	yes.pressed.connect(_confirm)
 	_confirm_box.add_child(yes)
 
-	var no := UiButton.create("CANCELAR")
+	var no := UiButton.create("CANCELAR", UiButton.Kind.SECONDARY, null, true)
 	no.pressed.connect(_show_page.bind(Page.ROOT))
+	# Foco no "nao": Enter por engano nao apaga a batalha.
+	_first[Page.CONFIRM] = no
 	_confirm_box.add_child(no)
 
 
 func open() -> void:
 	# Reabrir sempre na raiz: voltar direto para a confirmacao de uma acao que o
 	# jogador ja desistiu de fazer seria uma armadilha.
-	_show_page(Page.ROOT)
 	super()
+	_show_page(Page.ROOT)
 
 
 func _show_page(page: int) -> void:
@@ -108,6 +115,9 @@ func _show_page(page: int) -> void:
 	_root_box.visible = page == Page.ROOT
 	_audio_box.visible = page == Page.AUDIO
 	_confirm_box.visible = page == Page.CONFIRM
+
+	if _first.has(page) and visible:
+		_first[page].grab_focus.call_deferred()
 
 	match page:
 		Page.AUDIO:

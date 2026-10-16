@@ -65,8 +65,7 @@ func _build_shell() -> void:
 	window.add_child(column)
 
 	title_label = Label.new()
-	title_label.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
-	title_label.add_theme_color_override("font_color", UiTokens.AMBER)
+	title_label.theme_type_variation = &"TitleLabel"
 	column.add_child(title_label)
 
 	body = VBoxContainer.new()
