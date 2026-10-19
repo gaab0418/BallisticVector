@@ -24,17 +24,16 @@ func _draw():
 	var by = cy - bullet_h / 2.0
 
 	# Corpo da cápsula (latão/bronze)
-	var brass = Color(0.8, 0.55, 0.2)
-	var shadow = Color(0.5, 0.3, 0.1)
+	var brass = UiTokens.BRASS
+	var shadow = UiTokens.BRASS_DARK
+	var groove = UiTokens.EARTH_DARK
 	draw_rect(Rect2(bx, by + bullet_h * 0.4, bullet_w, bullet_h * 0.5), brass)
 	draw_rect(
 		Rect2(bx + bullet_w * 0.7, by + bullet_h * 0.4, bullet_w * 0.3, bullet_h * 0.5), shadow
 	)
 
 	# Base da cápsula
-	draw_rect(
-		Rect2(bx - 2, by + bullet_h * 0.9, bullet_w + 4, bullet_h * 0.1), Color(0.6, 0.4, 0.15)
-	)
+	draw_rect(Rect2(bx - 2, by + bullet_h * 0.9, bullet_w + 4, bullet_h * 0.1), shadow)
 
 	# Ponta da bala (usando a cor da munição)
 	var tip_pts = PackedVector2Array(
@@ -58,14 +57,8 @@ func _draw():
 
 	# Detalhes Steampunk (linhas transversais)
 	draw_line(
-		Vector2(bx, by + bullet_h * 0.6),
-		Vector2(bx + bullet_w, by + bullet_h * 0.6),
-		Color(0.4, 0.2, 0.1),
-		2.0
+		Vector2(bx, by + bullet_h * 0.6), Vector2(bx + bullet_w, by + bullet_h * 0.6), groove, 2.0
 	)
 	draw_line(
-		Vector2(bx, by + bullet_h * 0.8),
-		Vector2(bx + bullet_w, by + bullet_h * 0.8),
-		Color(0.4, 0.2, 0.1),
-		2.0
+		Vector2(bx, by + bullet_h * 0.8), Vector2(bx + bullet_w, by + bullet_h * 0.8), groove, 2.0
 	)

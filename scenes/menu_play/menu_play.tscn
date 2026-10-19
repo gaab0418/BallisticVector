@@ -2,7 +2,6 @@
 
 [ext_resource type="Script" uid="uid://ccff5017tu4dk" path="res://scenes/menu_play/menu_play.gd" id="1_g30x5"]
 [ext_resource type="Texture2D" uid="uid://canm6yyhyyshb" path="res://scenes/menu_play/camp.jpg" id="2_epqfj"]
-[ext_resource type="Texture2D" uid="uid://bvnsxkhmyb7i0" path="res://assets/sprites/tank_player.png" id="3_8nf0x"]
 
 [node name="Menu_Play" type="Control" unique_id=2020129187]
 layout_mode = 3
@@ -18,6 +17,3 @@ layout_mode = 0
 offset_right = 40.0
 offset_bottom = 40.0
 texture = ExtResource("2_epqfj")
-
-[node name="Tank" type="Sprite2D" parent="." unique_id=651141945]
-texture = ExtResource("3_8nf0x")
