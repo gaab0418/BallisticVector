@@ -137,7 +137,11 @@ func _show_badges(on: bool) -> void:
 	_badges.visible = on
 	for c in _page_nav:
 		c.visible = not on
-	_badge_btn.text = "Páginas" if on else "Selos (%d/%d)" % [Global.achievements.size(), Achievements.LIST.size()]
+	_badge_btn.text = (
+		"Páginas"
+		if on
+		else "Selos (%d/%d)" % [Global.achievements.size(), Achievements.LIST.size()]
+	)
 	if not on:
 		return
 	for child in _badges.get_children():
@@ -145,13 +149,19 @@ func _show_badges(on: bool) -> void:
 	for a in Achievements.LIST:
 		var got := Global.achievements.has(a.id)
 		var card := PanelContainer.new()
-		card.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.PAPER if got else UiPanel.Kind.CARD))
+		card.add_theme_stylebox_override(
+			"panel", UiPanel.create(UiPanel.Kind.PAPER if got else UiPanel.Kind.CARD)
+		)
 		card.custom_minimum_size = Vector2(224, 96)
 		_badges.add_child(card)
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		card.add_child(row)
-		var icon := UiIcon.make(a.icon if got else "lock", UiTokens.EDITABLE_ON_PAPER if got else UiTokens.TEXT_DISABLED, 32.0)
+		var icon := UiIcon.make(
+			a.icon if got else "lock",
+			UiTokens.EDITABLE_ON_PAPER if got else UiTokens.TEXT_DISABLED,
+			32.0
+		)
 		icon.outlined = not got
 		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(icon)
@@ -235,7 +245,9 @@ func _show_page() -> void:
 	_formula_box.visible = unlocked
 	var is_new := unlocked and not Global.notebook_seen.has(Notebook.page_id(page))
 	_new_tag.visible = is_new
-	_text.add_theme_font_size_override("font_size", UiTokens.FONT_LG if Global.big_text else UiTokens.FONT_MD)
+	_text.add_theme_font_size_override(
+		"font_size", UiTokens.FONT_LG if Global.big_text else UiTokens.FONT_MD
+	)
 	if unlocked:
 		_title.text = page.title
 		_text.text = page.text
@@ -249,5 +261,8 @@ func _show_page() -> void:
 				Global.unlock_achievement("reader")
 	else:
 		_title.text = "Página trancada"
-		_text.text = "Vença a fase %d da %s para abrir esta página do meu caderno." % [page.stage + 1, base_name]
+		_text.text = (
+			"Vença a fase %d da %s para abrir esta página do meu caderno."
+			% [page.stage + 1, base_name]
+		)
 		_ada.expression = "thinking"

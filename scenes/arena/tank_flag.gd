@@ -30,7 +30,15 @@ func _draw() -> void:
 		var x := top.x + i * w / cols
 		var wave := sin(_t * 6.0 - i * 0.9) * 1.6 * (float(i) / cols)
 		draw_rect(Rect2(Vector2(x, top.y + wave), Vector2(w / cols + 0.5, h)), cloth)
-	var outline := PackedVector2Array([top, top + Vector2(w, 0), top + Vector2(w, h), top + Vector2(0, h), top])
+	var outline := PackedVector2Array(
+		[top, top + Vector2(w, 0), top + Vector2(w, h), top + Vector2(0, h), top]
+	)
 	draw_polyline(outline, UiTokens.NIGHT_950, 1.0)
 	var s := 10.0
-	UiIcon.paint(self, icon, Rect2(top + Vector2((w - s) * 0.5, (h - s) * 0.5), Vector2(s, s)), UiTokens.TEXT_HOVER, false)
+	UiIcon.paint(
+		self,
+		icon,
+		Rect2(top + Vector2((w - s) * 0.5, (h - s) * 0.5), Vector2(s, s)),
+		UiTokens.TEXT_HOVER,
+		false
+	)

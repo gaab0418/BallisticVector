@@ -165,7 +165,9 @@ func _next_line() -> void:
 	var line: Dictionary = _lines.pop_front()
 	_text.text = line.text
 	_text.visible_characters = 0
-	_text.add_theme_font_size_override("font_size", UiTokens.FONT_XL if Global.big_text else UiTokens.FONT_LG)
+	_text.add_theme_font_size_override(
+		"font_size", UiTokens.FONT_XL if Global.big_text else UiTokens.FONT_LG
+	)
 	Narrator.speak(line.text)
 	_caption.text = line.get("caption", "")
 	_caption.visible = _caption.text != ""

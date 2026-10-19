@@ -34,7 +34,11 @@ func _point(x_px: float) -> Vector2:
 func _process(delta: float) -> void:
 	_t += delta
 	position = _point(position.x - SPEED * delta)
-	if player_ref and is_instance_valid(player_ref) and position.x < player_ref.global_position.x + 60.0:
+	if (
+		player_ref
+		and is_instance_valid(player_ref)
+		and position.x < player_ref.global_position.x + 60.0
+	):
 		var arena := get_parent()
 		if arena.has_method("on_player_hit"):
 			arena.on_player_hit(DAMAGE)

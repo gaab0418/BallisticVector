@@ -369,7 +369,12 @@ func _draw_route() -> void:
 	while x < RIGHT_EDGE:
 		draw_line(_route_point(x), _route_point(minf(x + 14.0, RIGHT_EDGE)), col, 2.0)
 		x += 24.0
-	var eq := "rota: y = " + Ballistics.term(route.x, 2, "x", true) + " " + Ballistics.term(route.y, 1, "")
+	var eq := (
+		"rota: y = "
+		+ Ballistics.term(route.x, 2, "x", true)
+		+ " "
+		+ Ballistics.term(route.y, 1, "")
+	)
 	# Do lado de onde os drones chegam, longe do tanque e do arco do angulo.
 	var candidates := []
 	for x_px in [880.0, 640.0, 420.0]:
@@ -411,12 +416,18 @@ func _draw_route_crossings() -> void:
 			labeled = true
 			var tip := "drone aqui? atire! (a bala leva %s s)" % Ballistics.fmt(t)
 			_place_label(
-				[fp + Vector2(-60, 34), fp + Vector2(-60, -22)], tip, UiTokens.DRONE_ROUTE, UiTokens.FONT_XS
+				[fp + Vector2(-60, 34), fp + Vector2(-60, -22)],
+				tip,
+				UiTokens.DRONE_ROUTE,
+				UiTokens.FONT_XS
 			)
 	if xs.is_empty():
 		var at := _route_point(640.0) + Vector2(0, 56)
 		_place_label(
-			[at, at + Vector2(0, 28)], "Δ < 0: a curva não encontra a rota", UiTokens.DRONE_ROUTE, UiTokens.FONT_XS
+			[at, at + Vector2(0, 28)],
+			"Δ < 0: a curva não encontra a rota",
+			UiTokens.DRONE_ROUTE,
+			UiTokens.FONT_XS
 		)
 
 
@@ -459,12 +470,24 @@ func _draw_guess() -> void:
 	var ground: float = shot.ground_y_px
 	if is_nan(guess_x):
 		var at := Vector2(pivot.x + 60.0, ground - 40.0)
-		_label(at, "Calcule com a equação e clique no chão onde a bala vai cair!", UiTokens.EDITABLE, UiTokens.FONT_SM)
+		_label(
+			at,
+			"Calcule com a equação e clique no chão onde a bala vai cair!",
+			UiTokens.EDITABLE,
+			UiTokens.FONT_SM
+		)
 		return
 	var x: float = shot.origin_x_px + Ballistics.to_px(guess_x)
-	UiIcon.paint(self, "root", Rect2(Vector2(x - 6, ground - 30), Vector2(28, 28)), UiTokens.EDITABLE)
+	UiIcon.paint(
+		self, "root", Rect2(Vector2(x - 6, ground - 30), Vector2(28, 28)), UiTokens.EDITABLE
+	)
 	draw_line(Vector2(x, ground - 2), Vector2(x, ground + 18), UiTokens.EDITABLE, 3.0)
-	_label(Vector2(x + 18, ground - 34), "seu chute: " + Ballistics.fmt(guess_x) + " m", UiTokens.EDITABLE, UiTokens.FONT_SM)
+	_label(
+		Vector2(x + 18, ground - 34),
+		"seu chute: " + Ballistics.fmt(guess_x) + " m",
+		UiTokens.EDITABLE,
+		UiTokens.FONT_SM
+	)
 
 
 ## Arco do angulo junto ao canhao, em ambar (e o valor que o jogador gira).

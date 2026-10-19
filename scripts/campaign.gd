@@ -272,7 +272,12 @@ const BASES := {
 				"boss_x": 1180.0,
 				"boss_hp": 4,
 				"chief":
-				{"name": "Castelo sobre Rodas", "kind": "moving", "zone": Vector2(1060, 1200), "speed": 22.0},
+				{
+					"name": "Castelo sobre Rodas",
+					"kind": "moving",
+					"zone": Vector2(1060, 1200),
+					"speed": 22.0
+				},
 				"planes": 2,
 				"plane_hp": 2,
 				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
@@ -471,7 +476,11 @@ const BASES := {
 				"boss_x": 1180.0,
 				"boss_hp": 5,
 				"chief":
-				{"name": "Castelo Fujão", "kind": "hopping", "spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]},
+				{
+					"name": "Castelo Fujão",
+					"kind": "hopping",
+					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]
+				},
 				"planes": 4,
 				"plane_hp": 2,
 				"goals":
@@ -754,7 +763,12 @@ const BASES := {
 				"boss_x": 960.0,
 				"boss_hp": 4,
 				"chief":
-				{"name": "Iglu Blindado", "kind": "moving", "zone": Vector2(900.0, 975.0), "speed": 10.0},
+				{
+					"name": "Iglu Blindado",
+					"kind": "moving",
+					"zone": Vector2(900.0, 975.0),
+					"speed": 10.0
+				},
 				"planes": 1,
 				"plane_hp": 1,
 				"goals":

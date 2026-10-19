@@ -131,10 +131,18 @@ func _targets(st: Dictionary) -> Array:
 				xs = [chief.zone.x, chief.zone.y]
 			"hopping":
 				xs = chief.spots
-		var steep: float = chief.get("min_descent", -90.0) if chief.get("kind", "") == "shield" else -90.0
+		var steep: float = (
+			chief.get("min_descent", -90.0) if chief.get("kind", "") == "shield" else -90.0
+		)
 		for x in xs:
 			var bp := Vector2(x, Campaign.GROUND_Y + 4.0 - 86.0)
-			var t := {"name": "castelo em x=%d" % x, "p": bp, "r": BOSS_R, "boss": true, "steep_deg": steep}
+			var t := {
+				"name": "castelo em x=%d" % x,
+				"p": bp,
+				"r": BOSS_R,
+				"boss": true,
+				"steep_deg": steep
+			}
 			out.append(t)
 		if chief.get("kind", "") == "gravity":
 			for g in chief.list:
@@ -146,7 +154,9 @@ func _targets(st: Dictionary) -> Array:
 		var pts := []
 		for x in range(400, 1240, 40):
 			var xm := Ballistics.to_m(x - Campaign.ORIGIN_X)
-			pts.append(Vector2(x, Campaign.GROUND_Y - Ballistics.to_px(st.route.x * xm + st.route.y)))
+			pts.append(
+				Vector2(x, Campaign.GROUND_Y - Ballistics.to_px(st.route.x * xm + st.route.y))
+			)
 		out.append({"name": "drone na rota", "pts": pts, "r": SMALL_R})
 	for b in st.get("balloons", []):
 		var p := Vector2(b.x, Campaign.GROUND_Y - Ballistics.to_px(b.y))
@@ -192,7 +202,9 @@ func _shots(st: Dictionary) -> Array:
 				for p100 in powers:
 					var speed: float = ammo[0] * p100 / 100.0
 					out.append(
-						Ballistics.shot(a10 / 10.0, speed, g, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y)
+						Ballistics.shot(
+							a10 / 10.0, speed, g, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y
+						)
 					)
 			x += 30.0
 	return out

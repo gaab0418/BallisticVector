@@ -113,12 +113,19 @@ func _intro_lines() -> Array:
 		)
 	var chief: Dictionary = st.get("chief", {})
 	if not chief.is_empty():
-		lines.append(
-			{
-				"text": "Cuidado: aqui mora um CHEFE, o %s! %s" % [chief.name, CHIEF_RULES.get(chief.kind, "")],
-				"expr": "surprised",
-				"caption": "CHEFE",
-			}
+		(
+			lines
+			. append(
+				{
+					"text":
+					(
+						"Cuidado: aqui mora um CHEFE, o %s! %s"
+						% [chief.name, CHIEF_RULES.get(chief.kind, "")]
+					),
+					"expr": "surprised",
+					"caption": "CHEFE",
+				}
+			)
 		)
 	lines.append({"text": "Dica: " + st.tip, "expr": "thinking"})
 	var goals := []

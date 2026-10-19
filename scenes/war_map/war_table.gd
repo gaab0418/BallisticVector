@@ -472,11 +472,24 @@ func _draw_island(c: Vector2, radius: float, seed_value: int, biome: String) -> 
 			# Antena de radar e a rota reta dos drones cortando a ilha.
 			var base := c + Vector2(-radius * 0.2, radius * 0.25)
 			_ci.draw_line(base, base + Vector2(0, -radius * 0.45), Color(UiTokens.INK, 0.8), 2.0)
-			_ci.draw_arc(base + Vector2(0, -radius * 0.5), radius * 0.2, PI * 0.9, PI * 1.9, 10, Color(UiTokens.INK, 0.8), 2.0)
+			_ci.draw_arc(
+				base + Vector2(0, -radius * 0.5),
+				radius * 0.2,
+				PI * 0.9,
+				PI * 1.9,
+				10,
+				Color(UiTokens.INK, 0.8),
+				2.0
+			)
 			var a := c + Vector2(-radius * 0.9, radius * 0.1)
 			var b := c + Vector2(radius * 0.9, -radius * 0.45)
 			for i in range(0, 12, 2):
-				_ci.draw_line(a.lerp(b, i / 12.0), a.lerp(b, (i + 1) / 12.0), Color(UiTokens.DANGER_ON_PAPER, 0.7), 2.0)
+				_ci.draw_line(
+					a.lerp(b, i / 12.0),
+					a.lerp(b, (i + 1) / 12.0),
+					Color(UiTokens.DANGER_ON_PAPER, 0.7),
+					2.0
+				)
 		"ice":
 			# Picos nevados e a bala quicando no gelo.
 			for off in [Vector2(-0.5, 0.2), Vector2(0.35, 0.35)]:

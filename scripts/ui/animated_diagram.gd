@@ -49,8 +49,12 @@ func _swing() -> float:
 	return 0.5 - 0.5 * cos(_t * TAU / (PERIOD * 1.5))
 
 
-func _shot(angle: float, speed: float, gravity: float, x_tank_m: float = 0.0, h: float = CANNON_H) -> Dictionary:
-	return Ballistics.shot(angle, speed, gravity, Vector2(Ballistics.to_px(x_tank_m), -Ballistics.to_px(h)), 0.0, 0.0)
+func _shot(
+	angle: float, speed: float, gravity: float, x_tank_m: float = 0.0, h: float = CANNON_H
+) -> Dictionary:
+	return Ballistics.shot(
+		angle, speed, gravity, Vector2(Ballistics.to_px(x_tank_m), -Ballistics.to_px(h)), 0.0, 0.0
+	)
 
 
 func _to_screen(x: float, y: float) -> Vector2:
@@ -105,7 +109,12 @@ func _draw_ground() -> void:
 		var tall := m % 5 == 0
 		draw_line(Vector2(x, _ground), Vector2(x, _ground + (6.0 if tall else 3.0)), _ink, 1.0)
 		if m % 10 == 0:
-			_text(Vector2(x - 4, _ground + 20), str(m) + (" m" if m > 0 else ""), Color(_ink, 0.8), UiTokens.FONT_XS)
+			_text(
+				Vector2(x - 4, _ground + 20),
+				str(m) + (" m" if m > 0 else ""),
+				Color(_ink, 0.8),
+				UiTokens.FONT_XS
+			)
 		m += 1
 
 
@@ -189,7 +198,12 @@ func _draw_angles() -> void:
 		var part := clampf(k - i * 0.5, 0.0, 1.0)
 		if part > 0.0:
 			_curve(s, cols[i], 3.0, Ballistics.root(s) * part)
-			_text(_to_screen(Ballistics.vertex(s).x, Ballistics.vertex(s).y) + Vector2(-10, -10), "%d°" % roundi(list[i]), cols[i], UiTokens.FONT_SM)
+			_text(
+				_to_screen(Ballistics.vertex(s).x, Ballistics.vertex(s).y) + Vector2(-10, -10),
+				"%d°" % roundi(list[i]),
+				cols[i],
+				UiTokens.FONT_SM
+			)
 		if part >= 1.0:
 			_flag(s, cols[i])
 	if k > 1.6:
@@ -234,7 +248,12 @@ func _draw_sweep() -> void:
 	var s := _shot(angle, V, G)
 	_curve(s, _edit, 3.0)
 	_flag(s, _edit)
-	_text(Vector2(_x0, 24), "%d°  →  %s m" % [roundi(angle), Ballistics.fmt(Ballistics.root(s))], _edit, UiTokens.FONT_MD)
+	_text(
+		Vector2(_x0, 24),
+		"%d°  →  %s m" % [roundi(angle), Ballistics.fmt(Ballistics.root(s))],
+		_edit,
+		UiTokens.FONT_MD
+	)
 
 
 func _draw_gravity() -> void:
@@ -279,7 +298,12 @@ func _draw_shift() -> void:
 	var tank := _to_screen(xt, 0)
 	draw_rect(Rect2(tank - Vector2(10, 10), Vector2(20, 10)), UiTokens.OLIVE)
 	_text(Vector2(_x0, 24), "a = %s  (igual!)" % Ballistics.fmt(s.a, 3), _calc, UiTokens.FONT_SM)
-	_text(Vector2(_x0, 46), "b = %s    c = %s" % [Ballistics.fmt(s.b, 2), Ballistics.fmt(s.c, 1)], _edit, UiTokens.FONT_SM)
+	_text(
+		Vector2(_x0, 46),
+		"b = %s    c = %s" % [Ballistics.fmt(s.b, 2), Ballistics.fmt(s.c, 1)],
+		_edit,
+		UiTokens.FONT_SM
+	)
 	if params.get("show_hk", false):
 		var v := Ballistics.vertex(s)
 		_vertex(s, _warm, "(h, k) = (%s ; %s)" % [Ballistics.fmt(v.x), Ballistics.fmt(v.y)])
@@ -329,7 +353,12 @@ func _draw_intercept() -> void:
 	var a := _to_screen(0, n)
 	var b := _to_screen(_span, n + m * _span)
 	draw_dashed_line(a, b, _warm, 2.0, 8.0)
-	_text(a + Vector2(4, -8), "y = %sx + %s" % [Ballistics.fmt(m, 2), Ballistics.fmt(n, 0)], _warm, UiTokens.FONT_SM)
+	_text(
+		a + Vector2(4, -8),
+		"y = %sx + %s" % [Ballistics.fmt(m, 2), Ballistics.fmt(n, 0)],
+		_warm,
+		UiTokens.FONT_SM
+	)
 	var s := _shot(42.0, V, G)
 	var k := minf(_phase() * 1.25, 1.0)
 	var r := Ballistics.root(s)
@@ -385,10 +414,19 @@ func _draw_zone() -> void:
 	var x0 := _to_screen(lo, 0).x
 	var x1 := _to_screen(hi, 0).x
 	draw_rect(Rect2(x0, _ground - 6, x1 - x0, 8), Color(UiTokens.LAND_ZONE.darkened(0.3), 0.7))
-	_text(Vector2(x0 - 6, _ground - 64), "%s < x < %s" % [Ballistics.fmt(lo, 0), Ballistics.fmt(hi, 0)], _ink, UiTokens.FONT_SM)
+	_text(
+		Vector2(x0 - 6, _ground - 64),
+		"%s < x < %s" % [Ballistics.fmt(lo, 0), Ballistics.fmt(hi, 0)],
+		_ink,
+		UiTokens.FONT_SM
+	)
 	var pw := 0.55 + 0.4 * _swing()
 	var s := _shot(45.0, 640.0 * pw, G)
 	var r := Ballistics.root(s)
 	var inside := r >= lo and r <= hi
 	_curve(s, _calc if inside else Color(_ink, 0.45), 3.0)
-	_flag(s, _calc if inside else _warm, ("dentro!" if inside else "fora") + " (%s m)" % Ballistics.fmt(r))
+	_flag(
+		s,
+		_calc if inside else _warm,
+		("dentro!" if inside else "fora") + " (%s m)" % Ballistics.fmt(r)
+	)

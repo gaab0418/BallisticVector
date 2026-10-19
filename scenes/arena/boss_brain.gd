@@ -58,7 +58,10 @@ func blocks(bullet: Node2D) -> String:
 			var descent := rad_to_deg(atan2(v.y, absf(v.x)))
 			var need: float = data.get("min_descent", 35.0)
 			if descent < need:
-				return "o escudo desviou! a bala caiu a %d°, precisa de %d°" % [maxi(0, roundi(descent)), roundi(need)]
+				return (
+					"o escudo desviou! a bala caiu a %d°, precisa de %d°"
+					% [maxi(0, roundi(descent)), roundi(need)]
+				)
 		"guarded":
 			if _guards_alive() > 0:
 				return "escudo ligado! derrube os outros %d inimigos primeiro" % _guards_alive()
@@ -77,7 +80,9 @@ func on_hit() -> void:
 			var host := get_parent() as Node2D
 			var tw := host.create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			tw.tween_property(host, "position:x", float(spots[_spot]), 0.6)
-			arena.hud.show_toast("O castelo fugiu! Ande com o tanque e mire de novo.", UiTokens.EDITABLE)
+			arena.hud.show_toast(
+				"O castelo fugiu! Ande com o tanque e mire de novo.", UiTokens.EDITABLE
+			)
 		"gravity":
 			var list: Array = data.get("list", [])
 			if list.is_empty():
@@ -111,5 +116,14 @@ func _draw() -> void:
 	var size_px := UiTokens.FONT_SM
 	var w := _font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x
 	var at := Vector2(-w * 0.5, -122)
-	draw_string_outline(_font, at, title, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, UiTokens.TEXT_OUTLINE_SIZE + 2, UiTokens.TEXT_OUTLINE)
+	draw_string_outline(
+		_font,
+		at,
+		title,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		size_px,
+		UiTokens.TEXT_OUTLINE_SIZE + 2,
+		UiTokens.TEXT_OUTLINE
+	)
 	draw_string(_font, at, title, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, UiTokens.GOLD)

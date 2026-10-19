@@ -17,12 +17,20 @@ func _ready() -> void:
 	add_theme_constant_override("separation", UiTokens.GAP)
 	for row in ROWS:
 		add_child(_build_row(row["label"], row["bus"]))
-	var speak := _toggle("Narrar as falas da Ada", Global.narration, func(on: bool): Global.narration = on)
+	var speak := _toggle(
+		"Narrar as falas da Ada", Global.narration, func(on: bool): Global.narration = on
+	)
 	if not Narrator.available():
 		speak.disabled = true
 		speak.tooltip_text = "Este computador não tem uma voz em português instalada"
 	add_child(speak)
-	add_child(_toggle("Texto grande nas falas e no caderno", Global.big_text, func(on: bool): Global.big_text = on))
+	add_child(
+		_toggle(
+			"Texto grande nas falas e no caderno",
+			Global.big_text,
+			func(on: bool): Global.big_text = on
+		)
+	)
 
 
 func _toggle(text: String, on: bool, apply: Callable) -> CheckButton:
