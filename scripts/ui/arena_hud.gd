@@ -1,260 +1,342 @@
 class_name ArenaHud
 extends CanvasLayer
-## Toda a interface sobreposta ao combate, extraida do _setup_ui() da arena.
+## Toda a interface sobreposta ao combate.
 ##
-## A extracao serviu a duas coisas. Primeiro o teto de 1000 linhas do .gdlintrc:
-## arena.gd estava em 923 e nao cabia mais nada. Segundo a escala -- a HUD era
-## desenhada em pixels 1:1 do canvas de 1280x720 enquanto o mundo encolhia por
-## script (o tanque e um sprite de 676 px em scale 0.25, ou seja 169 px), e o
-## painel de variaveis media 688 px: quatro vezes o personagem. Os corpos de
-## fonte cairam para a escala de UiTokens e as celulas para o que o conteudo
-## realmente exige.
-##
-## O posicionamento tambem mudou de coordenada absoluta para ancora. Antes so o
-## botao de ajuda era ancorado; mudar a resolucao de projeto deslocaria todo o
-## resto.
+## Layout, pensado para nao tapar a parabola:
+##   topo esquerdo  -- pausa e insignia da fase (base, capitulo, numero)
+##   topo centro    -- painel da equacao e engrenagens; gaveta "ver conta" embaixo
+##   topo direito   -- ajuda e botao de estrela (missao e desafios, recolhidos)
+##   base           -- municao e blindagem, deitadas no chao abaixo da regua
+## O meio da tela fica livre para a curva, o vertice e os avioes.
+## Posicionada so por ancora e container, para acompanhar a resolucao.
 
 signal pause_pressed
 signal help_pressed
-signal next_stage_pressed
+## Botao de estrela: reabre o cartao de missao com o progresso dos desafios.
+signal goals_pressed
+signal guess_toggled(on: bool)
 
 const AmmoIconScript = preload("res://scripts/ammo_icon.gd")
 const ParabolaHudScript = preload("res://scripts/parabola_hud.gd")
 
 const ICON_GEAR = preload("res://assets/sprites/icons/gear_white.png")
-const ICON_FLAG = preload("res://assets/sprites/cartography/Default/flag.png")
 
-const PAUSE_BTN_SIZE := Vector2(40, 40)
-const HELP_BTN_SIZE := Vector2(44, 44)
-const NEXT_BTN_SIZE := Vector2(190, 38)
-const AMMO_ICON_SIZE := Vector2(30, 30)
-const ARMOR_BAR_SIZE := Vector2(120, 14)
-const STAGE_BADGE_SIZE := Vector2(230, 56)
-const STAGE_FLAG_SIZE := Vector2(22, 22)
-const MARGIN := 16.0
+const AMMO_ICON_SIZE := Vector2(28, 28)
+const ARMOR_BAR_SIZE := Vector2(150, 22)
+const MARGIN := 14.0
+const BADGE_TEXT_W := 168.0
 
 var parabola: Control
+var formula: FormulaDrawer
 
 var _ammo_label: Label
 var _ammo_icon: Control
 var _ammo_name_label: Label
-var _armor_bar: ProgressBar
+var _armor: UiStatBar
+var _move_hint: Label
 var _stage_name_label: Label
 var _stage_phase_label: Label
-var _next_stage_btn: Button
+var _goals_btn: Button
+var _goals_count: Label
+var _toast: Label
+var _badge: Control
+var _strip: Control
+var _right_row: Control
+var _left_col: Control
+var _toast_tween: Tween
+var guess_btn: Button
 
 
 func _ready() -> void:
 	name = "HUD"
-	_build_stacked_panels()
-	_build_corner_controls()
+	_build_center()
+	_build_left()
+	_build_right()
+	_build_bottom()
+	_build_toast()
 
 
-## Painel de variaveis no topo e painel de recursos embaixo, ambos centrados.
-## O VBox ocupando a tela inteira e o que centraliza de verdade: um preset
-## calcularia offsets contra o size do instante e nao acompanharia a viewport.
-func _build_stacked_panels() -> void:
+## Retangulo do painel central em coordenadas de tela, para a trajetoria saber
+## quando o vertice esta escondido atras dele.
+func top_panel_rect() -> Rect2:
+	if parabola == null:
+		return Rect2()
+	return parabola.get_global_rect()
+
+
+## Todos os paineis da HUD em coordenadas de tela: a trajetoria nao poe rotulo
+## em cima deles e troca o vertice escondido por uma seta.
+func occluder_rects() -> Array:
+	var out := []
+	for c in [parabola, formula, _badge, _strip, _right_row, _left_col, guess_btn]:
+		if c != null and c.visible:
+			out.append(c.get_global_rect())
+	return out
+
+
+func _build_center() -> void:
 	var column := VBoxContainer.new()
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.alignment = BoxContainer.ALIGNMENT_BEGIN
+	column.add_theme_constant_override("separation", 4)
 	add_child(column)
-	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	column.offset_top = MARGIN * 0.5
-	column.offset_bottom = -MARGIN
-
-	var top_row := HBoxContainer.new()
-	top_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	top_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(top_row)
+	column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	column.offset_top = 6.0
 
 	parabola = ParabolaHudScript.new()
-	top_row.add_child(parabola)
+	parabola.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(parabola)
 	parabola.setup(UiPanel.create(UiPanel.Kind.HUD))
 
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(spacer)
-
-	var bottom_row := HBoxContainer.new()
-	bottom_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	bottom_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_child(bottom_row)
-	bottom_row.add_child(_build_resource_panel())
+	formula = FormulaDrawer.new()
+	formula.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(formula)
+	parabola.formula_toggled.connect(formula.toggle)
 
 
-func _build_resource_panel() -> Control:
-	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.HUD))
+func _build_left() -> void:
+	# Engrenagem e insignia lado a lado no topo: o lado esquerdo da tela fica
+	# livre para o tanque, a curva subindo e a Ada.
+	var column := HBoxContainer.new()
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	column.add_theme_constant_override("separation", 8)
+	add_child(column)
+	column.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	column.offset_left = MARGIN
+	column.offset_top = MARGIN
 
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", UiTokens.GAP_LG)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	panel.add_child(row)
+	var pause_btn := UiButton.create("", UiButton.Kind.ICON, ICON_GEAR)
+	pause_btn.tooltip_text = "Pausa (Esc)"
+	pause_btn.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	pause_btn.pressed.connect(func(): pause_pressed.emit())
+	column.add_child(pause_btn)
 
-	var ammo_column := VBoxContainer.new()
-	ammo_column.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_child(ammo_column)
+	_left_col = pause_btn
 
-	var ammo_row := HBoxContainer.new()
-	ammo_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	ammo_column.add_child(ammo_row)
-
-	_ammo_icon = AmmoIconScript.new()
-	_ammo_icon.custom_minimum_size = AMMO_ICON_SIZE
-	ammo_row.add_child(_ammo_icon)
-
-	_ammo_label = Label.new()
-	_ammo_label.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
-	_ammo_label.add_theme_color_override("font_color", UiTokens.AMBER)
-	ammo_row.add_child(_ammo_label)
-
-	_ammo_name_label = Label.new()
-	_ammo_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_ammo_name_label.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
-	_ammo_name_label.add_theme_color_override("font_color", UiTokens.TEXT_MUTED)
-	ammo_column.add_child(_ammo_name_label)
-
-	row.add_child(VSeparator.new())
-
-	var armor_column := VBoxContainer.new()
-	armor_column.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_child(armor_column)
-
-	var armor_title := Label.new()
-	armor_title.text = "Blindagem"
-	armor_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	armor_title.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
-	armor_title.add_theme_color_override("font_color", UiTokens.TEXT_MUTED)
-	armor_column.add_child(armor_title)
-
-	# Sem stylebox inline: fundo e preenchimento vem do Theme global.
-	_armor_bar = ProgressBar.new()
-	_armor_bar.custom_minimum_size = ARMOR_BAR_SIZE
-	_armor_bar.show_percentage = false
-	armor_column.add_child(_armor_bar)
-
-	return panel
-
-
-## Badge "Base Alpha / Fase 2 de 3": mesma linguagem visual do painel de recursos
-## (icone + coluna de texto sobre stylebox HUD) em vez de um Label solto sem fundo.
-func _build_stage_badge() -> Control:
-	var panel := PanelContainer.new()
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.HUD))
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", UiTokens.PAD_SM)
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(row)
-
-	var flag_icon := TextureRect.new()
-	flag_icon.texture = ICON_FLAG
-	flag_icon.custom_minimum_size = STAGE_FLAG_SIZE
-	flag_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	flag_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	flag_icon.modulate = UiTokens.AMBER
-	flag_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(flag_icon)
+	# Modo chute, logo abaixo da insignia: esconde a curva e o alcance; a
+	# crianca marca no chao onde a bala vai cair e confere depois do tiro.
+	guess_btn = UiButton.create("Modo chute (C)", UiButton.Kind.SECONDARY)
+	guess_btn.toggle_mode = true
+	guess_btn.tooltip_text = "Esconde a curva: calcule e clique no chão onde a bala vai cair"
+	guess_btn.custom_minimum_size = Vector2(176, 40)
+	guess_btn.toggled.connect(func(on: bool): guess_toggled.emit(on))
+	add_child(guess_btn)
+	guess_btn.position = Vector2(MARGIN, MARGIN + 80.0)
+	var badge := PanelContainer.new()
+	_badge = badge
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.add_theme_stylebox_override("panel", UiPanel.create(UiPanel.Kind.HUD))
+	column.add_child(badge)
 
 	var text_column := VBoxContainer.new()
 	text_column.add_theme_constant_override("separation", 0)
-	text_column.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	text_column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_child(text_column)
+	badge.add_child(text_column)
 
 	_stage_name_label = Label.new()
+	_stage_name_label.theme_type_variation = &"TitleLabel"
 	_stage_name_label.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
-	_stage_name_label.add_theme_color_override("font_color", UiTokens.AMBER)
 	text_column.add_child(_stage_name_label)
 
+	# Largura fixa com reticencias: a insignia nao pode empurrar o painel da
+	# equacao, que comeca logo ao lado.
 	_stage_phase_label = Label.new()
-	_stage_phase_label.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
-	_stage_phase_label.add_theme_color_override("font_color", UiTokens.TEXT_MUTED)
+	_stage_phase_label.theme_type_variation = &"CaptionLabel"
+	_stage_phase_label.add_theme_color_override("font_color", UiTokens.TEXT_DIM)
+	_stage_phase_label.custom_minimum_size = Vector2(BADGE_TEXT_W, 0)
+	_stage_phase_label.clip_text = true
+	_stage_phase_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	text_column.add_child(_stage_phase_label)
 
-	return panel
 
+func _build_right() -> void:
+	var row := HBoxContainer.new()
+	_right_row = row
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", 8)
+	add_child(row)
+	row.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	row.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	row.offset_right = -MARGIN
+	row.offset_top = MARGIN
 
-func _build_corner_controls() -> void:
-	var pause_btn := UiButton.create("", UiButton.Kind.ICON, ICON_GEAR)
-	pause_btn.custom_minimum_size = PAUSE_BTN_SIZE
-	pause_btn.pressed.connect(func(): pause_pressed.emit())
-	add_child(pause_btn)
-	pause_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	pause_btn.offset_left = MARGIN
-	pause_btn.offset_top = MARGIN
-	pause_btn.offset_right = MARGIN + PAUSE_BTN_SIZE.x
-	pause_btn.offset_bottom = MARGIN + PAUSE_BTN_SIZE.y
-
-	var stage_badge := _build_stage_badge()
-	add_child(stage_badge)
-	stage_badge.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-	stage_badge.offset_left = MARGIN
-	stage_badge.offset_top = MARGIN + PAUSE_BTN_SIZE.y + 8.0
-	stage_badge.offset_right = stage_badge.offset_left + STAGE_BADGE_SIZE.x
-	stage_badge.offset_bottom = stage_badge.offset_top + STAGE_BADGE_SIZE.y
+	# Missao recolhida: estrela e placar; o cartao completo abre ao clicar.
+	_goals_btn = UiButton.create("", UiButton.Kind.ICON)
+	_goals_btn.tooltip_text = "Missão e desafios da fase"
+	_goals_btn.custom_minimum_size = Vector2(88, 48)
+	_goals_btn.pressed.connect(func(): goals_pressed.emit())
+	row.add_child(_goals_btn)
+	var inner := HBoxContainer.new()
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.alignment = BoxContainer.ALIGNMENT_CENTER
+	inner.add_theme_constant_override("separation", 4)
+	_goals_btn.add_child(inner)
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.add_child(UiIcon.make("star", UiTokens.EDITABLE, 26.0))
+	_goals_count = Label.new()
+	_goals_count.add_theme_font_override("font", UiTheme.body_font(UiTokens.WEIGHT_BOLD))
+	_goals_count.add_theme_font_size_override("font_size", UiTokens.FONT_MD)
+	inner.add_child(_goals_count)
 
 	var help_btn := UiButton.create("?", UiButton.Kind.ICON)
-	help_btn.custom_minimum_size = HELP_BTN_SIZE
-	help_btn.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
+	help_btn.tooltip_text = "Ajuda (H)"
+	help_btn.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
 	help_btn.pressed.connect(func(): help_pressed.emit())
-	add_child(help_btn)
-	help_btn.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	help_btn.offset_left = -MARGIN - HELP_BTN_SIZE.x
-	help_btn.offset_top = MARGIN
-	help_btn.offset_right = -MARGIN
-	help_btn.offset_bottom = MARGIN + HELP_BTN_SIZE.y
+	row.add_child(help_btn)
 
-	_next_stage_btn = UiButton.create("Próxima Fase", UiButton.Kind.PRIMARY)
-	_next_stage_btn.custom_minimum_size = NEXT_BTN_SIZE
-	_next_stage_btn.visible = false
-	_next_stage_btn.pressed.connect(func(): next_stage_pressed.emit())
-	add_child(_next_stage_btn)
-	_next_stage_btn.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	_next_stage_btn.offset_left = -MARGIN - NEXT_BTN_SIZE.x
-	_next_stage_btn.offset_top = -NEXT_BTN_SIZE.y * 0.5
-	_next_stage_btn.offset_right = -MARGIN
-	_next_stage_btn.offset_bottom = NEXT_BTN_SIZE.y * 0.5
+
+func _build_bottom() -> void:
+	var strip := PanelContainer.new()
+	_strip = strip
+	strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Moldura fina: a faixa mora no chao, entre a regua e a borda da tela.
+	strip.add_theme_stylebox_override(
+		"panel", UiPanel.frame(UiTokens.BG_HUD, UiTokens.BORDER, 1, 2)
+	)
+	add_child(strip)
+	strip.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	strip.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	strip.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	strip.offset_bottom = -3.0
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", UiTokens.GAP)
+	strip.add_child(row)
+
+	_ammo_icon = AmmoIconScript.new()
+	_ammo_icon.custom_minimum_size = AMMO_ICON_SIZE
+	row.add_child(_ammo_icon)
+
+	_ammo_label = Label.new()
+	_ammo_label.add_theme_font_override("font", UiTheme.body_font(UiTokens.WEIGHT_BOLD))
+	_ammo_label.add_theme_font_size_override("font_size", UiTokens.FONT_LG)
+	row.add_child(_ammo_label)
+
+	_ammo_name_label = Label.new()
+	_ammo_name_label.theme_type_variation = &"CaptionLabel"
+	_ammo_name_label.add_theme_color_override("font_color", UiTokens.TEXT_DIM)
+	row.add_child(_ammo_name_label)
+
+	row.add_child(VSeparator.new())
+
+	_armor = UiStatBar.new()
+	_armor.setup("shield", ARMOR_BAR_SIZE)
+	_armor.tooltip_text = "Blindagem do tanque"
+	row.add_child(_armor)
+
+	_move_hint = Label.new()
+	_move_hint.theme_type_variation = &"CaptionLabel"
+	_move_hint.add_theme_color_override("font_color", UiTokens.EDITABLE)
+	_move_hint.text = "A ← → D  andar"
+	_move_hint.visible = false
+	row.add_child(_move_hint)
+
+
+## Aviso curto no meio da tela, abaixo do painel: "Desafio cumprido!" etc.
+func _build_toast() -> void:
+	_toast = Label.new()
+	_toast.theme_type_variation = &"OverlayLabel"
+	_toast.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_toast.modulate.a = 0.0
+	add_child(_toast)
+	_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_toast.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_toast.offset_top = -120.0
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  API — a arena empurra estado, a HUD nao consulta ninguem
+#  API -- a arena empurra estado, a HUD nao consulta ninguem
 # ═════════════════════════════════════════════════════════════════════
 
 
 func set_ammo(count: int, color: Color, ammo_name: String) -> void:
 	if _ammo_label:
-		_ammo_label.text = "x" + str(count)
+		# count < 0 = infinita (Laboratório).
+		_ammo_label.text = "livre" if count < 0 else "×" + str(count)
+		_ammo_label.add_theme_color_override(
+			"font_color", UiTokens.DANGER if count == 0 else UiTokens.TEXT
+		)
 	if _ammo_icon:
 		_ammo_icon.ammo_color = color
 		_ammo_icon.queue_redraw()
 	if _ammo_name_label:
-		_ammo_name_label.text = ammo_name
+		_ammo_name_label.text = ammo_name + "  ·  Tab troca"
 
 
-## max_value vem do Global em vez de 100 literal: se a blindagem maxima mudar --
-## um upgrade de loja, por exemplo -- a barra acompanha em vez de mentir.
+## max_value vem do Global, para acompanhar mudancas na blindagem maxima.
 func set_armor(value: float, max_value: float) -> void:
-	if _armor_bar == null:
+	if _armor:
+		_armor.set_value(value, max_value)
+
+
+func set_move_hint(on: bool) -> void:
+	if _move_hint:
+		_move_hint.visible = on
+
+
+## Fases com combustivel: o aviso de andar vira medidor e apaga quando acaba.
+func set_fuel(meters: float) -> void:
+	if not _move_hint:
 		return
-	_armor_bar.max_value = max_value
-	_armor_bar.value = value
+	if meters <= 0.0:
+		_move_hint.text = "sem combustível"
+		_move_hint.add_theme_color_override("font_color", UiTokens.TEXT_DISABLED)
+	else:
+		_move_hint.text = "A ← → D  andar · combustível %s m" % ("%.1f" % meters).replace(".", ",")
 
 
-func set_stage(base_name: String, stage_number: int, total_stages: int) -> void:
+## Laboratório: selo próprio e sem botão de missão.
+func set_lab(world_name: String) -> void:
+	_stage_name_label.text = "Laboratório"
+	_stage_phase_label.text = "Mundo: %s · tiros grátis" % world_name
+	_goals_btn.visible = false
+	# O painel do Laboratorio ja mostra a tabela de pontos; o chute fica na campanha.
+	guess_btn.visible = false
+
+
+func set_stage(base_name: String, chapter: String, number: int, total: int, title: String) -> void:
 	if _stage_name_label:
-		_stage_name_label.text = base_name
+		_stage_name_label.text = "%s · %d/%d" % [base_name, number, total]
 	if _stage_phase_label:
-		_stage_phase_label.text = "Fase %d de %d" % [stage_number, total_stages]
+		_stage_phase_label.text = title
+		_stage_phase_label.tooltip_text = "%s · %s" % [chapter, title]
 
 
-func show_next_stage(text: String) -> void:
-	if _next_stage_btn:
-		_next_stage_btn.text = text
-		_next_stage_btn.visible = true
+## Placar da estrela: estrelas garantidas ate agora.
+func set_goals(_goals: Array, states: Array, _progress: Array) -> void:
+	if _goals_count == null:
+		return
+	var done := 0
+	for st in states:
+		if st == StageGoals.State.DONE:
+			done += 1
+	# Sobre 3, como a fase: a estrela de vencer so entra quando o castelo cai.
+	_goals_count.text = "%d/%d" % [done, states.size() + 1]
 
 
-func hide_next_stage() -> void:
-	if _next_stage_btn:
-		_next_stage_btn.visible = false
+## Pulo da estrela quando um desafio muda: chama o olho para o botao.
+func pulse_goals() -> void:
+	if _goals_btn == null:
+		return
+	_goals_btn.pivot_offset = _goals_btn.size * 0.5
+	var tw := create_tween()
+	tw.tween_property(_goals_btn, "scale", Vector2(1.25, 1.25), 0.1).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(_goals_btn, "scale", Vector2.ONE, 0.2)
+
+
+func show_toast(text: String, col: Color = UiTokens.EDITABLE) -> void:
+	if _toast == null:
+		return
+	_toast.text = text
+	_toast.add_theme_color_override("font_color", col)
+	if _toast_tween:
+		_toast_tween.kill()
+	_toast.modulate.a = 1.0
+	_toast.scale = Vector2(0.6, 0.6)
+	_toast.pivot_offset = _toast.size * 0.5
+	_toast_tween = create_tween()
+	_toast_tween.tween_property(_toast, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK)
+	_toast_tween.tween_interval(1.4)
+	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.4)

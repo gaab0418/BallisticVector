@@ -1,14 +1,10 @@
 class_name AudioSettingsPanel
 extends VBoxContainer
-## Os tres controles de volume, compartilhados entre o menu principal e a pausa.
+## Os tres controles de volume (Master, SFX, BGM) e as opcoes de leitura
+## (narracao e texto grande), usados no menu e na pausa.
 ##
-## Antes existiam so no menu_play e escreviam todos no mesmo bus: o projeto nao
-## tinha bus layout, so o Master, e o fallback mandava "Efeitos Sonoros" e
-## "Trilha Sonora" para la. Mexer em um mexia nos tres. Agora BGM e SFX existem
-## de verdade (default_bus_layout.tres) e cada slider governa o seu.
-##
-## O bus e a unica fonte de verdade do volume. Ter tambem variaveis de mix no
-## AudioManager multiplicaria em serie -- dois estagios em 0.5 dao 25%, nao 50%.
+## O bus e a unica fonte de verdade do volume: variaveis de mix no AudioManager
+## multiplicariam em serie (0.5 x 0.5 = 25%).
 
 const ROWS := [
 	{"label": "Volume Geral", "bus": "Master"},
@@ -21,6 +17,26 @@ func _ready() -> void:
 	add_theme_constant_override("separation", UiTokens.GAP)
 	for row in ROWS:
 		add_child(_build_row(row["label"], row["bus"]))
+	var speak := _toggle("Narrar as falas da Ada", Global.narration, func(on: bool): Global.narration = on)
+	if not Narrator.available():
+		speak.disabled = true
+		speak.tooltip_text = "Este computador não tem uma voz em português instalada"
+	add_child(speak)
+	add_child(_toggle("Texto grande nas falas e no caderno", Global.big_text, func(on: bool): Global.big_text = on))
+
+
+func _toggle(text: String, on: bool, apply: Callable) -> CheckButton:
+	var b := CheckButton.new()
+	b.text = text
+	b.button_pressed = on
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", UiTokens.FONT_SM)
+	b.toggled.connect(
+		func(value: bool):
+			apply.call(value)
+			Global.save_game()
+	)
+	return b
 
 
 func _build_row(text: String, bus_name: String) -> Control:

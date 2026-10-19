@@ -2,19 +2,13 @@ class_name UiModal
 extends CanvasLayer
 ## Base de toda janela sobreposta do jogo: ajuda, audio, ataque, loja e pausa.
 ##
-## Concentra tres acertos que antes cada modal precisava lembrar sozinho, e
-## que o molde antigo (menu_play._open_audio_settings) errava:
 ##
-## 1. Centralizacao por CenterContainer, nao por PRESET_CENTER. O preset congela
-##    offsets calculados uma unica vez, a partir do size daquele instante; nao e
-##    vinculo vivo, entao o painel desalinha em qualquer resolucao diferente da
-##    de projeto.
-## 2. process_mode ALWAYS na raiz, que propaga por heranca. Sem isto um menu
-##    aberto com a arvore pausada congela junto e nem fecha.
-## 3. Despausar deferido. Despausar no mesmo frame em que o menu fecha deixa o
-##    _process do jogo rodar ainda naquele frame, lendo o mesmo estado de
-##    teclado -- e como a arena le input por polling, set_input_as_handled() nao
-##    protege. Sem isto, fechar com Esc dispara o canhao.
+## 1. Centraliza por CenterContainer, nao por PRESET_CENTER: o preset congela os
+##    offsets do instante e desalinha em outras resolucoes.
+## 2. process_mode ALWAYS na raiz: sem isso um menu aberto com a arvore pausada
+##    congela junto e nem fecha.
+## 3. Despausa deferido: no mesmo frame, o _process da arena ainda leria o
+##    teclado por polling e o Esc que fechou o menu dispararia o canhao.
 
 signal closed
 
@@ -65,8 +59,7 @@ func _build_shell() -> void:
 	window.add_child(column)
 
 	title_label = Label.new()
-	title_label.add_theme_font_size_override("font_size", UiTokens.FONT_XL)
-	title_label.add_theme_color_override("font_color", UiTokens.AMBER)
+	title_label.theme_type_variation = &"TitleLabel"
 	column.add_child(title_label)
 
 	body = VBoxContainer.new()
