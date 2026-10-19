@@ -45,11 +45,29 @@ func _draw() -> void:
 		var v := Ballistics.vertex(shot)
 		var vp := Ballistics.point_px(shot, v.x)
 		UiIcon.paint(self, "vertex", Rect2(vp - Vector2(12, 12), Vector2(24, 24)), UiTokens.GOLD)
-	var eq := "Tiro da vitória: y = %s %s %s" % [
-		Ballistics.term(shot.a, 3, "x²", true), Ballistics.term(shot.b, 2, "x"), Ballistics.term(shot.c, 2, "")
-	]
+	var eq := (
+		"Tiro da vitória: y = %s %s %s"
+		% [
+			Ballistics.term(shot.a, 3, "x²", true),
+			Ballistics.term(shot.b, 2, "x"),
+			Ballistics.term(shot.c, 2, "")
+		]
+	)
 	# A direita: a esquerda e o lugar do balao da Ada.
-	var at := Vector2(1260.0 - _font.get_string_size(eq, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_LG).x, 186.0)
+	var at := Vector2(
+		1260.0 - _font.get_string_size(eq, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_LG).x, 186.0
+	)
 	var alpha := clampf(_t * 2.0, 0.0, 1.0)
-	draw_string_outline(_font, at, eq, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_LG, 8, Color(UiTokens.TEXT_OUTLINE, alpha))
-	draw_string(_font, at, eq, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_LG, Color(UiTokens.GOLD, alpha))
+	draw_string_outline(
+		_font,
+		at,
+		eq,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1,
+		UiTokens.FONT_LG,
+		8,
+		Color(UiTokens.TEXT_OUTLINE, alpha)
+	)
+	draw_string(
+		_font, at, eq, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_LG, Color(UiTokens.GOLD, alpha)
+	)

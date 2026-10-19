@@ -100,7 +100,7 @@ func _ready() -> void:
 		line = "Este é o mapa de guerra! Cada ilha é um capítulo. Clique numa ilha para escolher a fase."
 		Global.map_intro_done = true
 	elif Notebook.unseen_count() > 0:
-		line = "Nova página no meu caderno! Clique em \"Caderno\" para ver a animação."
+		line = 'Nova página no meu caderno! Clique em "Caderno" para ver a animação.'
 	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
 	if Global.just_conquered != "":
 		_table.animate_boat(_index_of(Global.just_conquered))

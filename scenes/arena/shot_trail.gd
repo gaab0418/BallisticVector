@@ -49,7 +49,13 @@ func _draw() -> void:
 			"stars":
 				if i % 4 == 0:
 					var s := 4.0 + 6.0 * k
-					UiIcon.paint(self, "star", Rect2(b - Vector2(s, s) * 0.5, Vector2(s, s)), Color(color, alpha), false)
+					UiIcon.paint(
+						self,
+						"star",
+						Rect2(b - Vector2(s, s) * 0.5, Vector2(s, s)),
+						Color(color, alpha),
+						false
+					)
 				draw_line(a, b, Color(color, alpha * 0.4), 1.5)
 			"rainbow":
 				var hue := fposmod(k * 0.8 + _t * 0.5, 1.0)

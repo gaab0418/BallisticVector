@@ -2,7 +2,7 @@ extends CanvasLayer
 ## Faixa "Selo novo!" que desce do topo quando uma conquista sai. Vive no
 ## Global, entao aparece em qualquer tela.
 
-const ShowTime := 3.2
+const SHOW_TIME := 3.2
 
 var _panel: PanelContainer
 var _name: Label
@@ -57,8 +57,10 @@ func _next() -> void:
 	var w := _panel.get_combined_minimum_size().x
 	_panel.position = Vector2((1280.0 - w) * 0.5, -90.0)
 	var tw := create_tween()
-	tw.tween_property(_panel, "position:y", 12.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(ShowTime)
+	tw.tween_property(_panel, "position:y", 12.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(
+		Tween.EASE_OUT
+	)
+	tw.tween_interval(SHOW_TIME)
 	tw.tween_property(_panel, "position:y", -90.0, 0.3)
 	tw.tween_callback(func(): _panel.visible = false)
 	tw.tween_callback(_next)

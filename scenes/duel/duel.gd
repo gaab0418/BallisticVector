@@ -104,10 +104,17 @@ func _ready() -> void:
 func _build_mountains() -> void:
 	var count := randi_range(1, 2)
 	for i in range(count):
-		var cx := randf_range(520.0, 760.0) if count == 1 else (470.0 + i * 340.0 + randf_range(-40, 40))
+		var cx := (
+			randf_range(520.0, 760.0) if count == 1 else (470.0 + i * 340.0 + randf_range(-40, 40))
+		)
 		var h := randf_range(150.0, 300.0)
 		var half := randf_range(70.0, 110.0)
-		var peaks := [Vector2(-half, 0), Vector2(-half * 0.2, -h), Vector2(half * 0.25, -h * 0.94), Vector2(half, 0)]
+		var peaks := [
+			Vector2(-half, 0),
+			Vector2(-half * 0.2, -h),
+			Vector2(half * 0.25, -h * 0.94),
+			Vector2(half, 0)
+		]
 		var poly := PackedVector2Array()
 		for p in Campaign.rounded(peaks):
 			poly.append(Vector2(cx, 720.0) + p)
@@ -398,12 +405,21 @@ func _refresh() -> void:
 	var s := _shot_of(turn)
 	_eq_label.text = (
 		"y = %s %s %s"
-		% [Ballistics.term(s.a, 3, "x²", true), Ballistics.term(s.b, 2, "x"), Ballistics.term(s.c, 2, "")]
+		% [
+			Ballistics.term(s.a, 3, "x²", true),
+			Ballistics.term(s.b, 2, "x"),
+			Ballistics.term(s.c, 2, "")
+		]
 	)
 	var r := Ballistics.root(s)
 	_info_label.text = (
 		"ângulo %d° · força %d%% · alcance %s m · o outro tanque está a %s m"
-		% [roundi(p.angle), roundi(p.power * 100.0), Ballistics.fmt(r), Ballistics.fmt(_enemy_distance_m(turn))]
+		% [
+			roundi(p.angle),
+			roundi(p.power * 100.0),
+			Ballistics.fmt(r),
+			Ballistics.fmt(_enemy_distance_m(turn))
+		]
 	)
 	for i in range(2):
 		var cannon: Node2D = players[i].cannon
@@ -437,7 +453,9 @@ func _step_bullet(delta: float) -> void:
 		trail.append(pos)
 		b.trail = trail
 		if pos.x < -40.0 or pos.x > W + 40.0 or pos.y > 760.0:
-			ArenaFx.float_text(self, Vector2(clampf(pos.x, 60.0, W - 200.0), 300.0), "saiu do mapa!", UiTokens.TEXT)
+			ArenaFx.float_text(
+				self, Vector2(clampf(pos.x, 60.0, W - 200.0), 300.0), "saiu do mapa!", UiTokens.TEXT
+			)
 			_land(pos, false)
 			return
 		var target: Dictionary = players[1 - int(b.from)]
@@ -470,7 +488,12 @@ func _land(pos: Vector2, explode: bool) -> void:
 		if from == 0 or not vs_ada:
 			var miss := Ballistics.to_m(absf(pos.x - players[1 - from].root.position.x))
 			if miss > 1.0:
-				ArenaFx.float_text(self, pos + Vector2(-80, -50), "a %s m do tanque" % Ballistics.fmt(miss), UiTokens.TEXT)
+				ArenaFx.float_text(
+					self,
+					pos + Vector2(-80, -50),
+					"a %s m do tanque" % Ballistics.fmt(miss),
+					UiTokens.TEXT
+				)
 	_end_turn()
 
 
@@ -537,7 +560,10 @@ func _finish(winner: int) -> void:
 		Global.save_game()
 		_end_text.text = "Você venceu a Ada! +50 de latão para a Oficina."
 	elif vs_ada:
-		_end_text.text = "A Ada acertou a conta primeiro. Compare o alcance com a distância e tente de novo!"
+		_end_text.text = (
+			"A Ada acertou a conta primeiro. "
+			+ "Compare o alcance com a distância e tente de novo!"
+		)
 	else:
 		_end_text.text = "Duelo decidido na parábola. Querem a revanche?"
 	await get_tree().create_timer(1.0).timeout
@@ -562,7 +588,9 @@ func _ada_plan() -> Vector2:
 	var best_err := INF
 	for a in range(20, 80, 2):
 		for p100 in range(25, 101):
-			var s := Ballistics.shot(a, SPEED_PX * p100 / 100.0, GRAVITY_PX, PIVOT, PIVOT.x, GROUND_Y)
+			var s := Ballistics.shot(
+				a, SPEED_PX * p100 / 100.0, GRAVITY_PX, PIVOT, PIVOT.x, GROUND_Y
+			)
 			var r := Ballistics.root(s)
 			if is_nan(r):
 				continue
@@ -594,7 +622,11 @@ func _ada_step(delta: float) -> void:
 	_refresh()
 	_timer_label.text = "pensando..."
 	_ada_think -= delta
-	if _ada_think <= 0.0 and is_equal_approx(p.angle, _ada_target.x) and is_equal_approx(p.power, _ada_target.y):
+	if (
+		_ada_think <= 0.0
+		and is_equal_approx(p.angle, _ada_target.x)
+		and is_equal_approx(p.power, _ada_target.y)
+	):
 		_fire()
 
 
@@ -649,10 +681,14 @@ func _draw_distance() -> void:
 	var x := from
 	while (to - x) * signf(step) >= 0.0:
 		var tall := k % 5 == 0
-		draw_line(Vector2(x, y - (8.0 if tall else 4.0)), Vector2(x, y), Color(UiTokens.TEXT, 0.6), 1.0)
+		draw_line(
+			Vector2(x, y - (8.0 if tall else 4.0)), Vector2(x, y), Color(UiTokens.TEXT, 0.6), 1.0
+		)
 		x += step
 		k += 1
 	var text := "%s m" % Ballistics.fmt(_enemy_distance_m(turn))
 	var at := Vector2((from + to) * 0.5 - 30.0, y + 26.0)
-	draw_string_outline(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_MD, 6, UiTokens.TEXT_OUTLINE)
+	draw_string_outline(
+		_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_MD, 6, UiTokens.TEXT_OUTLINE
+	)
 	draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTokens.FONT_MD, UiTokens.TEXT)

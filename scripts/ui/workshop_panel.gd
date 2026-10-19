@@ -114,7 +114,9 @@ func _build_preview() -> Control:
 	# Mesma montagem da arena, na escala K do sprite original (676x369).
 	var origin := PREVIEW_ORIGIN
 	var pivot := origin + Vector2(404, 139) * PREVIEW_K
-	_barrel = _sprite(BARREL_TEX, pivot + Vector2(10, -21) * PREVIEW_K, Vector2(227, 40) * PREVIEW_K)
+	_barrel = _sprite(
+		BARREL_TEX, pivot + Vector2(10, -21) * PREVIEW_K, Vector2(227, 40) * PREVIEW_K
+	)
 	_barrel.pivot_offset = -Vector2(10, -21) * PREVIEW_K
 	_barrel.rotation = -0.45
 	stage.add_child(_barrel)
@@ -154,7 +156,13 @@ func _draw_trail_demo() -> void:
 				_trail_demo.draw_line(prev, p, Color.from_hsv(k, 0.75, 1.0, a), 3.0)
 			"stars":
 				if i % 4 == 0:
-					UiIcon.paint(_trail_demo, "star", Rect2(p - Vector2(5, 5), Vector2(10, 10)), Color(col, a), false)
+					UiIcon.paint(
+						_trail_demo,
+						"star",
+						Rect2(p - Vector2(5, 5), Vector2(10, 10)),
+						Color(col, a),
+						false
+					)
 			"dots":
 				if i % 2 == 0:
 					_trail_demo.draw_circle(p, 2.5, Color(col, a), true, -1.0, false)
@@ -229,19 +237,35 @@ func _swatch(it: Dictionary) -> Control:
 			var r := Rect2(Vector2(10, 4), Vector2(sw.size.x - 20, 28))
 			match slot:
 				"camo":
-					var colors: Array = it.colors if not it.colors.is_empty() else ["4e5a36", "6b7a3e", "a0a070"]
+					var colors: Array = (
+						it.colors if not it.colors.is_empty() else ["4e5a36", "6b7a3e", "a0a070"]
+					)
 					for i in range(3):
 						var w := r.size.x / 3.0
-						sw.draw_rect(Rect2(r.position + Vector2(i * w, 0), Vector2(w, r.size.y)), Color(colors[i]))
+						sw.draw_rect(
+							Rect2(r.position + Vector2(i * w, 0), Vector2(w, r.size.y)),
+							Color(colors[i])
+						)
 				"trail":
-					sw.draw_line(r.position + Vector2(0, 24), r.end - Vector2(0, 24), Color(it.color), 5.0)
+					sw.draw_line(
+						r.position + Vector2(0, 24), r.end - Vector2(0, 24), Color(it.color), 5.0
+					)
 				_:
 					if it.icon == "":
 						sw.draw_line(r.position, r.end, UiTokens.TEXT_DISABLED, 2.0)
 					else:
-						sw.draw_rect(Rect2(r.get_center() - Vector2(22, 14), Vector2(44, 28)), Color(it.color))
+						sw.draw_rect(
+							Rect2(r.get_center() - Vector2(22, 14), Vector2(44, 28)),
+							Color(it.color)
+						)
 						var c := r.get_center()
-						UiIcon.paint(sw, it.icon, Rect2(c - Vector2(10, 10), Vector2(20, 20)), UiTokens.TEXT_HOVER, false)
+						UiIcon.paint(
+							sw,
+							it.icon,
+							Rect2(c - Vector2(10, 10), Vector2(20, 20)),
+							UiTokens.TEXT_HOVER,
+							false
+						)
 			sw.draw_rect(r, UiTokens.NIGHT_950, false, 2.0)
 	)
 	return sw

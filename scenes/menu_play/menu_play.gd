@@ -228,7 +228,17 @@ func _setup_ui() -> void:
 	btn_quit.pressed.connect(func(): get_tree().quit())
 	last_row.add_child(btn_quit)
 
-	_buttons = [btn_play, btn_lab, _teacher_btn, btn_audio, btn_credits, btn_reset, btn_quit, btn_duel, btn_book]
+	_buttons = [
+		btn_play,
+		btn_lab,
+		_teacher_btn,
+		btn_audio,
+		btn_credits,
+		btn_reset,
+		btn_quit,
+		btn_duel,
+		btn_book
+	]
 	_animate_entry(panel)
 	btn_play.grab_focus.call_deferred()
 
@@ -250,7 +260,12 @@ func _build_duel_modal(parent: CanvasLayer) -> CanvasLayer:
 		["CONTRA A ADA · MÉDIA", "ada", "medium"],
 		["CONTRA A ADA · DIFÍCIL", "ada", "hard"],
 	]:
-		var b := UiButton.create(opt[0], UiButton.Kind.PRIMARY if opt[1] == "pvp" else UiButton.Kind.SECONDARY, null, true)
+		var b := UiButton.create(
+			opt[0],
+			UiButton.Kind.PRIMARY if opt[1] == "pvp" else UiButton.Kind.SECONDARY,
+			null,
+			true
+		)
 		b.pressed.connect(_start_duel.bind(opt[1], opt[2]))
 		modal.body.add_child(b)
 		if first == null:

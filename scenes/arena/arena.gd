@@ -1,3 +1,4 @@
+# gdlint: disable=max-file-lines
 extends Node2D
 
 # =============================================================================
@@ -539,7 +540,9 @@ func _poll_movement(delta: float) -> void:
 		fuel_m = maxf(fuel_m - Ballistics.to_m(absf(x - player.position.x)), 0.0)
 		hud.set_fuel(fuel_m)
 		if fuel_m <= 0.0:
-			hud.show_toast("Acabou o combustível! Agora é só no ângulo e na força.", UiTokens.DANGER)
+			hud.show_toast(
+				"Acabou o combustível! Agora é só no ângulo e na força.", UiTokens.DANGER
+			)
 	player.position.x = x
 	# Balanço de esteira: um pixel para cima e para baixo enquanto anda.
 	player.get_node("Body").position.y = 6.0 + (1.0 if int(x / 6.0) % 2 == 0 else 0.0)
@@ -774,7 +777,9 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 		var why: String = brain.blocks(bullet)
 		if why != "":
 			ArenaFx.spawn(self, enemy.global_position + Vector2(0, -20), ArenaFx.Kind.SPARK)
-			ArenaFx.float_text(self, enemy.global_position + Vector2(-150, -150), why, UiTokens.TEXT)
+			ArenaFx.float_text(
+				self, enemy.global_position + Vector2(-150, -150), why, UiTokens.TEXT
+			)
 			return
 	if enemy.has_meta("balloon") and bullet != null:
 		goals.on_balloon_hit(bullet.velocity.y < 0.0)
@@ -792,7 +797,11 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 	if bullet != null:
 		_last_hit_shot = bullet.get_meta("shot")
 		# Depois do quique a bala segue outra parabola: o replay vai so ate a raiz.
-		_last_hit_x = NAN if bullet.get_meta("bounced", false) else Ballistics.to_m(bullet.position.x - Campaign.ORIGIN_X)
+		_last_hit_x = (
+			NAN
+			if bullet.get_meta("bounced", false)
+			else Ballistics.to_m(bullet.position.x - Campaign.ORIGIN_X)
+		)
 	ArenaFx.spawn(self, enemy.global_position, ArenaFx.Kind.SPARK)
 
 	# Verificar se o inimigo tem o método take_damage (aviões com script)
@@ -863,7 +872,10 @@ func _on_player_shot_ended(pos: Vector2, _hit_obstacle: bool) -> void:
 				Global.save_game()
 			Global.unlock_achievement("guesser")
 			hud.show_toast(
-				"Chute certeiro! Errou por só %s m. +%d de latão" % [Ballistics.fmt(err), GUESS_BRASS],
+				(
+					"Chute certeiro! Errou por só %s m. +%d de latão"
+					% [Ballistics.fmt(err), GUESS_BRASS]
+				),
 				UiTokens.SUCCESS
 			)
 		else:
@@ -1101,7 +1113,12 @@ func _on_pause_pressed() -> void:
 ## acao em _input e chamam set_input_as_handled(), que roda antes do unhandled.
 func _unhandled_input(event: InputEvent) -> void:
 	# Modo chute: clicar perto do chao marca o palpite (a HUD come os cliques nela).
-	if guess_mode and event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	if (
+		guess_mode
+		and event is InputEventMouseButton
+		and event.pressed
+		and event.button_index == MOUSE_BUTTON_LEFT
+	):
 		var p: Vector2 = event.position
 		if p.y > Campaign.GROUND_Y - 80.0 and p.x > Campaign.ORIGIN_X:
 			trajectory.guess_x = Ballistics.to_m(p.x - Campaign.ORIGIN_X)
