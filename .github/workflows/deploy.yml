@@ -1,23 +1,26 @@
-name: Release
+name: Deploy
 
-# Dois canais de entrega:
-#   push na main  -> pre-release rolante de tag `staging`, sobrescrita a cada
-#                    push, para sempre existir um link com o ultimo build.
-#   tag v*        -> release com notas geradas dos commits. Uma tag com
-#                   sufixo (v1.1.0-beta, v2.0.0-rc1) vira pre-release.
+# Promocao por branch, cada uma com o seu GitHub Environment:
+#   push em staging -> tag `v<VERSION>-rc.<run>`  -> pre-release  (environment: staging)
+#   push em main    -> tag `v<VERSION>`           -> release      (environment: production)
+#
+# <VERSION> vem do arquivo VERSION na raiz. Quem promove staging -> main
+# precisa te-lo incrementado, porque a tag de producao e imutavel: se ela ja
+# existir, o deploy falha em vez de sobrescrever uma release.
 on:
   push:
     branches:
+      - staging
       - main
-    tags:
-      - 'v*'
-  # Permite disparar o build sob demanda em qualquer branch. Como o job
-  # `publish` exige main ou tag v*, um disparo manual valida a exportacao
-  # sem publicar nada.
+  # Valida e exporta em qualquer branch, mas o job `publish` so roda em
+  # staging e main, entao um disparo manual noutra branch nao publica nada.
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: release-${{ github.ref }}
+  group: deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -27,9 +30,46 @@ jobs:
     name: Validar
     uses: ./.github/workflows/ci.yml
 
+  # Falha cedo (antes do build) se a tag de producao ja existe.
+  version:
+    name: Resolver versao
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Calcular tag
+        id: v
+        run: |
+          set -euo pipefail
+          versao="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "${versao}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION deve ser X.Y.Z (encontrado: '${versao}')."
+            exit 1
+          fi
+
+          if [ "${GITHUB_REF_NAME}" = 'main' ]; then
+            tag="v${versao}"
+            prerelease=false
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null; then
+              echo "::error::A tag ${tag} ja existe. Incremente o arquivo VERSION antes de promover para main."
+              exit 1
+            fi
+          else
+            tag="v${versao}-rc.${GITHUB_RUN_NUMBER}"
+            prerelease=true
+          fi
+
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=${prerelease}" >> "$GITHUB_OUTPUT"
+          echo "Tag desta execucao: ${tag}"
+
   build:
     name: Exportar Windows e Linux
-    needs: validate
+    needs: [validate, version]
     runs-on: ubuntu-latest
 
     steps:
@@ -87,9 +127,11 @@ jobs:
 
   publish:
     name: Publicar
-    needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    needs: [build, version]
+    if: github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    # Segredos, variaveis e regras de aprovacao vem do Environment da branch.
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     permissions:
       contents: write
 
@@ -100,23 +142,21 @@ jobs:
           name: builds
           path: build
 
-      - name: Publicar staging (pre-release rolante)
-        if: github.ref == 'refs/heads/main'
+      # O action cria a tag em `target_commitish` se ela ainda nao existir.
+      - name: Publicar release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: staging
+          tag_name: ${{ needs.version.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: Staging - ultimo build da main
-          prerelease: true
-          make_latest: false
+          name: ${{ needs.version.outputs.tag }}
+          generate_release_notes: true
+          prerelease: ${{ needs.version.outputs.prerelease == 'true' }}
+          make_latest: ${{ needs.version.outputs.prerelease != 'true' }}
           files: |
             build/PAC_BallisticVector.exe
             build/PAC_BallisticVector.x86_64
           body: |
-            Build automatico da branch `main`. Sobrescrito a cada push.
-
-            - Commit: ${{ github.sha }}
-            - Gerado em: ${{ github.event.head_commit.timestamp }}
+            Ambiente: `${{ github.ref_name == 'main' && 'production' || 'staging' }}` - commit ${{ github.sha }}
 
             **Windows:** baixe `PAC_BallisticVector.exe` e execute.
 
@@ -127,19 +167,3 @@ jobs:
             chmod +x PAC_BallisticVector.x86_64
             ./PAC_BallisticVector.x86_64
             ```
-
-            Para uma versao estavel, use a release mais recente com tag `v*`.
-
-      # Pelo versionamento semantico, tudo apos um hifen e identificador de
-      # pre-lancamento: v1.1.0-beta e v2.0.0-rc1 sao pre-releases, v1.1.0 nao.
-      # Sem esta distincao, uma beta apareceria como "Latest" no repositorio.
-      - name: Publicar release por tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
-        with:
-          generate_release_notes: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          make_latest: ${{ !contains(github.ref_name, '-') }}
-          files: |
-            build/PAC_BallisticVector.exe
-            build/PAC_BallisticVector.x86_64

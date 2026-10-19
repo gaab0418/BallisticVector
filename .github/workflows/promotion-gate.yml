@@ -1,0 +1,45 @@
+name: Promotion Gate
+
+# Rulesets nao conseguem restringir a branch de ORIGEM de um PR. Este check
+# (marcado como obrigatorio nas rulesets) fecha essa lacuna:
+#   feature/*, fix/*, ...  -> development
+#   development            -> staging
+#   staging                -> main
+on:
+  pull_request:
+    branches:
+      - development
+      - staging
+      - main
+
+permissions: {}
+
+jobs:
+  gate:
+    name: Gate de promocao
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar origem do PR
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          case "${BASE}" in
+            main)    permitido='staging' ;;
+            staging) permitido='development' ;;
+            *)       permitido='' ;;
+          esac
+
+          if [ -n "${permitido}" ] && [ "${HEAD}" != "${permitido}" ]; then
+            echo "::error::PRs para '${BASE}' so podem vir de '${permitido}' (origem: '${HEAD}')."
+            exit 1
+          fi
+
+          # development recebe qualquer branch, menos as de promocao.
+          if [ "${BASE}" = 'development' ] && { [ "${HEAD}" = 'staging' ] || [ "${HEAD}" = 'main' ]; }; then
+            echo "::error::Nao se faz PR de '${HEAD}' para 'development'. Traga mudancas por merge local."
+            exit 1
+          fi
+
+          echo "Origem '${HEAD}' -> '${BASE}' permitida."
