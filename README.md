@@ -129,6 +129,38 @@ BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_run
 
 ---
 
+## 🔄 CI/CD e Releases
+
+Todo código entra por Pull Request e sobe por três branches. Cada uma tem a sua própria regra (rulesets em [`.github/rulesets/`](.github/rulesets/README.md)):
+
+```
+feature/* ──PR──▶ development ──PR──▶ staging ──PR──▶ main
+                                         │               │
+                                    push = tag       push = tag
+                                    v0.7.0-rc.N      v0.7.0
+                                    env: staging     env: production
+```
+
+| Branch | Para que serve | O que acontece no push |
+| :--- | :--- | :--- |
+| `development` | Integração do dia a dia. Recebe qualquer branch de trabalho. | Só o CI (lint, import e testes). |
+| `staging` | Candidata a release, para validar antes de produção. | Valida, exporta Windows e Linux e publica uma **pre-release** `v<VERSION>-rc.<n>`. |
+| `main` | Produção. | Valida, exporta e publica a **release** `v<VERSION>`, com aprovação no environment `production`. |
+
+**Versão e tags.** A tag nunca é criada à mão: ela sai do arquivo [`VERSION`](VERSION) (`X.Y.Z`). Quem decide o número é você, ao editar o arquivo: correção vira `0.7.1`, funcionalidade nova vira `0.8.0`. A tag de `main` é imutável. Se `v<VERSION>` já existir, o PR para `main` falha no check **Gate de promoção**, antes do merge. Criar a tag com `git tag` também não funciona: o deploy só roda em push para `staging` e `main` e não geraria binários.
+
+**Passo a passo de uma entrega:**
+1. Crie `feature/...` a partir de `development` e abra o PR para `development`.
+2. Para lançar, edite o `VERSION` num PR para `development` (pode ser o da própria feature).
+3. Abra `development` → `staging`. Depois do merge, confira a pre-release `v<VERSION>-rc.<n>` e teste o build.
+4. Abra `staging` → `main`. Depois do merge, aprove o deploy em `production` e a release `v<VERSION>` é publicada.
+
+**Correção urgente (hotfix).** Para não passar por `development` e `staging`, crie `hotfix/...` a partir de `main`, suba o `VERSION` (ex.: `0.7.1`) e abra **dois PRs com a mesma branch**: um para `main` (publica a release) e outro para `development` (para a correção não se perder; ela chega a `staging` na próxima promoção). Merge de `main` de volta em `development` não é permitido pelo gate.
+
+**Regras que valem em `staging` e `main`:** PR obrigatório, 1 aprovação, checks `Lint e importacao` e `Gate de promocao` verdes, e **só merge commit** (squash faz `development` e `staging` divergirem a cada promoção). Para rodar o lint localmente antes do push, veja [`requirements-dev.txt`](requirements-dev.txt).
+
+---
+
 ## 🛠️ Como Executar o Projeto
 
 ### Pré-requisitos

@@ -5,6 +5,8 @@ name: Promotion Gate
 #   feature/*, fix/*, ...  -> development
 #   development            -> staging
 #   staging                -> main
+#   hotfix/*               -> main        (correcao urgente; o mesmo hotfix/*
+#                                          tambem vai por PR para development)
 #
 # Em PRs para main, tambem confirma que a tag v<VERSION> ainda nao existe, para
 # o esquecimento do bump aparecer no PR e nao so no deploy, depois do merge.
@@ -34,13 +36,19 @@ jobs:
         run: |
           set -euo pipefail
           case "${BASE}" in
-            main)    permitido='staging' ;;
+            main)    permitido='staging ou hotfix/*' ;;
             staging) permitido='development' ;;
             *)       permitido='' ;;
           esac
 
-          if [ -n "${permitido}" ] && [ "${HEAD}" != "${permitido}" ]; then
-            echo "::error::PRs para '${BASE}' so podem vir de '${permitido}' (origem: '${HEAD}')."
+          origem_ok=true
+          case "${BASE}:${HEAD}" in
+            main:staging | main:hotfix/* | staging:development) ;;
+            main:* | staging:*) origem_ok=false ;;
+          esac
+
+          if [ "${origem_ok}" != true ]; then
+            echo "::error::PRs para '${BASE}' so podem vir de ${permitido} (origem: '${HEAD}')."
             exit 1
           fi
 
