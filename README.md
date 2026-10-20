@@ -155,7 +155,12 @@ feature/* ──PR──▶ development ──PR──▶ staging ──PR──
 3. Abra `development` → `staging`. Depois do merge, confira a pre-release `v<VERSION>-rc.<n>` e teste o build.
 4. Abra `staging` → `main`. Depois do merge, aprove o deploy em `production` e a release `v<VERSION>` é publicada.
 
-**Correção urgente (hotfix).** Para não passar por `development` e `staging`, crie `hotfix/...` a partir de `main`, suba o `VERSION` (ex.: `0.7.1`) e abra **dois PRs com a mesma branch**: um para `main` (publica a release) e outro para `development` (para a correção não se perder; ela chega a `staging` na próxima promoção). Merge de `main` de volta em `development` não é permitido pelo gate.
+**Como fazer uma correção (ex.: `v0.7.1`):**
+1. Crie a branch da correção a partir de `development`.
+2. No mesmo PR da correção, mude o `VERSION` para `0.7.1`.
+3. Faça o fluxo normal: PR para `development`, depois `staging` (sai `v0.7.1-rc.N`) e depois `main` (sai `v0.7.1`).
+
+Não crie a tag com `git tag`: ela sai sozinha do `VERSION` no deploy.
 
 **Regras que valem em `staging` e `main`:** PR obrigatório, 1 aprovação, checks `Lint e importacao` e `Gate de promocao` verdes, e **só merge commit** (squash faz `development` e `staging` divergirem a cada promoção). Para rodar o lint localmente antes do push, veja [`requirements-dev.txt`](requirements-dev.txt).
 
