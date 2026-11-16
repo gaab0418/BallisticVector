@@ -1,4 +1,4 @@
-# 🚀 Ballistic Vector — PAC #1
+# 🚀 Ballistic Vector — PAC #1 teste
 
 **Ballistic Vector** é um jogo tático de combate e simulação balística 2D desenvolvido em **Godot 4.6** (utilizando o renderizador *GL Compatibility*). O jogo foi construído como parte do Projeto Acadêmico Curricular (PAC #1), com foco em *edutainment* (educação matemática) para auxiliar na visualização prática e intuitiva de **Funções Quadráticas** e mecânicas balísticas parabólicas.
 
