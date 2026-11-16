@@ -155,7 +155,7 @@ feature/* ──PR──▶ development ──PR──▶ staging ──PR──
 3. Abra `development` → `staging`. Depois do merge, confira a pre-release `v<VERSION>-rc.<n>` e teste o build.
 4. Abra `staging` → `main`. Depois do merge, aprove o deploy em `production` e a release `v<VERSION>` é publicada.
 
-**Como fazer uma correção (ex.: `v0.7.1`):**
+**Como fazer uma correção (ex.: `v0.7.2`):**
 1. Crie a branch da correção a partir de `development`.
 2. No mesmo PR da correção, mude o `VERSION` para `0.7.1`.
 3. Faça o fluxo normal: PR para `development`, depois `staging` (sai `v0.7.1-rc.N`) e depois `main` (sai `v0.7.1`).
