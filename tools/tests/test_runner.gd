@@ -74,6 +74,7 @@ func _run() -> void:
 	await _test_landing_matches_hud()
 	await _test_scenes_open()
 	await _test_buttons()
+	await _test_war_map_objective()
 	_test_save_roundtrip()
 	_test_ada_intro()
 	await _test_ada_in_arena()
@@ -2204,6 +2205,34 @@ func _save_snapshot(g: Node) -> Dictionary:
 
 func _scene_path() -> String:
 	return current_scene.scene_file_path if current_scene else ""
+
+
+## T19 e T20: a fala do objetivo so aparece na primeira visita ao mapa.
+func _test_war_map_objective() -> void:
+	var g = root.get_node("Global")
+	var objective := (
+		"Retome as ilhas, base por base, até o Norte. " + "Clique numa ilha para escolher a fase."
+	)
+	g.reset_progress()
+	g.map_intro_done = false
+	paused = false
+	change_scene_to_file(MAP_SCENE)
+	await _frames(20)
+	if _scene_path() != MAP_SCENE:
+		_fail("T19: o mapa nao abriu (%s)" % _scene_path())
+	else:
+		var said: String = current_scene._ada._text.text
+		if said != objective or not said.contains("até o Norte"):
+			_fail("T19: fala da primeira visita = '%s'" % said)
+	if not g.map_intro_done:
+		_fail("T19: map_intro_done continua false depois da primeira visita")
+	g.map_intro_done = true
+	change_scene_to_file(MAP_SCENE)
+	await _frames(20)
+	if _scene_path() == MAP_SCENE and current_scene._ada._text.text == objective:
+		_fail("T20: a segunda visita repetiu o objetivo")
+	g.reset_progress()
+	print("ok: objetivo do mapa")
 
 
 func _test_practice_arena() -> void:
