@@ -614,7 +614,7 @@ func _clear_path(s: Dictionary, r: float) -> bool:
 	return true
 
 
-## A Ada gira o canhao ate o tiro planejado antes de atirar, para a crianca ver.
+## A Ada gira o canhao ate o tiro planejado antes de atirar, para o jogador ver.
 func _ada_step(delta: float) -> void:
 	var p: Dictionary = players[1]
 	p.angle = move_toward(p.angle, _ada_target.x, 40.0 * delta)

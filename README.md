@@ -20,7 +20,7 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 - **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Parábola Visível (`trajectory_view.gd`, `ballistics.gd`)**: A trajetória é desenhada pela própria equação `y = ax² + bx + c`, com o **vértice** (altura máxima), a **raiz** (alcance) sobre uma **régua em metros** no chão, o ponto onde a bala bate numa montanha e a faixa onde ela pode cair. A física, a mira e a HUD usam a mesma escala (`Ballistics.PX_PER_METER = 50`), então o número do painel é o mesmo que a régua mostra.
-- **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase começa com um cartão de missão e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
+- **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase abre com uma frase curta da Engenheira Ada e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
 - **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto.
 - **Laboratório**: modo livre (menu principal), sem inimigos e com mira perfeita. Troque de mundo (Terra, Lua, Marte, Júpiter, Invertido), clique no céu para pôr um alvo e veja a **tabela de pontos (x, y)**: a altura medida na bala, metro a metro, ao lado da altura que a equação prevê.
 - **Progresso salvo**: estrelas, bases, ouro e munição ficam em `user://progresso.cfg` (salvamento automático). O menu mostra "Continuar" e tem "Recomeçar campanha" com confirmação. Sem munição e sem ouro, o mapa entrega um **kit de emergência**.
@@ -53,9 +53,7 @@ mostram quais coeficientes da equação ela altera, e esses coeficientes ganham 
 | **Botão de engrenagem** (canto superior esquerdo) | Abre o menu de pausa: continuar, ajustes de áudio, reiniciar a batalha ou voltar ao mapa de guerra. |
 
 Ao lado das engrenagens, a HUD mostra a **altura máxima** (vértice, losango ◆) e o **alcance**
-(raiz, bandeira) — os mesmos símbolos e cores desenhados na curva. A missão da fase aparece ao
-entrar; depois fica recolhida no **botão de estrela** (canto superior direito, com o placar),
-que reabre o cartão com o progresso de cada desafio. Com o canhão apontado para
+(raiz, bandeira) — os mesmos símbolos e cores desenhados na curva. As missões da fase ficam no **botão de estrela** (canto superior direito, com o placar), que abre o cartão com a lição, a dica e o progresso de cada desafio. Depois de três erros seguidos, a Ada fala a dica. Com o canhão apontado para
 baixo não há vértice à frente, e o painel diz "Levante o canhão para formar a parábola". A
 imprecisão da munição aparece como uma faixa sobre a régua: "a bala pode cair aqui".
 
@@ -119,7 +117,7 @@ Os papéis de texto são variações do tema (`Label.theme_type_variation`): `Ti
 `tools/tests/test_runner.gd` roda na CI depois do import e protege as garantias do jogo:
 todo script compila, todo obstáculo é um polígono válido, **todo alvo de toda fase é
 atingível** (e as metas de vértice são cumpríveis), a **bala real cai onde a HUD diz**,
-cada tela abre e o save volta igual ao carregar. Para rodar localmente:
+cada tela abre, o save volta igual ao carregar e a Ada fala pouco: no máximo uma frase da lição e um aviso de chefe na abertura, a dica só depois de erros seguidos e nenhum texto em tom infantil. Para rodar localmente:
 
 ```bash
 BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_runner.gd

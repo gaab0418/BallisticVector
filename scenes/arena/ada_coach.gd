@@ -1,7 +1,8 @@
 extends Node
-## A Engenheira Ada na arena: tutorial da primeira vez, abertura de cada fase,
-## dicas apos erros seguidos, parabens por desafio e o botao de estrela. A arena
-## so avisa os eventos (tiro, acerto, bala que sumiu); a Ada decide o que dizer.
+## A Engenheira Ada na arena: tutorial da primeira vez, abertura curta de cada
+## fase (uma frase da licao e o aviso do chefe), dicas apos erros seguidos,
+## parabens por desafio e o botao de estrela. A arena so avisa os eventos (tiro,
+## acerto, bala que sumiu); a Ada decide o que dizer.
 
 const MISSES_FOR_TIP := 3
 const BAND_LABEL_SECONDS := 12.0
@@ -14,6 +15,7 @@ var in_tutorial := false
 var _misses := 0
 var _hit_since_fire := false
 var _hit_in_tutorial := false
+var _stage_tip_given := false
 var _elapsed := 0.0
 var _prev_states: Array = []
 
@@ -53,7 +55,7 @@ func start_stage() -> void:
 			. say(
 				[
 					{
-						"text": "Bem-vindo ao meu laboratório! Aqui ninguém atira em você.",
+						"text": "Esta é a minha oficina. Aqui ninguém atira em você.",
 						"expr": "happy",
 						"caption": "LABORATÓRIO"
 					},
@@ -63,7 +65,7 @@ func start_stage() -> void:
 						"expr": "thinking"
 					},
 					{
-						"text": "Clique no céu para pôr um alvo. Consegue acertar na mosca?",
+						"text": "Clique no céu para marcar um alvo e tente acertar em cheio.",
 						"expr": "proud"
 					},
 				]
@@ -77,71 +79,57 @@ func start_stage() -> void:
 	):
 		_run_tutorial()
 		return
-	ada.say(_intro_lines())
+	var lines := _intro_lines()
+	if not lines.is_empty():
+		ada.say(lines)
 
 
-## A licao da fase em baloes curtos: uma frase por balao, depois a dica e as
-## missoes.
 ## Como vencer cada tipo de chefe, na fala de abertura (ver BossBrain).
 const CHIEF_RULES := {
-	"shield": "A cúpula dele só deixa passar bala caindo de cima: faça o vértice bem alto.",
-	"moving": "Ele anda de um lado para o outro: a raiz da parábola tem que acompanhar.",
-	"hopping": "A cada acerto ele foge para outro lugar. Ande com o tanque e mire de novo!",
-	"gravity": "A cada acerto ele troca a gravidade. Olhe o 'a' da equação mudar!",
-	"guarded": "O escudo vermelho só cai quando todos os outros inimigos caírem.",
+	"shield": "a cúpula que eu projetei só deixa passar bala caindo de cima. Suba bem o vértice.",
+	"moving": "ele não para no lugar. Mire a raiz onde ele vai estar, não onde está agora.",
+	"hopping": "a cada acerto ele muda de lugar. Reposicione o tanque e refaça a conta.",
+	"gravity":
+	"a cada acerto ele troca a gravidade. Confira o novo 'a' da equação antes de atirar.",
+	"guarded":
+	"o escudo vermelho só cai depois que todos os outros inimigos caírem. Comece por eles.",
 }
+
+# gdlint: ignore=max-line-length
+const CHIEF_FALLBACK := "este chefe tem uma regra própria. Observe o primeiro tiro antes de gastar munição."
 
 
 func _intro_lines() -> Array:
-	var st: Dictionary = arena.stage_data
 	var info: Dictionary = Campaign.base(Global.current_base_id)
 	var base_name: String = Global.get_base_data(Global.current_base_id).get("name", "")
 	var caption := (
 		"%s · %s · FASE %d"
 		% [base_name.to_upper(), info.chapter.to_upper(), Global.current_stage + 1]
 	)
+	return intro_lines_for(arena.stage_data, caption)
+
+
+## Abertura da fase: so a primeira frase da licao e, se houver chefe, um aviso
+## curto. A dica fica para depois de MISSES_FOR_TIP erros seguidos; as missoes,
+## para o botao de estrela. Licao vazia e sem chefe devolve lista vazia.
+static func intro_lines_for(stage: Dictionary, caption: String) -> Array:
 	var lines := []
-	var sentences := _sentences(st.lesson)
-	var exprs := ["happy", "neutral", "thinking", "surprised"]
-	for i in range(sentences.size()):
-		lines.append(
-			{
-				"text": sentences[i],
-				"expr": exprs[i % exprs.size()],
-				"caption": caption if i == 0 else ""
-			}
-		)
-	var chief: Dictionary = st.get("chief", {})
+	var sentences := _sentences(String(stage.get("lesson", "")))
+	if not sentences.is_empty():
+		lines.append({"text": sentences[0], "expr": "happy", "caption": caption})
+	var chief: Dictionary = stage.get("chief", {})
 	if not chief.is_empty():
+		var rule: String = CHIEF_RULES.get(chief.get("kind", ""), CHIEF_FALLBACK)
 		(
 			lines
 			. append(
 				{
-					"text":
-					(
-						"Cuidado: aqui mora um CHEFE, o %s! %s"
-						% [chief.name, CHIEF_RULES.get(chief.kind, "")]
-					),
+					"text": "%s: %s" % [chief.get("name", "Chefe"), rule],
 					"expr": "surprised",
 					"caption": "CHEFE",
 				}
 			)
 		)
-	lines.append({"text": "Dica: " + st.tip, "expr": "thinking"})
-	var goals := []
-	for g in st.goals:
-		goals.append(Campaign.goal_text(g).to_lower())
-	(
-		lines
-		. append(
-			{
-				"text":
-				"Para ganhar estrelas: %s. A ★ lá em cima guarda as missões." % "; ".join(goals),
-				"expr": "proud",
-				"caption": "MISSÕES",
-			}
-		)
-	)
 	return lines
 
 
@@ -327,7 +315,8 @@ func on_hit() -> void:
 
 
 ## Bala do jogador sumiu (chao, montanha ou fora da tela). Tres erros seguidos
-## viram uma dica da Ada, escolhida pelo que aconteceu com o ultimo tiro.
+## viram uma dica da Ada: a primeira e a `tip` da fase; as seguintes olham o que
+## aconteceu com o ultimo tiro.
 func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
 	if in_tutorial or _hit_since_fire:
 		return
@@ -335,24 +324,33 @@ func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
 	if _misses < MISSES_FOR_TIP:
 		return
 	_misses = 0
-	ada.pop(_tip_for(pos, hit_obstacle), "thinking", 5.5)
+	ada.pop(_next_tip(pos, hit_obstacle), "thinking", 5.5)
+
+
+## No 1o limiar da fase vale a `tip` da fase; depois (ou sem `tip`), o ultimo tiro.
+func _next_tip(pos: Vector2, hit_obstacle: bool) -> String:
+	var tip := String(arena.stage_data.get("tip", ""))
+	if not _stage_tip_given and tip.strip_edges() != "":
+		_stage_tip_given = true
+		return tip
+	return _tip_for(pos, hit_obstacle)
 
 
 func _tip_for(pos: Vector2, hit_obstacle: bool) -> String:
 	if arena.inverted:
-		return "Lembre: aqui a curva abre para cima. Mire o ponto mais BAIXO no alvo!"
+		return "Aqui a curva abre para cima: o vértice é o ponto mais baixo. Leve esse ponto até o alvo."
 	if hit_obstacle and pos.y < Campaign.GROUND_Y - 8.0:
-		return "A montanha entrou na frente. Suba o vértice: mais ângulo ou mais força!"
+		return "A montanha bloqueou o tiro. Suba o vértice: mais ângulo ou mais força."
 	var target := _castle_rect().get_center()
 	if pos.x < target.x - 60.0:
-		return "Faltou alcance! Mais força, ou um ângulo mais perto de 45°."
-	return "Passou do alvo! Tire um pouquinho de força."
+		return "Faltou alcance. Aumente a força ou aproxime o ângulo de 45°."
+	return "Passou do alvo. Reduza um pouco a força."
 
 
 func on_stage_cleared() -> void:
 	if ada.is_talking():
 		ada.hide_now()
-	ada.pop("Castelo no chão! Vamos ver suas estrelas.", "proud", 2.5)
+	ada.pop("Castelo derrubado. Vamos ver as estrelas.", "proud", 2.5)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -386,7 +384,7 @@ func _on_goals_changed() -> void:
 			if i < _prev_states.size() and goals.states[i] != _prev_states[i]:
 				var text := Campaign.goal_text(goals.goals[i])
 				if goals.states[i] == StageGoals.State.DONE:
-					ada.pop("Desafio cumprido! " + text + ".", "proud", 3.5)
+					ada.pop("Desafio cumprido: " + text + ".", "proud", 3.5)
 				else:
 					arena.hud.show_toast("Desafio perdido: " + text, UiTokens.TEXT_DIM)
 				arena.hud.pulse_goals()

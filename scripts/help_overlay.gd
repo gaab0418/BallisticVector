@@ -2,7 +2,7 @@ class_name HelpOverlay
 extends UiModal
 ## Tela de ajuda da arena (H ou botao "?"), com o jogo pausado.
 ##
-## Tres abas, em linguagem de crianca:
+## Tres abas, em linguagem direta (publico do ensino medio):
 ##   Teclas          -- todos os controles, com o desenho da tecla
 ##   A parabola      -- mini-diagrama: vertice, raiz, altura do canhao (c)
 ##   As engrenagens  -- o efeito de cada engrenagem, em tres mini-graficos
@@ -63,7 +63,7 @@ func _build_content() -> void:
 	again.custom_minimum_size = Vector2(300, 52)
 	again.pressed.connect(_replay_tutorial.bind(again))
 	buttons.add_child(again)
-	_close_btn = UiButton.create("ENTENDI!", UiButton.Kind.PRIMARY, null, true)
+	_close_btn = UiButton.create("ENTENDI", UiButton.Kind.PRIMARY, null, true)
 	_close_btn.pressed.connect(close)
 	buttons.add_child(_close_btn)
 	_tabs[0].button_pressed = true
@@ -106,7 +106,7 @@ func _build_keys_page() -> Control:
 		[ICON_ARROWS_H, "Esquerda e Direita", "escolhem a engrenagem que você vai girar"],
 		[ICON_ARROWS_V, "Cima e Baixo", "giram a engrenagem escolhida"],
 		[ICON_MOUSE, "Mouse", "segure na engrenagem e gire em volta dela"],
-		[ICON_SHIFT, "Shift + seta", "gira devagarinho, para acertar o número"],
+		[ICON_SHIFT, "Shift + seta", "gira devagar, para acertar o número exato"],
 		[ICON_SPACE, "Espaço", "dispara o canhão"],
 		[ICON_TAB, "Tab", "troca a munição"],
 		[null, "A e D", "andam com o tanque (quando há combustível)"],
@@ -189,8 +189,8 @@ func _build_parabola_page() -> Control:
 	text.add_child(
 		_para(
 			(
-				"Ela sobe, vai ficando mais devagar, para um instantinho lá no alto e cai. "
-				+ "Essa curva se chama PARÁBOLA."
+				"Ela sobe perdendo velocidade vertical, que zera no "
+				+ "ponto mais alto, e depois cai. Essa curva se chama PARÁBOLA."
 			)
 		)
 	)
@@ -207,8 +207,8 @@ func _build_parabola_page() -> Control:
 	text.add_child(
 		_para(
 			(
-				"O losango marca o vértice e a bandeira marca a raiz. Os números do painel "
-				+ "batem com a régua: confira com os olhos!"
+				"O losango marca o vértice e a bandeira marca a "
+				+ "raiz. Os números do painel batem com a régua: confira."
 			)
 		)
 	)
@@ -231,7 +231,7 @@ func _build_gears_page() -> Control:
 		. add_child(
 			_gear_card(
 				"ÂNGULO  ·  mexe no a e no b",
-				"45° vai mais longe. 30° e 60° caem no mesmo lugar!",
+				"45° vai mais longe. 30° e 60° caem no mesmo lugar.",
 				[
 					{
 						"angle": 30.0,

@@ -8,6 +8,12 @@ signal map_requested
 
 const PANEL_SIZE := Vector2(560, 0)
 const STAR_SIZE := 64.0
+## A fala da Ada na tela de resultado, por numero de estrelas (1, 2 e 3).
+const ADA_SAYS := [
+	"Vitória. Tente os desafios para ganhar mais estrelas.",
+	"Muito bem. Falta pouco para as três estrelas.",
+	"Perfeito. Você domina essa ideia, recruta.",
+]
 
 var _headline: Label
 var _ada: AdaPortrait
@@ -82,12 +88,7 @@ func show_result(stars: int, goals: Array, states: Array, gold: int, last_stage:
 	var page := Notebook.page_for(Global.current_base_id, Global.current_stage)
 	if not page.is_empty() and not Global.notebook_seen.has(Notebook.page_id(page)):
 		_reward.text += '\nNova página no Caderno da Ada: "%s"' % page.title
-	var says := [
-		"Vitória! Tente os desafios para ganhar mais estrelas.",
-		"Muito bem! Falta pouco para as três estrelas.",
-		"Perfeito! Você domina essa ideia, recruta.",
-	]
-	_ada_line.text = "“" + says[clampi(stars - 1, 0, 2)] + "”"
+	_ada_line.text = "“" + ADA_SAYS[clampi(stars - 1, 0, 2)] + "”"
 	_ada.expression = "proud" if stars >= 3 else "happy"
 
 	for child in _stars_row.get_children():
