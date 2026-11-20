@@ -1,7 +1,8 @@
 extends Node
-## A Engenheira Ada na arena: tutorial da primeira vez, abertura de cada fase,
-## dicas apos erros seguidos, parabens por desafio e o botao de estrela. A arena
-## so avisa os eventos (tiro, acerto, bala que sumiu); a Ada decide o que dizer.
+## A Engenheira Ada na arena: tutorial da primeira vez, abertura curta de cada
+## fase (uma frase da licao e o aviso do chefe), dicas apos erros seguidos,
+## parabens por desafio e o botao de estrela. A arena so avisa os eventos (tiro,
+## acerto, bala que sumiu); a Ada decide o que dizer.
 
 const MISSES_FOR_TIP := 3
 const BAND_LABEL_SECONDS := 12.0
@@ -77,11 +78,14 @@ func start_stage() -> void:
 	):
 		_run_tutorial()
 		return
-	ada.say(_intro_lines())
+	var lines := _intro_lines()
+	if not lines.is_empty():
+		ada.say(lines)
 
 
-## A licao da fase em baloes curtos: uma frase por balao, depois a dica e as
-## missoes.
+## Abertura da fase: so a primeira frase da licao e, se houver chefe, um aviso
+## curto. A dica fica para depois de MISSES_FOR_TIP erros seguidos; as missoes,
+## para o botao de estrela.
 ## Como vencer cada tipo de chefe, na fala de abertura (ver BossBrain).
 const CHIEF_RULES := {
 	"shield": "a cúpula que eu projetei só deixa passar bala caindo de cima. Suba bem o vértice.",
@@ -99,55 +103,35 @@ const CHIEF_FALLBACK := (
 
 
 func _intro_lines() -> Array:
-	var st: Dictionary = arena.stage_data
 	var info: Dictionary = Campaign.base(Global.current_base_id)
 	var base_name: String = Global.get_base_data(Global.current_base_id).get("name", "")
 	var caption := (
 		"%s · %s · FASE %d"
 		% [base_name.to_upper(), info.chapter.to_upper(), Global.current_stage + 1]
 	)
+	return intro_lines_for(arena.stage_data, caption)
+
+
+## Abertura da fase: a 1a frase da licao e, se houver chefe, um aviso curto.
+## Licao vazia e sem chefe devolve lista vazia.
+static func intro_lines_for(stage: Dictionary, caption: String) -> Array:
 	var lines := []
-	var sentences := _sentences(st.lesson)
-	var exprs := ["happy", "neutral", "thinking", "surprised"]
-	for i in range(sentences.size()):
-		lines.append(
-			{
-				"text": sentences[i],
-				"expr": exprs[i % exprs.size()],
-				"caption": caption if i == 0 else ""
-			}
-		)
-	var chief: Dictionary = st.get("chief", {})
+	var sentences := _sentences(String(stage.get("lesson", "")))
+	if not sentences.is_empty():
+		lines.append({"text": sentences[0], "expr": "happy", "caption": caption})
+	var chief: Dictionary = stage.get("chief", {})
 	if not chief.is_empty():
+		var rule: String = CHIEF_RULES.get(chief.get("kind", ""), CHIEF_FALLBACK)
 		(
 			lines
 			. append(
 				{
-					"text":
-					(
-						"Cuidado: aqui mora um CHEFE, o %s! %s"
-						% [chief.name, CHIEF_RULES.get(chief.kind, "")]
-					),
+					"text": "%s: %s" % [chief.get("name", "Chefe"), rule],
 					"expr": "surprised",
 					"caption": "CHEFE",
 				}
 			)
 		)
-	lines.append({"text": "Dica: " + st.tip, "expr": "thinking"})
-	var goals := []
-	for g in st.goals:
-		goals.append(Campaign.goal_text(g).to_lower())
-	(
-		lines
-		. append(
-			{
-				"text":
-				"Para ganhar estrelas: %s. A ★ lá em cima guarda as missões." % "; ".join(goals),
-				"expr": "proud",
-				"caption": "MISSÕES",
-			}
-		)
-	)
 	return lines
 
 

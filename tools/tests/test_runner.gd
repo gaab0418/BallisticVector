@@ -37,6 +37,8 @@ func _run() -> void:
 	await _test_scenes_open()
 	await _test_buttons()
 	_test_save_roundtrip()
+	_test_ada_intro()
+	await _test_ada_in_arena()
 	if failures.is_empty():
 		print("TODOS OS TESTES PASSARAM")
 		quit(0)
@@ -464,3 +466,142 @@ func _test_save_roundtrip() -> void:
 		_fail("kit de emergencia nao apareceu sem municao e sem ouro")
 	g.reset_progress()
 	print("ok: salvar, carregar e kit de emergencia")
+
+
+# ── 7. Falas da Ada ──────────────────────────────────────────────────
+
+
+## O script da Ada usa o autoload Global: so carrega depois que os autoloads
+## existem (um preload no topo do runner nao compila).
+func _coach_script() -> GDScript:
+	return load("res://scenes/arena/ada_coach.gd")
+
+
+## Todas as fases da campanha, como [rotulo, dados].
+func _all_stages() -> Array:
+	var out := []
+	for base_id in Campaign.BASES:
+		var stages: Array = Campaign.BASES[base_id].stages
+		for i in range(stages.size()):
+			out.append(["%s/%d" % [base_id, i + 1], stages[i]])
+	return out
+
+
+func _test_ada_intro() -> void:
+	var chief_texts := []
+	for entry in _all_stages():
+		var label: String = entry[0]
+		var st: Dictionary = entry[1]
+		var lines: Array = _coach_script().intro_lines_for(st, "CAP")
+		var expected := 2 if st.has("chief") else 1
+		if lines.size() != expected:
+			_fail("abertura de %s com %d falas (esperado %d)" % [label, lines.size(), expected])
+			continue
+		for l in lines:
+			var text: String = l.text
+			if text.strip_edges() == "":
+				_fail("abertura de %s com fala vazia" % label)
+			if (
+				(st.tip != "" and st.tip in text)
+				or "Dica" in text
+				or "★" in text
+				or "estrela" in text
+				or l.get("caption", "") == "MISSÕES"
+			):
+				_fail("abertura de %s traz dica ou missoes: %s" % [label, text])
+		if lines[0].text.length() > 100:
+			_fail("1a fala de %s com %d caracteres" % [label, lines[0].text.length()])
+		if st.has("chief"):
+			chief_texts.append(lines[1].text)
+			if lines[1].text.length() > 130:
+				_fail("aviso de chefe de %s com %d caracteres" % [label, lines[1].text.length()])
+			if not _coach_script().CHIEF_RULES.has(st.chief.kind):
+				_fail("chefe %s sem regra em CHIEF_RULES (%s)" % [label, st.chief.kind])
+	var first: Array = _coach_script().intro_lines_for(Campaign.BASES.Base_A.stages[1], "CAP")
+	var want_first := [
+		{
+			"text": "Ângulos complementares, como 30° e 60°, levam a bala quase ao mesmo lugar.",
+			"expr": "happy",
+			"caption": "CAP",
+		}
+	]
+	if first != want_first:
+		_fail("abertura da A2 diferente do esperado: %s" % [first])
+	var boss: Array = _coach_script().intro_lines_for(Campaign.BASES.Base_A.stages[2], "CAP")
+	if boss.size() != 2:
+		_fail("abertura da A3 sem o aviso de chefe")
+	else:
+		var want_rule := (
+			"Fortaleza do Escudo: a cúpula que eu projetei só deixa passar bala caindo de cima. "
+			+ "Suba bem o vértice."
+		)
+		if boss[1].text != want_rule or boss[1].caption != "CHEFE" or boss[1].expr != "surprised":
+			_fail("aviso de chefe da A3 diferente do esperado: %s" % [boss[1]])
+	_check_intro_edge_cases()
+	print("ok: abertura curta da Ada")
+
+
+func _check_intro_edge_cases() -> void:
+	var castle := {"name": "Castelo X", "kind": "shield"}
+	var odd := {"name": "Castelo X", "kind": "laser"}
+	var cases := [
+		["licao vazia", {"lesson": ""}, []],
+		["licao so com espacos", {"lesson": "   "}, []],
+		["sem pontuacao", {"lesson": "Sem ponto final"}, ["Sem ponto final"]],
+		["duas frases", {"lesson": "Uma. Duas."}, ["Uma."]],
+		["so chefe", {"lesson": "", "chief": castle}, ["Castelo X: a cúpula"]],
+		[
+			"chefe sem regra",
+			{"lesson": "", "chief": odd},
+			["Castelo X: " + _coach_script().CHIEF_FALLBACK]
+		],
+	]
+	for c in cases:
+		var lines: Array = _coach_script().intro_lines_for(c[1], "CAP")
+		var want: Array = c[2]
+		if lines.size() != want.size():
+			_fail("abertura (%s) com %d falas (esperado %d)" % [c[0], lines.size(), want.size()])
+			continue
+		for i in range(want.size()):
+			var ok: bool = (
+				lines[i].text.begins_with(want[i])
+				if c[0] == "so chefe"
+				else lines[i].text == want[i]
+			)
+			if not ok:
+				_fail("abertura (%s): '%s'" % [c[0], lines[i].text])
+		if c[0] in ["so chefe", "chefe sem regra"] and lines[0].caption != "CHEFE":
+			_fail("abertura (%s) sem a legenda CHEFE" % c[0])
+
+
+## Abre a arena da Base Alpha, fase 2 (indice 1), com a abertura da Ada fechada.
+func _open_ada_arena() -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.current_base_id = "Base_A"
+	g.current_stage = 1
+	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.tutorial_done = true
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a = current_scene
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	a.coach.ada.hide_now()
+	return a
+
+
+func _test_ada_in_arena() -> void:
+	var a = await _open_ada_arena()
+	_check_no_bubble_without_lesson(a)
+	paused = false
+	print("ok: falas da Ada na arena")
+
+
+## T7: fase sem licao e sem chefe nao abre balao (nem pausa o jogo a toa).
+func _check_no_bubble_without_lesson(a: Node) -> void:
+	a.stage_data = a.stage_data.duplicate()
+	a.stage_data["lesson"] = ""
+	a.coach.start_stage()
+	if a.coach.ada.visible or a.coach.ada._mode != "":
+		_fail("fase sem licao abriu balao da Ada")
