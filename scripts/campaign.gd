@@ -118,7 +118,7 @@ const BASES := {
 				"title": "Primeiro disparo",
 				"lesson":
 				(
-					"A curva na tela é uma parábola: gire a engrenagem do ÂNGULO e "
+					"A curva na tela é uma parábola: gire a engrenagem do ângulo e "
 					+ "veja como ela muda antes do tiro. É o caminho previsto para a bala."
 				),
 				"tip": "Perto de 45° a bala vai mais longe.",
