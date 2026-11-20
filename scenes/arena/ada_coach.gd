@@ -53,7 +53,7 @@ func start_stage() -> void:
 			. say(
 				[
 					{
-						"text": "Bem-vindo ao meu laboratório! Aqui ninguém atira em você.",
+						"text": "Esta é a minha oficina. Aqui ninguém atira em você.",
 						"expr": "happy",
 						"caption": "LABORATÓRIO"
 					},
@@ -63,7 +63,7 @@ func start_stage() -> void:
 						"expr": "thinking"
 					},
 					{
-						"text": "Clique no céu para pôr um alvo. Consegue acertar na mosca?",
+						"text": "Clique no céu para marcar um alvo e tente acertar em cheio.",
 						"expr": "proud"
 					},
 				]
@@ -84,12 +84,18 @@ func start_stage() -> void:
 ## missoes.
 ## Como vencer cada tipo de chefe, na fala de abertura (ver BossBrain).
 const CHIEF_RULES := {
-	"shield": "A cúpula dele só deixa passar bala caindo de cima: faça o vértice bem alto.",
-	"moving": "Ele anda de um lado para o outro: a raiz da parábola tem que acompanhar.",
-	"hopping": "A cada acerto ele foge para outro lugar. Ande com o tanque e mire de novo!",
-	"gravity": "A cada acerto ele troca a gravidade. Olhe o 'a' da equação mudar!",
-	"guarded": "O escudo vermelho só cai quando todos os outros inimigos caírem.",
+	"shield": "a cúpula que eu projetei só deixa passar bala caindo de cima. Suba bem o vértice.",
+	"moving": "ele não para no lugar. Mire a raiz onde ele vai estar, não onde está agora.",
+	"hopping": "a cada acerto ele muda de lugar. Reposicione o tanque e refaça a conta.",
+	"gravity":
+	"a cada acerto ele troca a gravidade. Confira o novo 'a' da equação antes de atirar.",
+	"guarded":
+	"o escudo vermelho só cai depois que todos os outros inimigos caírem. Comece por eles.",
 }
+
+const CHIEF_FALLBACK := (
+	"este chefe tem uma regra própria. " + "Observe o primeiro tiro antes de gastar munição."
+)
 
 
 func _intro_lines() -> Array:
@@ -340,19 +346,19 @@ func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
 
 func _tip_for(pos: Vector2, hit_obstacle: bool) -> String:
 	if arena.inverted:
-		return "Lembre: aqui a curva abre para cima. Mire o ponto mais BAIXO no alvo!"
+		return "Aqui a curva abre para cima: o vértice é o ponto mais baixo. Leve esse ponto até o alvo."
 	if hit_obstacle and pos.y < Campaign.GROUND_Y - 8.0:
-		return "A montanha entrou na frente. Suba o vértice: mais ângulo ou mais força!"
+		return "A montanha bloqueou o tiro. Suba o vértice: mais ângulo ou mais força."
 	var target := _castle_rect().get_center()
 	if pos.x < target.x - 60.0:
-		return "Faltou alcance! Mais força, ou um ângulo mais perto de 45°."
-	return "Passou do alvo! Tire um pouquinho de força."
+		return "Faltou alcance. Aumente a força ou aproxime o ângulo de 45°."
+	return "Passou do alvo. Reduza um pouco a força."
 
 
 func on_stage_cleared() -> void:
 	if ada.is_talking():
 		ada.hide_now()
-	ada.pop("Castelo no chão! Vamos ver suas estrelas.", "proud", 2.5)
+	ada.pop("Castelo derrubado. Vamos ver as estrelas.", "proud", 2.5)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -386,7 +392,7 @@ func _on_goals_changed() -> void:
 			if i < _prev_states.size() and goals.states[i] != _prev_states[i]:
 				var text := Campaign.goal_text(goals.goals[i])
 				if goals.states[i] == StageGoals.State.DONE:
-					ada.pop("Desafio cumprido! " + text + ".", "proud", 3.5)
+					ada.pop("Desafio cumprido: " + text + ".", "proud", 3.5)
 				else:
 					arena.hud.show_toast("Desafio perdido: " + text, UiTokens.TEXT_DIM)
 				arena.hud.pulse_goals()
