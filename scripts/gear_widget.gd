@@ -1,7 +1,7 @@
 class_name GearWidget
 extends PanelContainer
-## Uma celula da HUD de parabola: nome, valor, engrenagem e os coeficientes da
-## equacao que ela mexe (chips "a b c").
+## Uma celula da HUD de parabola: icone do nome (com tooltip), valor, engrenagem
+## e a bandeja com os coeficientes da equacao que ela mexe (chips "a b c").
 ##
 ## A engrenagem gira com a seta e trava no limite do valor. Tambem pode ser
 ## agarrada com o mouse e girada em volta, como uma manivela.
@@ -15,12 +15,21 @@ const HINT_TEXTURE = preload("res://assets/sprites/keyboard_mouse/keyboard_arrow
 
 const GEAR_SIZE: float = 40.0
 const HINT_SIZE: float = 16.0
+const NAME_ICON_SIZE: float = 20.0
+## Margem lateral da bandeja de chips (a moldura ja traz a sua borda).
+const TRAY_MARGIN_H: int = UiTokens.PX
 # Raio, a partir do centro da engrenagem, em que o arrasto circular para de
 # responder. Perto do centro o angulo do cursor e instavel.
 const DRAG_DEAD_ZONE: float = 10.0
 const COEFS := ["a", "b", "c"]
 
-var _title: Label
+## Icone do nome da engrenagem (o texto do nome vive so no tooltip).
+var name_icon: UiIcon
+## Detalhe ao lado do icone (o percentual da Forca). Escondido quando vazio.
+var detail: Label
+## Moldura ambar com os chips a/b/c. Escondida quando a engrenagem nao mexe em nenhum.
+var tray: PanelContainer
+var _title_text: String = ""
 var _value: Label
 var _gear: UiIcon
 var _hint: TextureRect
@@ -33,7 +42,8 @@ var _dragging: bool = false
 var _drag_angle: float = 0.0
 
 
-func setup(title_text: String, width: float) -> void:
+func setup(title_text: String, icon_name: String, width: float) -> void:
+	_title_text = title_text
 	custom_minimum_size = Vector2(width, 0.0)
 	_build_styles()
 	add_theme_stylebox_override("panel", _style_off)
@@ -53,11 +63,21 @@ func setup(title_text: String, width: float) -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	box.add_child(head)
-	_title = Label.new()
-	_title.text = title_text.to_upper()
-	_title.theme_type_variation = &"CaptionLabel"
-	head.add_child(_title)
-	head.add_child(_build_chips())
+	name_icon = UiIcon.make(icon_name, UiTokens.TEXT_MUTED, NAME_ICON_SIZE)
+	# O padrao do UiIcon e IGNORE, e com ele o tooltip nunca aparece.
+	name_icon.mouse_filter = Control.MOUSE_FILTER_PASS
+	name_icon.tooltip_text = title_text
+	name_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	head.add_child(name_icon)
+	detail = Label.new()
+	detail.theme_type_variation = &"CaptionLabel"
+	detail.visible = false
+	head.add_child(detail)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(spacer)
+	head.add_child(_build_chip_tray())
 
 	_value = Label.new()
 	_value.text = "--"
@@ -66,9 +86,16 @@ func setup(title_text: String, width: float) -> void:
 	box.add_child(_value)
 
 
-func set_title_text(text_value: String) -> void:
-	if _title:
-		_title.text = text_value.to_upper()
+## `text_value` = o dado que acompanha o icone (o percentual da Forca); "" esconde.
+## O tooltip do icone passa a dizer "Nome: dado".
+func set_detail_text(text_value: String) -> void:
+	if detail == null:
+		return
+	detail.text = text_value
+	detail.visible = text_value != ""
+	name_icon.tooltip_text = (
+		"%s: %s" % [_title_text, text_value] if text_value != "" else _title_text
+	)
 
 
 func set_value_text(text_value: String) -> void:
@@ -81,11 +108,32 @@ func set_caption(_text_value: String) -> void:
 	pass
 
 
+## Tooltip da bandeja: "Mexe no a e no b da equação". "" quando nao mexe em nenhum.
+static func effects_tooltip(letters: String) -> String:
+	var names := []
+	for letter in COEFS:
+		if letters.contains(letter):
+			names.append(letter)
+	match names.size():
+		0:
+			return ""
+		1:
+			return "Mexe no %s da equação" % names[0]
+		2:
+			return "Mexe no %s e no %s da equação" % names
+		_:
+			return "Mexe no %s, no %s e no %s da equação" % names
+
+
 ## `letters` = coeficientes que esta engrenagem mexe agora ("a", "ab", "abc").
 func set_effects(letters: String) -> void:
+	if tray == null:
+		return
+	tray.tooltip_text = effects_tooltip(letters)
+	tray.visible = tray.tooltip_text != ""
 	for i in range(_chips.size()):
 		var on: bool = letters.contains(COEFS[i])
-		var chip: Label = _chips[i]
+		var chip: UiKeycap = _chips[i]
 		chip.visible = on
 
 
@@ -95,7 +143,7 @@ func set_selected(on: bool) -> void:
 	add_theme_stylebox_override("panel", _style_on if on else _style_off)
 	_value_color = UiTokens.EDITABLE if on else UiTokens.TEXT
 	_value.add_theme_color_override("font_color", _value_color)
-	_title.add_theme_color_override("font_color", UiTokens.TEXT if on else UiTokens.TEXT_MUTED)
+	name_icon.color = UiTokens.TEXT if on else UiTokens.TEXT_MUTED
 	_gear.color = UiTokens.EDITABLE if on else UiTokens.GEAR_IDLE
 	# A dica de tecla so aparece na engrenagem ativa.
 	_hint.modulate.a = 1.0 if on else 0.0
@@ -183,17 +231,28 @@ func _build_gear_row() -> HBoxContainer:
 	return row
 
 
-func _build_chips() -> HBoxContainer:
+## Os chips a/b/c dentro da mesma moldura ambar que realca os coeficientes na
+## equacao, para ler como "estes sao o a e o b daquela equacao".
+func _build_chip_tray() -> PanelContainer:
+	tray = PanelContainer.new()
+	var frame: UiFrame = UiPanel.create(UiPanel.Kind.SELECTED)
+	frame.content_margin_left = TRAY_MARGIN_H
+	frame.content_margin_right = TRAY_MARGIN_H
+	# A moldura nao pode aumentar a altura da linha.
+	frame.content_margin_top = 0
+	frame.content_margin_bottom = 0
+	tray.add_theme_stylebox_override("panel", frame)
+	tray.mouse_filter = Control.MOUSE_FILTER_PASS
+	tray.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
+	row.add_theme_constant_override("separation", 2)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tray.add_child(row)
 	for letter in COEFS:
-		var chip := Label.new()
-		chip.text = letter
-		chip.theme_type_variation = &"EditableLabel"
-		chip.add_theme_font_size_override("font_size", UiTokens.FONT_SM)
+		var chip := UiKeycap.make(letter)
 		row.add_child(chip)
 		_chips.append(chip)
-	return row
+	return tray
 
 
 func _build_styles() -> void:

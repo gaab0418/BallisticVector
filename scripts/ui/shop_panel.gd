@@ -3,7 +3,7 @@ extends UiModal
 ## Loja de municoes e reparo, aberta pelo mapa de guerra.
 ##
 ## Cada municao mostra a sua ficha -- gravidade, precisao e dano -- porque isso
-## muda a parabola na arena: a crianca escolhe sabendo que a Perfurante cai mais
+## muda a parabola na arena: o jogador escolhe sabendo que a Perfurante cai mais
 ## devagar (gravidade menor) e erra menos (faixa de queda menor na regua).
 
 signal purchased
@@ -189,7 +189,7 @@ func _chip(icon_name: String, text: String) -> Control:
 	return row
 
 
-## Precisao em tres estrelas: a crianca compara as municoes sem ler numero.
+## Precisao em tres estrelas: o jogador compara as municoes sem ler numero.
 func _precision_chip(precision: float) -> Control:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 2)

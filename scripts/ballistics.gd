@@ -3,7 +3,7 @@ extends RefCounted
 ## A matematica do tiro, num lugar so: fisica, mira, HUD e regua usam esta
 ## mesma conta, entao o alcance escrito e o ponto de queda desenhado coincidem.
 ##
-## Sistema de coordenadas "da crianca", em metros:
+## Sistema de coordenadas "do jogador", em metros:
 ##   x -- horizontal, zero na marca 0 da regua (o munhao do canhao no inicio da fase)
 ##   y -- altura acima do chao
 ## Nele a trajetoria e exatamente y = a*x^2 + b*x + c. Com o tanque parado no
@@ -26,7 +26,7 @@ static func to_px(m: float) -> float:
 	return m * PX_PER_METER
 
 
-## Estado de um tiro, ja nas unidades da crianca.
+## Estado de um tiro, ja nas unidades do jogador.
 ##   angle_deg   -- elevacao do cano (positivo = para cima)
 ##   speed_px    -- velocidade de saida, px/s
 ##   gravity_px  -- px/s²

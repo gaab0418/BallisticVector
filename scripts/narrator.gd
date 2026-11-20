@@ -1,7 +1,7 @@
 class_name Narrator
 extends RefCounted
 ## Le em voz alta as falas da Ada com a voz do sistema (text-to-speech), para
-## criancas que ainda leem devagar. Liga em Ajustes > "Narrar as falas".
+## quem prefere ouvir ou le devagar. Liga em Ajustes > "Narrar as falas".
 ## Sem voz em portugues instalada, fica mudo (o botao avisa).
 
 
