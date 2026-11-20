@@ -221,6 +221,12 @@ const BTN_ICON_ONLY_MAX := 26
 const BTN_MIN := Vector2(280, 52)
 const BTN_ICON := Vector2(48, 48)
 
+# ── Tecla desenhada (UiKeycap) ───────────────────────────────────────
+## Altura da tecla na HUD. Com a moldura de UiButton.make_style seriam 46 px.
+const KEYCAP_H := 22
+## Respiro de cada lado do rotulo, alem da beirada da tecla.
+const KEYCAP_PAD := 4
+
 # ── Animacao ─────────────────────────────────────────────────────────
 const ANIM_FAST := 0.12
 const ANIM := 0.25
