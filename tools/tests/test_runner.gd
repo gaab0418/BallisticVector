@@ -388,7 +388,7 @@ func _landing_error(base_id: String, stage: int, angle: float, power: float) -> 
 	g.lab_mode = false
 	g.current_base_id = base_id
 	g.current_stage = stage
-	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.ammo_inventory = {"Enferrujada": 35, "Perfurante": 18}
 	g.tutorial_done = true
 	change_scene_to_file("res://scenes/arena/arena.tscn")
 	for _i in range(10):
@@ -692,7 +692,7 @@ func _open_ada_arena() -> Node:
 	g.lab_mode = false
 	g.current_base_id = "Base_A"
 	g.current_stage = 1
-	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.ammo_inventory = {"Enferrujada": 35, "Perfurante": 18}
 	g.tutorial_done = true
 	change_scene_to_file("res://scenes/arena/arena.tscn")
 	await _frames(10)
@@ -1179,7 +1179,7 @@ func _open_arena(base_id: String, stage: int) -> Node:
 	g.lab_mode = false
 	g.current_base_id = base_id
 	g.current_stage = stage
-	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.ammo_inventory = {"Enferrujada": 35, "Perfurante": 18}
 	g.tutorial_done = true
 	g.reset_armor()
 	paused = false
@@ -1491,7 +1491,7 @@ func _open_arena_hud(base_id: String, stage: int) -> Node:
 	g.lab_mode = false
 	g.current_base_id = base_id
 	g.current_stage = stage
-	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.ammo_inventory = {"Enferrujada": 35, "Perfurante": 18}
 	g.tutorial_done = true
 	paused = false
 	change_scene_to_file("res://scenes/arena/arena.tscn")
@@ -2367,7 +2367,7 @@ func _check_practice_free_shots() -> void:
 			_fail("T16: errar o tiro terminou o tutorial")
 		if g.ammo_inventory["Enferrujada"] != stock or a.ammo_counts[0] != stock:
 			_fail("T16: a pratica gastou municao (%s)" % [g.ammo_inventory])
-	g.ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
+	g.ammo_inventory = {"Enferrujada": 12, "Perfurante": 3}
 	g.save_game()
 
 
@@ -2395,7 +2395,7 @@ func _check_practice_keeps_progress() -> void:
 		_fail("T13: tutorial_done nao foi gravado")
 	if g.money != 150 or g.brass != 0 or g.total_stars() != 0 or not g.achievements.is_empty():
 		_fail("T13: pratica mexeu em ouro, latao, estrelas ou selos em memoria")
-	if g.ammo_inventory != {"Enferrujada": 15, "Perfurante": 5}:
+	if g.ammo_inventory != {"Enferrujada": 12, "Perfurante": 3}:
 		_fail("T13: pratica mexeu na municao: %s" % [g.ammo_inventory])
 	await _frames(10)
 	if g.practice_mode or _scene_path() != "res://scenes/war_map/war_map.tscn":

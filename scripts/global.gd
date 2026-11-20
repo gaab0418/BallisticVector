@@ -28,7 +28,7 @@ var notebook_seen: Dictionary = {}
 var achievements: Dictionary = {}
 var stats: Dictionary = {"lab_shots": 0, "chiefs": {}}
 var _badge_toast: CanvasLayer
-var ammo_inventory: Dictionary = {"Enferrujada": 15, "Perfurante": 5}
+var ammo_inventory: Dictionary = {"Enferrujada": 12, "Perfurante": 3}
 
 # ── Estado de jogo ───────────────────────────────────────────────────
 ## Modo Professor: libera todas as bases e abre a "conta" da parabola por padrao,
@@ -349,7 +349,7 @@ func reset_progress() -> void:
 	achievements = {}
 	stats = {"lab_shots": 0, "chiefs": {}}
 	victory_seen = false
-	ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
+	ammo_inventory = {"Enferrujada": 12, "Perfurante": 3}
 	bases = _fresh_bases()
 	just_conquered = ""
 	save_game()
