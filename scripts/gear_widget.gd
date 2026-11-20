@@ -133,7 +133,7 @@ func set_effects(letters: String) -> void:
 	tray.visible = tray.tooltip_text != ""
 	for i in range(_chips.size()):
 		var on: bool = letters.contains(COEFS[i])
-		var chip: Label = _chips[i]
+		var chip: UiKeycap = _chips[i]
 		chip.visible = on
 
 
@@ -249,10 +249,7 @@ func _build_chip_tray() -> PanelContainer:
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tray.add_child(row)
 	for letter in COEFS:
-		var chip := Label.new()
-		chip.text = letter
-		chip.theme_type_variation = &"EditableLabel"
-		chip.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
+		var chip := UiKeycap.make(letter)
 		row.add_child(chip)
 		_chips.append(chip)
 	return tray
