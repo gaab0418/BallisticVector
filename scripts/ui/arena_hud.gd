@@ -348,6 +348,14 @@ func set_lab(world_name: String) -> void:
 	guess_btn.visible = false
 
 
+## Arena de pratica do tutorial: sem missoes e sem chute, como o Laboratorio.
+func set_practice(title: String, subtitle: String) -> void:
+	_stage_name_label.text = title
+	_stage_phase_label.text = subtitle
+	_goals_btn.visible = false
+	guess_btn.visible = false
+
+
 func set_stage(base_name: String, chapter: String, number: int, total: int, title: String) -> void:
 	if _stage_name_label:
 		_stage_name_label.text = "%s · %d/%d" % [base_name, number, total]

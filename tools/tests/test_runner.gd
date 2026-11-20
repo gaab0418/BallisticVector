@@ -86,6 +86,7 @@ func _run() -> void:
 	_test_onboarding_flags()
 	_test_angle_hit_reachable()
 	await _test_alpha1_without_old_tutorial()
+	await _test_practice_arena()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -2097,6 +2098,12 @@ func _test_angle_hit_reachable() -> void:
 	print("ok: desafios de angulo alcancaveis")
 
 
+## Pelo script: o segundo aviao da fase ganha um nome automatico (@Node2D@N).
+func _is_airplane(e: Node) -> bool:
+	var script: Script = e.get_script()
+	return script != null and script.resource_path.ends_with("airplane_enemy.gd")
+
+
 ## T21 e T22: a Alpha 1 abre como fase normal e a ajuda nao reativa o tutorial.
 func _test_alpha1_without_old_tutorial() -> void:
 	var g = root.get_node("Global")
@@ -2114,7 +2121,7 @@ func _test_alpha1_without_old_tutorial() -> void:
 	if a.coach.has_method("_run_tutorial") or "in_tutorial" in a.coach:
 		_fail("T21: o coach ainda tem o tutorial falado")
 	for e in a.active_enemies:
-		if e.name.begins_with("Airplane") and e.process_mode == Node.PROCESS_MODE_DISABLED:
+		if _is_airplane(e) and e.process_mode == Node.PROCESS_MODE_DISABLED:
 			_fail("T21: aviao congelado na Alpha 1")
 	var intro: Array = _coach_script().intro_lines_for(a.stage_data, "")
 	if not a.coach.ada.is_talking() or a.coach.ada._text.text != intro[0].text:
@@ -2146,3 +2153,253 @@ func _check_help_without_tutorial(a: Node, g: Node) -> void:
 			_fail("T22: botao da ajuda fala em tutorial: '%s'" % node.text)
 	if g.tutorial_done:
 		_fail("T22: a ajuda mexeu em tutorial_done")
+
+
+# ── 10. Arena de pratica do tutorial ─────────────────────────────────
+
+const PRACTICE_OPENING := "Canhão consertado. Antes de partir, vamos calibrar."
+const EXIT_QUESTION := "Deseja sair do tutorial?"
+
+
+## Abre a arena de pratica como o fluxo do tutorial abriria.
+func _open_practice(origin: String) -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.practice_mode = true
+	g.tutorial_origin = origin
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	return current_scene
+
+
+## Fecha a fala de abertura (ela pausa o jogo).
+func _finish_opening(a: Node) -> void:
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(2)
+
+
+func _practice_boss(a: Node) -> Node2D:
+	for e in a.active_enemies:
+		if is_instance_valid(e) and e.has_meta("is_boss"):
+			return e
+	return null
+
+
+## Todo o save como {"secao/chave": valor}, para comparar antes e depois.
+func _save_snapshot(g: Node) -> Dictionary:
+	var cfg := ConfigFile.new()
+	var out := {}
+	if cfg.load(g.save_path) != OK:
+		return out
+	for section in cfg.get_sections():
+		for key in cfg.get_section_keys(section):
+			out[section + "/" + key] = cfg.get_value(section, key)
+	return out
+
+
+func _scene_path() -> String:
+	return current_scene.scene_file_path if current_scene else ""
+
+
+func _test_practice_arena() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	g.map_intro_done = true
+	g.story_seen = true
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+	g.save_game()
+	_check_practice_stage_reachable()
+	await _check_practice_setup()
+	await _check_practice_free_shots()
+	await _check_practice_keeps_progress()
+	await _check_practice_exit_first_run()
+	await _check_no_practice_leak()
+	await _check_practice_from_menu()
+	g.practice_mode = false
+	g.tutorial_origin = "first_run"
+	paused = false
+	g.reset_progress()
+	print("ok: arena de pratica")
+
+
+## T15: o chefe da pratica e alcancavel (mesmo verificador das fases).
+func _check_practice_stage_reachable() -> void:
+	var before := failures.size()
+	var st: Dictionary = load("res://scripts/campaign.gd").practice_stage()
+	_check_stage("pratica", st)
+	if failures.size() != before:
+		_fail("T15: o chefe da pratica nao e alcancavel")
+	if Campaign.BASES.has("Practice") or st.get("goals", [1]) != []:
+		_fail("T15: a pratica entrou na campanha ou tem desafios")
+
+
+## T14 e T35: fortaleza em ruinas com 1 HP, sem avioes, HUD da calibragem.
+func _check_practice_setup() -> void:
+	var a = await _open_practice("first_run")
+	if a.get("practice") == null:
+		_fail("T14: a arena nao montou a pratica")
+		return
+	var boss := _practice_boss(a)
+	if a.active_enemies.size() != 1 or boss == null:
+		_fail("T14: pratica com %d inimigos" % a.active_enemies.size())
+	elif boss.get_meta("hp") != 1 or boss.get_meta("max_hp") != 3:
+		_fail("T14: chefe com hp %s / max %s" % [boss.get_meta("hp"), boss.get_meta("max_hp")])
+	for e in a.active_enemies:
+		if _is_airplane(e):
+			_fail("T14: aviao na pratica")
+	if a.stage_data.get("title", "") != "Calibragem":
+		_fail("T14: titulo da pratica '%s'" % a.stage_data.get("title", ""))
+	if a.hud._stage_name_label.text != "Calibragem" or a.hud._goals_btn.visible:
+		_fail("T14: HUD sem a calibragem ou com a estrela de missoes")
+	if a.hud.guess_btn.visible or a.hud._ammo_label.text != "livre":
+		_fail("T14: HUD com chute ou sem municao livre")
+	var line: String = a.coach.ada._text.text
+	if not a.coach.ada.is_talking() or line != PRACTICE_OPENING or "Antes do Norte" in line:
+		_fail("T35: abertura da pratica '%s'" % line)
+	await _finish_opening(a)
+
+
+## T16: errar nao termina o tutorial e nao gasta municao, nem com o estoque zerado.
+func _check_practice_free_shots() -> void:
+	var g = root.get_node("Global")
+	for stock in [15, 0]:
+		g.ammo_inventory = {"Enferrujada": stock, "Perfurante": 5}
+		var a = await _open_practice("first_run")
+		await _finish_opening(a)
+		a.current_ammo_index = 0
+		a.cannon.rotation = 0.6
+		a._fire_projectile()
+		var proj: Node = null
+		for ch in a.get_children():
+			if ch.get_script() == a.ProjectileScript:
+				proj = ch
+		if proj == null:
+			_fail("T16: a pratica nao disparou com %d balas no estoque" % stock)
+		var t := 0.0
+		while is_instance_valid(proj) and t < 5.0:
+			await process_frame
+			t += 1.0 / 60.0
+		await _frames(2)
+		if g.tutorial_done or a.stage_cleared:
+			_fail("T16: errar o tiro terminou o tutorial")
+		if g.ammo_inventory["Enferrujada"] != stock or a.ammo_counts[0] != stock:
+			_fail("T16: a pratica gastou municao (%s)" % [g.ammo_inventory])
+	g.ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
+	g.save_game()
+
+
+## T13: derrubar o chefe so muda tutorial_done no save (invariante da pratica).
+func _check_practice_keeps_progress() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	var a = await _open_practice("first_run")
+	await _finish_opening(a)
+	var boss := _practice_boss(a)
+	if boss == null:
+		_fail("T13: pratica sem chefe")
+		return
+	a.on_enemy_hit(boss, 1)
+	await _frames(3)
+	if not g.tutorial_done or not a.coach.ada.is_talking():
+		_fail("T13: chefe derrubado sem tutorial_done ou sem a fala final")
+	a.coach.ada._finish()
+	var after := _save_snapshot(g)
+	for key in after:
+		var changed: bool = not before.has(key) or before[key] != after[key]
+		if changed and key != "player/tutorial_done":
+			_fail("T13: a pratica mudou %s no save (%s -> %s)" % [key, before.get(key), after[key]])
+	if after.get("player/tutorial_done") != true:
+		_fail("T13: tutorial_done nao foi gravado")
+	if g.money != 150 or g.brass != 0 or g.total_stars() != 0 or not g.achievements.is_empty():
+		_fail("T13: pratica mexeu em ouro, latao, estrelas ou selos em memoria")
+	if g.ammo_inventory != {"Enferrujada": 15, "Perfurante": 5}:
+		_fail("T13: pratica mexeu na municao: %s" % [g.ammo_inventory])
+	await _frames(10)
+	if g.practice_mode or _scene_path() != "res://scenes/war_map/war_map.tscn":
+		_fail("T13: depois da pratica, cena %s e practice %s" % [_scene_path(), g.practice_mode])
+	g.tutorial_done = false
+	g.save_game()
+
+
+## T17: pausar na pratica pede confirmacao; cancelar fica; confirmar sai ao mapa.
+func _check_practice_exit_first_run() -> void:
+	var g = root.get_node("Global")
+	var a = await _open_practice("first_run")
+	await _finish_opening(a)
+	var esc := InputEventAction.new()
+	esc.action = "ui_cancel"
+	esc.pressed = true
+	a._unhandled_input(esc)
+	var modal = a.practice.exit_modal
+	if not modal.is_confirming() or a.pause_menu.visible:
+		_fail("T17: Esc na pratica nao abriu a confirmacao (ou abriu a pausa)")
+	var asked := false
+	for label in modal.find_children("*", "Label", true, false):
+		asked = asked or label.text == EXIT_QUESTION
+	if not asked:
+		_fail("T17: confirmacao sem o texto '%s'" % EXIT_QUESTION)
+	modal._input(esc)
+	await _frames(2)
+	if modal.visible or not g.practice_mode or g.tutorial_skipped:
+		_fail("T17: cancelar a saida nao voltou para a pratica")
+	a._on_pause_pressed()
+	if not modal.is_confirming() or a.pause_menu.visible:
+		_fail("T17: o botao de pausa nao abriu a confirmacao")
+	modal.confirm_exit()
+	if g.practice_mode or not g.tutorial_skipped or g.tutorial_done:
+		_fail("T17: sair confirmado: %s practice=%s" % [_flags(g), g.practice_mode])
+	g.tutorial_skipped = false
+	g.load_game()
+	if not g.tutorial_skipped:
+		_fail("T17: tutorial_skipped nao foi gravado")
+	await _frames(10)
+	if _scene_path() != "res://scenes/war_map/war_map.tscn":
+		_fail("T17: sair da pratica levou a %s" % _scene_path())
+
+
+## T18: depois de sair da pratica, a Alpha 1 abre normal.
+func _check_no_practice_leak() -> void:
+	var g = root.get_node("Global")
+	g.current_base_id = "Base_A"
+	g.current_stage = 0
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a = current_scene
+	var planes := 0
+	for e in a.active_enemies:
+		if _is_airplane(e):
+			planes += 1
+	if a.stage_data.title != "Primeiro disparo" or planes != 2 or a.get("practice") != null:
+		_fail("T18: practice_mode vazou (%s, %d avioes)" % [a.stage_data.title, planes])
+	await _finish_opening(a)
+
+
+## Origem "menu": sair nao grava tutorial_skipped; derrubar o chefe volta ao menu.
+func _check_practice_from_menu() -> void:
+	var g = root.get_node("Global")
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+	g.save_game()
+	var a = await _open_practice("menu")
+	await _finish_opening(a)
+	a._on_pause_pressed()
+	a.practice.exit_modal.confirm_exit()
+	await _frames(10)
+	if g.tutorial_skipped or g.practice_mode:
+		_fail("sair da pratica pelo menu gravou tutorial_skipped")
+	if _scene_path() != "res://scenes/menu_play/menu_play.tscn":
+		_fail("sair da pratica pelo menu levou a %s" % _scene_path())
+	a = await _open_practice("menu")
+	await _finish_opening(a)
+	a.on_enemy_hit(_practice_boss(a), 1)
+	await _frames(3)
+	a.coach.ada._finish()
+	await _frames(10)
+	if not g.tutorial_done or g.practice_mode:
+		_fail("T31f: pratica pelo menu sem tutorial_done ou com practice_mode")
+	if _scene_path() != "res://scenes/menu_play/menu_play.tscn":
+		_fail("T31f: pratica pelo menu terminou em %s" % _scene_path())
