@@ -54,7 +54,7 @@ var land_zone := Vector2(1, 0)
 ## Fracao da velocidade vertical que sobra no quique (0 = sem quique).
 var bounce_e := 0.0
 ## Modo chute: a curva some (so o angulo e a linha/rota/zona da fase ficam) e
-## o palpite da crianca aparece no chao.
+## o palpite do jogador aparece no chao.
 var guess_mode := false
 var guess_x := NAN
 ## Mostra o texto "a bala pode cair aqui" (a Ada desliga depois de alguns segundos).
@@ -333,7 +333,7 @@ func _draw_height_line() -> void:
 
 
 ## Cruzamentos da curva com a linha y = h: as solucoes da equacao. O texto diz
-## quantas sao e o que o delta significa, em linguagem de crianca.
+## quantas sao e o que o delta significa, em linguagem direta.
 func _draw_crossings() -> void:
 	var d := Ballistics.delta_at(shot, height_line)
 	var xs := Ballistics.crossings(shot, height_line)

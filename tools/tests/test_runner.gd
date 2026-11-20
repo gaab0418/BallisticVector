@@ -185,7 +185,7 @@ func _zone_reachable(st: Dictionary, polys: Array, goal: Dictionary) -> bool:
 	return false
 
 
-## Todos os tiros que a crianca consegue dar na fase (forca travada = uma so).
+## Todos os tiros que o jogador consegue dar na fase (forca travada = uma so).
 func _shots(st: Dictionary) -> Array:
 	var out := []
 	var zone: Vector2 = st.get("move_zone", Vector2(104, 104))

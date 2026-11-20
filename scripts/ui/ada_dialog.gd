@@ -6,7 +6,7 @@ extends CanvasLayer
 ##   say()    -- conversa que pausa o jogo; Espaco/Enter/clique avanca, Esc pula
 ##   pop()    -- recado rapido que some sozinho, sem pausar (dicas, parabens)
 ##   prompt() -- instrucao que fica na tela ate alguem chamar hide_now(): usada
-##               no tutorial enquanto a crianca faz o que foi pedido
+##               no tutorial enquanto o jogador faz o que foi pedido
 
 signal finished
 
