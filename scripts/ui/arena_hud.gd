@@ -25,6 +25,13 @@ const AMMO_ICON_SIZE := Vector2(28, 28)
 const ARMOR_BAR_SIZE := Vector2(150, 22)
 const MARGIN := 14.0
 const BADGE_TEXT_W := 168.0
+## O painel da parabola e a insignia da fase disputam o topo: com o espacamento
+## novo o painel passa de 790 px e cruzaria a insignia. Empurrar o conjunto para
+## a direita usa a folga que sobra antes da estrela e do placar.
+const CENTER_SHIFT := 28.0
+## Botoes de icone com tecla (modo chute).
+const GUESS_BTN_SIZE := Vector2(68, 40)
+const GUESS_TOOLTIP := "Modo chute (C): esconde a curva. Calcule e clique onde a bala cai."
 
 var parabola: Control
 var formula: FormulaDrawer
@@ -33,7 +40,10 @@ var _ammo_label: Label
 var _ammo_icon: Control
 var _ammo_name_label: Label
 var _armor: UiStatBar
-var _move_hint: Label
+var _move_group: HBoxContainer
+var _move_keys: Array = []
+var _fuel_label: Label
+var _guess_icon: UiIcon
 var _stage_name_label: Label
 var _stage_phase_label: Label
 var _goals_btn: Button
@@ -83,6 +93,8 @@ func _build_center() -> void:
 	column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	column.offset_top = 6.0
+	column.offset_left = CENTER_SHIFT
+	column.offset_right = CENTER_SHIFT
 
 	parabola = ParabolaHudScript.new()
 	parabola.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -116,12 +128,24 @@ func _build_left() -> void:
 
 	# Modo chute, logo abaixo da insignia: esconde a curva e o alcance; a
 	# crianca marca no chao onde a bala vai cair e confere depois do tiro.
-	guess_btn = UiButton.create("Modo chute (C)", UiButton.Kind.SECONDARY)
+	guess_btn = UiButton.create("", UiButton.Kind.ICON)
 	guess_btn.toggle_mode = true
-	guess_btn.tooltip_text = "Esconde a curva: calcule e clique no chão onde a bala vai cair"
-	guess_btn.custom_minimum_size = Vector2(176, 40)
+	guess_btn.tooltip_text = GUESS_TOOLTIP
+	guess_btn.custom_minimum_size = GUESS_BTN_SIZE
 	guess_btn.toggled.connect(func(on: bool): guess_toggled.emit(on))
 	add_child(guess_btn)
+	var guess_inner := HBoxContainer.new()
+	guess_inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guess_inner.alignment = BoxContainer.ALIGNMENT_CENTER
+	guess_inner.add_theme_constant_override("separation", 4)
+	guess_btn.add_child(guess_inner)
+	guess_inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_guess_icon = UiIcon.make("target", UiTokens.TEXT, 20.0)
+	guess_inner.add_child(_guess_icon)
+	guess_inner.add_child(UiKeycap.make("C"))
+	# A arena desliga o modo com set_pressed_no_signal(), que nao emite toggled:
+	# a cor do icone le o estado a cada desenho do botao.
+	guess_btn.draw.connect(_sync_guess_icon)
 	guess_btn.position = Vector2(MARGIN, MARGIN + 80.0)
 	var badge := PanelContainer.new()
 	_badge = badge
@@ -217,6 +241,11 @@ func _build_bottom() -> void:
 	_ammo_name_label.add_theme_color_override("font_color", UiTokens.TEXT_DIM)
 	row.add_child(_ammo_name_label)
 
+	var tab_key := UiKeycap.make("Tab")
+	tab_key.tooltip_text = "Troca a munição (Tab)"
+	tab_key.mouse_filter = Control.MOUSE_FILTER_PASS
+	row.add_child(tab_key)
+
 	row.add_child(VSeparator.new())
 
 	_armor = UiStatBar.new()
@@ -224,12 +253,29 @@ func _build_bottom() -> void:
 	_armor.tooltip_text = "Blindagem do tanque"
 	row.add_child(_armor)
 
-	_move_hint = Label.new()
-	_move_hint.theme_type_variation = &"CaptionLabel"
-	_move_hint.add_theme_color_override("font_color", UiTokens.EDITABLE)
-	_move_hint.text = "A ← → D  andar"
-	_move_hint.visible = false
-	row.add_child(_move_hint)
+	_build_move_group(row)
+
+
+## [A] [setas] [D] e, nas fases com combustivel, o medidor ao lado.
+func _build_move_group(row: HBoxContainer) -> void:
+	_move_group = HBoxContainer.new()
+	_move_group.add_theme_constant_override("separation", 4)
+	_move_group.alignment = BoxContainer.ALIGNMENT_CENTER
+	_move_group.mouse_filter = Control.MOUSE_FILTER_PASS
+	_move_group.tooltip_text = "Anda com o tanque (A e D)"
+	_move_group.visible = false
+	row.add_child(_move_group)
+	var key_a := UiKeycap.make("A")
+	var key_d := UiKeycap.make("D")
+	_move_keys = [key_a, key_d]
+	_move_group.add_child(key_a)
+	_move_group.add_child(UiIcon.make("move", UiTokens.EDITABLE, 20.0))
+	_move_group.add_child(key_d)
+	_fuel_label = Label.new()
+	_fuel_label.theme_type_variation = &"CaptionLabel"
+	_fuel_label.add_theme_color_override("font_color", UiTokens.EDITABLE)
+	_fuel_label.visible = false
+	_move_group.add_child(_fuel_label)
 
 
 ## Aviso curto no meio da tela, abaixo do painel: "Desafio cumprido!" etc.
@@ -262,7 +308,7 @@ func set_ammo(count: int, color: Color, ammo_name: String) -> void:
 		_ammo_icon.ammo_color = color
 		_ammo_icon.queue_redraw()
 	if _ammo_name_label:
-		_ammo_name_label.text = ammo_name + "  ·  Tab troca"
+		_ammo_name_label.text = ammo_name
 
 
 ## max_value vem do Global, para acompanhar mudancas na blindagem maxima.
@@ -272,19 +318,25 @@ func set_armor(value: float, max_value: float) -> void:
 
 
 func set_move_hint(on: bool) -> void:
-	if _move_hint:
-		_move_hint.visible = on
+	if _move_group:
+		_move_group.visible = on
 
 
 ## Fases com combustivel: o aviso de andar vira medidor e apaga quando acaba.
+## "sem combustivel" e alerta de estado: fica em texto, e as teclas esmaecem.
 func set_fuel(meters: float) -> void:
-	if not _move_hint:
+	if not _fuel_label:
 		return
-	if meters <= 0.0:
-		_move_hint.text = "sem combustível"
-		_move_hint.add_theme_color_override("font_color", UiTokens.TEXT_DISABLED)
+	_fuel_label.visible = true
+	var empty := meters <= 0.0
+	for key in _move_keys:
+		key.modulate.a = 0.5 if empty else 1.0
+	if empty:
+		_fuel_label.text = "sem combustível"
+		_fuel_label.add_theme_color_override("font_color", UiTokens.TEXT_DISABLED)
 	else:
-		_move_hint.text = "A ← → D  andar · combustível %s m" % ("%.1f" % meters).replace(".", ",")
+		_fuel_label.text = "combustível %s m" % ("%.1f" % meters).replace(".", ",")
+		_fuel_label.add_theme_color_override("font_color", UiTokens.EDITABLE)
 
 
 ## Laboratório: selo próprio e sem botão de missão.
@@ -340,3 +392,8 @@ func show_toast(text: String, col: Color = UiTokens.EDITABLE) -> void:
 	_toast_tween.tween_property(_toast, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK)
 	_toast_tween.tween_interval(1.4)
 	_toast_tween.tween_property(_toast, "modulate:a", 0.0, 0.4)
+
+
+func _sync_guess_icon() -> void:
+	if _guess_icon:
+		_guess_icon.color = UiTokens.EDITABLE if guess_btn.button_pressed else UiTokens.TEXT

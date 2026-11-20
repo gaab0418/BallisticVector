@@ -26,7 +26,7 @@ const GEAR_FORCA: int = 1
 const GEAR_GRAVIDADE: int = 2
 
 const GEAR_WIDTH: float = 164.0
-const RESULT_WIDTH: float = 104.0
+const RESULT_WIDTH: float = 114.0
 const FORMULA_BTN_SIZE := Vector2(64, 36)
 const COEF_DECIMALS := [3, 2, 2]
 

@@ -102,8 +102,6 @@ func _fail(msg: String) -> void:
 ## lugar de reprovar. Ao resolver o motivo, apague a entrada: o teste volta a
 ## reprovar de verdade.
 const KNOWN_PENDING := {
-	"T4": "celulas e painel da parabola mais largos que o previsto (log 08)",
-	"T5": "legenda 'ALTURA MAX.' + icone passa de RESULT_WIDTH (log 08)",
 	"T7": "aba 'A parabola' da ajuda passa de 720 px; grupo 7, so depois do merge da 02",
 }
 
@@ -1402,6 +1400,7 @@ func _test_legibility() -> void:
 	_test_font_spacing_applied()
 	await _test_hud_gears_and_formula()
 	await _test_overflow()
+	await _test_hud_icon_buttons_and_strip()
 	print("ok: legibilidade e HUD")
 
 
@@ -1529,18 +1528,20 @@ func _test_hud_gears_and_formula() -> void:
 	# T4: pior caso (69 graus, 100%, Jupiter, 3 chips por celula).
 	p.set_state(_hud_view(69.0, 1.0, 900.0, 1240.0, abc))
 	await _frames(5)
-	for gear in p._gears:
-		var w: float = gear.get_combined_minimum_size().x
-		if w > p.GEAR_WIDTH:
-			_fail_known("T4", "T4: celula da engrenagem pede %.1f px, cabe %d" % [w, p.GEAR_WIDTH])
 	var panel: Rect2 = p.get_global_rect()
+	# As celulas pedem o que o valor mais largo (24,8 m/s2 em VT323 28) precisa, mais
+	# que GEAR_WIDTH, e a HUD acomoda (CENTER_SHIFT). O que nao pode e uma celula
+	# vazar do painel, ou o painel empurrar um vizinho.
+	for gear in p._gears:
+		if not panel.grow(1).encloses(gear.get_global_rect()):
+			_fail("T4: uma celula da engrenagem vaza do painel")
 	for other in [hud._badge, hud._left_col, hud._right_row, hud.guess_btn]:
 		if other.visible and panel.intersects(other.get_global_rect()):
-			_fail_known("T4", "T4: o painel da parabola cruza %s" % other.name)
+			_fail("T4: o painel da parabola cruza %s" % other.name)
 		if other.visible and not _on_screen(other.get_global_rect()):
-			_fail_known("T4", "T4: %s fora da tela" % other.name)
+			_fail("T4: %s fora da tela" % other.name)
 	if not _on_screen(panel):
-		_fail_known("T4", "T4: o painel da parabola esta fora da tela")
+		_fail("T4: o painel da parabola esta fora da tela")
 
 	# T5: os resultados mais largos cabem em RESULT_WIDTH.
 	var cases := [
@@ -1554,8 +1555,7 @@ func _test_hud_gears_and_formula() -> void:
 		for value in [p._height_value, p._range_value]:
 			var need: float = value.get_parent().get_combined_minimum_size().x
 			if need > p.RESULT_WIDTH:
-				_fail_known(
-					"T5",
+				_fail(
 					"T5: resultado '%s' pede %.1f px, cabe %d" % [value.text, need, p.RESULT_WIDTH]
 				)
 
@@ -1754,3 +1754,102 @@ func _test_formula_drawer_fits() -> void:
 		if other.visible and rect.intersects(other.get_global_rect()):
 			_fail("T8: a gaveta 'Ver conta' cobre %s" % other.name)
 	hud.formula.visible = false
+
+
+## Primeiro UiKeycap descendente de `node` com o texto `key`, ou null.
+func _find_keycap(node: Node, key: String) -> UiKeycap:
+	for k in node.find_children("*", "UiKeycap", true, false):
+		if k.text == key:
+			return k
+	return null
+
+
+func _find_icon(node: Node, icon_name: String) -> UiIcon:
+	for i in node.find_children("*", "UiIcon", true, false):
+		if i.icon == icon_name:
+			return i
+	return null
+
+
+## T15 (guess_btn e _goals_btn), T16, T17 e T18: botoes de icone e faixa de baixo.
+func _test_hud_icon_buttons_and_strip() -> void:
+	var a := await _open_arena("Base_D", 1)
+	var hud = a.hud
+	var guess: Button = hud.guess_btn
+
+	# T15: o conteudo composto cabe nos botoes de icone.
+	await _frames(3)
+	for btn in [guess, hud._goals_btn]:
+		if not _inner_fits(btn):
+			_fail("T15: o conteudo de um botao de icone estoura o botao (%s)" % btn.tooltip_text)
+
+	# T16: modo chute com icone e tecla; a cor segue o estado sem sinal.
+	if guess.text != "":
+		_fail("T16: o modo chute ainda tem texto '%s'" % guess.text)
+	if _find_keycap(guess, "C") == null:
+		_fail("T16: o modo chute precisa do keycap C")
+	if not guess.tooltip_text.begins_with("Modo chute (C)"):
+		_fail("T16: tooltip do modo chute e '%s'" % guess.tooltip_text)
+	var target := _find_icon(guess, "target")
+	if target == null:
+		_fail("T16: o modo chute precisa do icone 'target'")
+	else:
+		guess.set_pressed_no_signal(true)
+		await _frames(2)
+		if target.color != UiTokens.EDITABLE:
+			_fail("T16: icone do modo chute ligado deveria ser ambar")
+		guess.set_pressed_no_signal(false)
+		await _frames(2)
+		if target.color != UiTokens.TEXT:
+			_fail("T16: icone do modo chute desligado deveria ser TEXT")
+	guess.button_pressed = true
+	if not a.guess_mode:
+		_fail("T16: clicar no modo chute nao ligou guess_mode")
+	guess.button_pressed = false
+
+	# T17: municao sem "Tab troca" e com a tecla desenhada.
+	hud.set_ammo(25, Color.RED, "Enferrujada")
+	if hud._ammo_name_label.text != "Enferrujada":
+		_fail("T17: nome da municao e '%s'" % hud._ammo_name_label.text)
+	var tab := _find_keycap(hud._strip, "Tab")
+	if tab == null:
+		_fail("T17: falta o keycap Tab na faixa de baixo")
+	else:
+		if tab.tooltip_text != "Troca a munição (Tab)":
+			_fail("T17: tooltip do Tab e '%s'" % tab.tooltip_text)
+		if tab.mouse_filter != Control.MOUSE_FILTER_PASS:
+			_fail("T17: o keycap Tab precisa de MOUSE_FILTER_PASS para o tooltip")
+	if hud._ammo_label.text != "×25":
+		_fail("T17: contagem e '%s'" % hud._ammo_label.text)
+	hud.set_ammo(0, Color.RED, "Enferrujada")
+	if hud._ammo_label.text != "×0":
+		_fail("T17: contagem zerada e '%s'" % hud._ammo_label.text)
+	if hud._ammo_label.get_theme_color("font_color") != UiTokens.DANGER:
+		_fail("T17: contagem zerada deveria ser DANGER")
+	hud.set_ammo(-1, Color.RED, "Enferrujada")
+	if hud._ammo_label.text != "livre":
+		_fail("T17: municao infinita e '%s'" % hud._ammo_label.text)
+
+	# T18: andar e combustivel, nos limites.
+	hud.set_move_hint(true)
+	await _frames(3)
+	var group: Control = hud._move_group
+	if not group.visible or _find_keycap(group, "A") == null or _find_keycap(group, "D") == null:
+		_fail("T18: o grupo de andar precisa estar visivel com os keycaps A e D")
+	if _find_icon(group, "move") == null:
+		_fail("T18: o grupo de andar precisa do icone 'move'")
+	if group.tooltip_text != "Anda com o tanque (A e D)":
+		_fail("T18: tooltip de andar e '%s'" % group.tooltip_text)
+	var fuel_cases := [
+		[3.46, "combustível 3,5 m"], [0.0, "sem combustível"], [-0.5, "sem combustível"]
+	]
+	for case in fuel_cases:
+		hud.set_fuel(case[0])
+		await _frames(2)
+		if hud._fuel_label.text != case[1]:
+			_fail("T18: combustivel %.2f mostra '%s'" % [case[0], hud._fuel_label.text])
+	if not _on_screen(hud._strip.get_global_rect()):
+		_fail("T18: a faixa de baixo sai da tela")
+	hud.set_move_hint(false)
+	if hud._move_group.visible:
+		_fail("T18: o grupo de andar deveria sumir")
