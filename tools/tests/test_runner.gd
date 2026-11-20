@@ -15,7 +15,9 @@ extends SceneTree
 ##      Caderno, ilhas, Duelo) e o Duelo aceita um tiro;
 ##   6. o progresso salvo volta igual ao carregar (e o kit de emergencia aparece);
 ##   7. as falas da Ada: abertura curta da fase, dica no 1o limiar de erros,
-##      missoes na estrela e tom dos textos (sem "!" nem diminutivo gratuito).
+##      missoes na estrela e tom dos textos (sem "!" nem diminutivo gratuito);
+##   8. o morteiro avisado dos chefes que atiram: conta, justica (da para
+##      desviar andando) e as regras de parada (pausa, chefe derrubado, vitoria).
 ## Sai com codigo 1 se qualquer teste falhar ou ocorrer SCRIPT ERROR. BV_SAVE_PATH
 ## evita tocar no save de quem joga na mesma maquina.
 
@@ -50,6 +52,10 @@ class ScriptErrorLogger:
 				"%s (%s:%d): %s" % [function, file, line, rationale if rationale else code]
 			)
 
+## Carregado em _run(): o boss_brain usa o projectile, que usa o AudioManager, e
+## um preload aqui compilaria antes de os autoloads existirem.
+var boss_brain: GDScript
+
 
 func _initialize() -> void:
 	OS.add_logger(_script_errors)
@@ -57,6 +63,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
+	boss_brain = load("res://scenes/arena/boss_brain.gd")
 	_test_scripts_compile()
 	_test_obstacles_valid()
 	_test_stages_winnable()
@@ -69,6 +76,8 @@ func _run() -> void:
 	_test_text_tone()
 	await _test_help_tone()
 	await _test_qa_adversarial()
+	_test_chief_volley_math()
+	await _test_chief_volley_live()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -882,3 +891,380 @@ func _check_qa_reopen_stage() -> void:
 		coach.ada._finish()
 		coach.ada.hide_now()
 	paused = false
+
+
+# ── 8. Morteiro do chefe ─────────────────────────────────────────────
+
+## Centro do tanque do jogador e boca do castelo (y global), como na arena.
+const TANK_Y := 607.0
+const MUZZLE_Y := 490.0
+## Distancia em que a bala acerta o tanque (projectile.gd::HIT_RADIUS_PLAYER).
+const PLAYER_HIT_R := 40.0
+## Canhao 16 px a direita do centro do tanque (arena.tscn).
+const CANNON_DX := 16.0
+
+
+## Voa a bala como o projectile.gd (Euler semi-implicito) ate o chao.
+func _simulate_lob(from: Vector2, to: Vector2, dt: float, polys: Array) -> Dictionary:
+	var vel: Vector2 = boss_brain.lob_velocity(from, to)
+	var pos := from
+	var path := PackedVector2Array()
+	var hit_mountain := false
+	while pos.y < Campaign.GROUND_Y and pos.x > -50.0 and pos.x < 1350.0 and path.size() < 2000:
+		vel.y += boss_brain.SHOT_GRAVITY * dt
+		pos += vel * dt
+		path.append(pos)
+		for poly in polys:
+			if Geometry2D.is_point_in_polygon(pos, poly):
+				hit_mountain = true
+	return {"path": path, "mountain": hit_mountain}
+
+
+func _min_dist(path: PackedVector2Array, p: Vector2) -> float:
+	var best := INF
+	for q in path:
+		best = minf(best, q.distance_to(p))
+	return best
+
+
+func _mountain_polys(st: Dictionary) -> Array:
+	var polys := []
+	for o in st.obstacles:
+		var gp := PackedVector2Array()
+		for p in Campaign.rounded(o.poly):
+			gp.append(o.pos + p)
+		polys.append(gp)
+	return polys
+
+
+## Fases cujo chefe atira: [[base, indice, fase]].
+func _firing_stages() -> Array:
+	var out := []
+	for base_id in Campaign.BASES:
+		var stages: Array = Campaign.BASES[base_id].stages
+		for i in range(stages.size()):
+			if stages[i].get("chief", {}).get("fires", false):
+				out.append([base_id, i, Campaign.stage(base_id, i)])
+	return out
+
+
+func _chief_xs(chief: Dictionary) -> Array:
+	if chief.kind == "hopping":
+		return chief.spots
+	var xs := []
+	var x: float = chief.zone.x
+	while x <= chief.zone.y:
+		xs.append(x)
+		x += 20.0
+	return xs
+
+
+func _test_chief_volley_math() -> void:
+	var t: float = boss_brain.lob_time(MUZZLE_Y, TANK_Y)
+	if absf(t - 3.250) > 0.005:
+		_fail("T1: tempo de voo do morteiro %.3f s, esperado 3,250" % t)
+	var v: Vector2 = boss_brain.lob_velocity(Vector2(1200, MUZZLE_Y), Vector2(24, TANK_Y))
+	if v.distance_to(Vector2(-361.8, -451.7)) > 0.5:
+		_fail("T2: velocidade de lancamento %s, esperado (-361.8, -451.7)" % str(v))
+	var still := _simulate_lob(Vector2(1200, MUZZLE_Y), Vector2(24, TANK_Y), 1.0 / 60.0, [])
+	var target := Vector2(24, TANK_Y)
+	if _min_dist(still.path, target) >= PLAYER_HIT_R:
+		_fail("T3: o tanque parado nao leva o tiro")
+	for dx in [boss_brain.DANGER_R, 2.0 * boss_brain.DANGER_R]:
+		if _min_dist(still.path, target + Vector2(dx, 0)) < PLAYER_HIT_R:
+			_fail("T4: andar %d px para o lado nao salva" % int(dx))
+	_test_volley_sweep()
+	var wait: float = boss_brain.SHOT_WARN_S + t
+	# Carregado na hora: preload da arena nao compila antes dos autoloads existirem.
+	var move_speed: float = load("res://scenes/arena/arena.gd").MOVE_SPEED
+	var need: float = 3.0 * boss_brain.DANGER_R / move_speed
+	if wait < need:
+		_fail("T6: aviso + voo %.2f s < %.2f s para sair do marcador" % [wait, need])
+	_test_dodge_lock()
+	_test_firing_data()
+	print("ok: morteiro do chefe (conta, justica e dados)")
+
+
+## T5: toda posicao do chefe contra toda posicao do tanque, a 60 e a 30 fps.
+func _test_volley_sweep() -> void:
+	var worst := {"60": INF, "30": INF}
+	var checked := 0
+	for entry in _firing_stages():
+		var st: Dictionary = entry[2]
+		var polys := _mountain_polys(st)
+		var zone: Vector2 = st.move_zone
+		for cx in _chief_xs(st.chief):
+			var from := Vector2(cx, MUZZLE_Y)
+			var cannon := zone.x
+			while cannon <= zone.y:
+				var to := Vector2(cannon - CANNON_DX, TANK_Y)
+				for dt in [1.0 / 60.0, 1.0 / 30.0]:
+					var key := "60" if dt < 0.02 else "30"
+					var sim := _simulate_lob(from, to, dt, polys)
+					var label := (
+						"%s/%d chefe %d canhao %d %s fps"
+						% [entry[0], entry[1] + 1, cx, cannon, key]
+					)
+					checked += 1
+					if sim.mountain:
+						_fail("T5: a bala bate na montanha (%s)" % label)
+					if _min_dist(sim.path, to) >= PLAYER_HIT_R:
+						_fail("T5: o tiro nao acerta o tanque parado (%s)" % label)
+					for k in [1.0, 2.0]:
+						for side in [-1.0, 1.0]:
+							var off := Vector2(side * k * boss_brain.DANGER_R, 0)
+							var d := _min_dist(sim.path, to + off)
+							worst[key] = minf(worst[key], d - PLAYER_HIT_R)
+							if d < PLAYER_HIT_R:
+								_fail("T5: sair do marcador nao salva (%s, %d)" % [label, off.x])
+				cannon += 10.0
+	if checked == 0:
+		_fail("T5: nenhuma fase com chefe que atira")
+	print(
+		(
+			"ok: pior folga fora do marcador: %.1f px a 60 fps, %.1f px a 30 fps"
+			% [worst["60"], worst["30"]]
+		)
+	)
+
+
+func _test_dodge_lock() -> void:
+	var one_dodge := Ballistics.to_m(boss_brain.DANGER_R)
+	var cases := [
+		[Vector2(40, 250), 40.0, 12.0, true],
+		[Vector2(40, 250), 145.0, 1.0, false],
+		[Vector2(40, 250), 145.0, one_dodge, true],
+		[Vector2(1, 0), 104.0, INF, false],
+		[Vector2(40, 150), 95.0, INF, false],
+		[Vector2(40, 330), 330.0, INF, true],
+	]
+	for i in range(cases.size()):
+		var c: Array = cases[i]
+		var got: bool = boss_brain.dodge_ok(c[0], c[1], c[2], boss_brain.DANGER_R)
+		if got != c[3]:
+			_fail("T7: dodge_ok caso %d deu %s, esperado %s" % [i + 1, got, c[3]])
+
+
+func _test_firing_data() -> void:
+	var fires := []
+	for base_id in Campaign.BASES:
+		var stages: Array = Campaign.BASES[base_id].stages
+		for i in range(stages.size()):
+			var brain := Node2D.new()
+			brain.set_script(boss_brain)
+			brain.data = stages[i].get("chief", {})
+			if brain.fires():
+				fires.append("%s/%d" % [base_id, i + 1])
+			brain.free()
+	fires.sort()
+	if fires != ["Base_B/3", "Base_D/3"]:
+		_fail("T15: quem atira = %s, esperado Base_B/3 e Base_D/3" % str(fires))
+	for entry in _firing_stages():
+		var st: Dictionary = entry[2]
+		var label := "%s/%d" % [entry[0], entry[1] + 1]
+		if st.has("tank_height"):
+			_fail("T8: %s tem plato, o desvio nao e garantido" % label)
+		var zone: Vector2 = st.get("move_zone", Vector2(1, 0))
+		if zone.y - zone.x < 2.0 * boss_brain.DANGER_R:
+			_fail("T8: %s sem espaco para desviar" % label)
+		if st.get("fuel_m", INF) < Ballistics.to_m(boss_brain.DANGER_R):
+			_fail("T8: %s sem combustivel para um desvio" % label)
+		if entry[0] == "Base_B" and (st.get("fuel_m", INF) != 12.0 or zone != Vector2(40, 250)):
+			_fail("T8: a Bravo 3 devia ter 12 m e faixa 40-250")
+
+
+# ── 8b. Morteiro ao vivo ─────────────────────────────────────────────
+
+
+## Abre a arena, fecha a Ada, congela quem nao e o castelo e segura o ciclo
+## automatico do chefe. Devolve a arena.
+func _open_arena(base_id: String, stage: int) -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.current_base_id = base_id
+	g.current_stage = stage
+	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.tutorial_done = true
+	g.reset_armor()
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	for _i in range(10):
+		await process_frame
+	var a = current_scene
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	paused = false
+	for e in a.active_enemies:
+		if not e.has_meta("is_boss"):
+			e.process_mode = Node.PROCESS_MODE_DISABLED
+	_brain(a)._wait = 999.0
+	return a
+
+
+func _boss(a: Node) -> Node2D:
+	for e in a.active_enemies:
+		if e.has_meta("is_boss"):
+			return e
+	return null
+
+
+func _brain(a: Node) -> Node:
+	return _boss(a).get_node("Brain")
+
+
+func _chief_shots(a: Node) -> Array:
+	var out := []
+	for ch in a.get_children():
+		if ch.has_meta("chief_shot") and not ch.is_queued_for_deletion():
+			out.append(ch)
+	return out
+
+
+func _secs(seconds: float) -> void:
+	var end := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < end:
+		await process_frame
+
+
+## Espera a bala do chefe aparecer (ate `limit` s). Devolve-a ou null.
+func _wait_shot(a: Node, limit: float) -> Node:
+	var end := Time.get_ticks_msec() + int(limit * 1000.0)
+	while Time.get_ticks_msec() < end:
+		var shots := _chief_shots(a)
+		if not shots.is_empty():
+			return shots[0]
+		await process_frame
+	return null
+
+
+func _wait_no_shot(a: Node, limit: float) -> void:
+	var end := Time.get_ticks_msec() + int(limit * 1000.0)
+	while Time.get_ticks_msec() < end and not _chief_shots(a).is_empty():
+		await process_frame
+	await _frames(2)
+
+
+func _goal_state(a: Node, type_name: String) -> int:
+	for i in range(a.goals.goals.size()):
+		if a.goals.goals[i].type == type_name:
+			return a.goals.states[i]
+	return -1
+
+
+func _test_chief_volley_live() -> void:
+	var g = root.get_node("Global")
+	var phase = boss_brain.Phase
+
+	# T9: o tanque parado leva o tiro.
+	var a = await _open_arena("Base_B", 2)
+	var brain := _brain(a)
+	brain._begin_warning()
+	if brain._phase != phase.WARN or brain._target != Vector2(88, TANK_Y):
+		_fail("T9: aviso nao comecou no tanque (%s)" % str(brain._target))
+	var shot := await _wait_shot(a, 1.8)
+	if shot == null:
+		_fail("T9: a bala nao saiu depois do aviso")
+	else:
+		if shot.damage != boss_brain.SHOT_DAMAGE or shot.bullet_color != UiTokens.ENEMY_SHOT:
+			_fail("T9: bala com dano ou cor errados")
+		if shot.has_meta("shot"):
+			_fail("T9: a bala do chefe nao pode levar a meta shot do jogador")
+		await _wait_no_shot(a, 5.0)
+		if not is_equal_approx(g.player_armor, 90.0):
+			_fail("T9: armadura %.1f, esperado 90" % g.player_armor)
+		if _goal_state(a, "no_damage") != a.goals.State.FAILED:
+			_fail("T9: a meta no_damage devia falhar")
+
+	# T10: andar para fora do marcador salva.
+	a = await _open_arena("Base_B", 2)
+	_brain(a)._begin_warning()
+	a.player.position.x += boss_brain.DANGER_R
+	await _wait_shot(a, 1.8)
+	await _wait_no_shot(a, 5.0)
+	if not is_equal_approx(g.player_armor, 100.0):
+		_fail("T10: levou dano mesmo desviando (%.1f)" % g.player_armor)
+
+	# T11: a pausa congela a bala.
+	a = await _open_arena("Base_B", 2)
+	_brain(a)._begin_warning()
+	shot = await _wait_shot(a, 1.8)
+	if shot == null:
+		_fail("T11: a bala nao saiu")
+	else:
+		var before: Vector2 = shot.position
+		paused = true
+		await _secs(0.5)
+		if shot.position.distance_to(before) > 0.01 or _brain(a)._phase != phase.FLIGHT:
+			_fail("T11: a bala andou com o jogo pausado")
+		paused = false
+		a.player.position.x += boss_brain.DANGER_R
+		await _wait_no_shot(a, 5.0)
+		if not is_equal_approx(g.player_armor, 100.0):
+			_fail("T11: dano depois da pausa (%.1f)" % g.player_armor)
+
+	# T12: chefe derrubado com outros inimigos vivos.
+	a = await _open_arena("Base_B", 2)
+	_brain(a)._begin_warning()
+	await _wait_shot(a, 1.8)
+	var boss := _boss(a)
+	boss.set_meta("hp", 1)
+	a.on_enemy_hit(boss, 1)
+	await _frames(2)
+	if not _chief_shots(a).is_empty():
+		_fail("T12: a bala continuou depois de o chefe cair")
+	await _secs(3.5)
+	if not is_equal_approx(g.player_armor, 100.0) or a.stage_cleared:
+		_fail("T12: dano ou vitoria depois de derrubar o chefe")
+
+	# T13: fase vencida.
+	a = await _open_arena("Base_B", 2)
+	brain = _brain(a)
+	brain._begin_warning()
+	await _wait_shot(a, 1.8)
+	a._on_stage_cleared()
+	await _frames(2)
+	if not _chief_shots(a).is_empty():
+		_fail("T13: a bala do chefe sobreviveu a vitoria")
+	a.on_player_hit(8)
+	if not is_equal_approx(g.player_armor, 100.0):
+		_fail("T13: dano depois da vitoria (%.1f)" % g.player_armor)
+	for _i in range(900):
+		brain._process(1.0 / 60.0)
+	if not _chief_shots(a).is_empty() or brain._phase != phase.IDLE:
+		_fail("T13: o chefe atirou depois da vitoria")
+
+	# T14: o Iglu (moving sem fires) nao atira e continua andando.
+	a = await _open_arena("Base_N", 2)
+	brain = _brain(a)
+	for _i in range(900):
+		brain._process(1.0 / 60.0)
+	var bx := _boss(a).position.x
+	if not _chief_shots(a).is_empty() or brain._phase != phase.IDLE:
+		_fail("T14: o Iglu atirou")
+	if bx < 900.0 or bx > 975.0:
+		_fail("T14: o Iglu saiu da faixa (%.0f)" % bx)
+
+	# T16: ciclo automatico do hopping.
+	a = await _open_arena("Base_D", 2)
+	brain = _brain(a)
+	brain._wait = boss_brain.SHOT_FIRST_DELAY_S
+	for _i in range(185):
+		brain._process(1.0 / 60.0)
+	if brain._phase != phase.WARN or brain._target != a.player.global_position:
+		_fail("T16: o primeiro aviso nao veio no tempo")
+	for _i in range(62):
+		brain._process(1.0 / 60.0)
+	if _chief_shots(a).is_empty():
+		_fail("T16: a bala nao saiu depois do aviso")
+
+	# T20: sem tanque, sem aviso e sem erro.
+	a = await _open_arena("Base_B", 2)
+	brain = _brain(a)
+	a.player.queue_free()
+	await _frames(1)
+	brain._begin_warning()
+	if brain._phase != phase.IDLE or not _chief_shots(a).is_empty():
+		_fail("T20: avisou sem jogador")
+	g.reset_progress()
+	g.reset_armor()
+	print("ok: morteiro do chefe ao vivo")

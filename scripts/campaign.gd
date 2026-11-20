@@ -26,6 +26,7 @@ extends RefCounted
 ##   power_lock  -- forca travada (fracao): so o angulo muda o alcance
 ##   chief       -- o chefe da ultima fase de cada base (ver BossBrain):
 ##                  {"name", "kind": shield|moving|hopping|gravity|guarded, ...}
+##                  "fires": true -- o chefe atira um morteiro avisado no jogador
 ##   boss_hp     -- vida do castelo (padrao 3; o chefe tem mais)
 ##
 ## Toda fase tem tres estrelas. A primeira e vencer; as outras duas sao desafios
@@ -276,11 +277,14 @@ const BASES := {
 					"name": "Castelo sobre Rodas",
 					"kind": "moving",
 					"zone": Vector2(1060, 1200),
-					"speed": 22.0
+					"speed": 22.0,
+					"fires": true
 				},
 				"planes": 2,
 				"plane_hp": 2,
 				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
+				"move_zone": FUEL_ZONE,
+				"fuel_m": CHIEF_FUEL_M,
 				"goals":
 				[
 					{"type": "no_damage"},
@@ -479,7 +483,8 @@ const BASES := {
 				{
 					"name": "Castelo Fujão",
 					"kind": "hopping",
-					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]
+					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0],
+					"fires": true
 				},
 				"planes": 4,
 				"plane_hp": 2,
@@ -885,6 +890,9 @@ static func stage(base_id: String, index: int) -> Dictionary:
 const FUEL_BASES := ["Base_B", "Base_C", "Base_E", "Base_F"]
 const FUEL_M := 3.0
 const FUEL_ZONE := Vector2(40.0, 250.0)
+## O chefe que atira (Bravo 3) precisa de combustivel para o jogador desviar do
+## morteiro varias vezes: cada desvio de 64 px custa 1,28 m.
+const CHIEF_FUEL_M := 12.0
 
 
 static func with_fuel(base_id: String, st: Dictionary) -> Dictionary:

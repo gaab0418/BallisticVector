@@ -902,6 +902,9 @@ func _set_guess_mode(on: bool) -> void:
 
 # --- Projétil inimigo acertou o jogador ---
 func on_player_hit(dmg: int) -> void:
+	# Bala que chega depois da vitoria nao tira armadura nem estraga a meta no_damage.
+	if stage_cleared:
+		return
 	Global.player_armor -= dmg
 	Global.player_armor = max(Global.player_armor, 0.0)
 	goals.on_damage()
