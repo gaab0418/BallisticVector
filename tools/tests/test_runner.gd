@@ -88,6 +88,7 @@ func _run() -> void:
 	await _test_alpha1_without_old_tutorial()
 	await _test_practice_arena()
 	await _test_tutorial_modal()
+	await _test_story_intro()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -2769,3 +2770,145 @@ func _check_help_keycap() -> void:
 		if not cap is PanelContainer or cap.get_child(0).text != "Q":
 			_fail("T36: keycap('Q') nao devolve a tecla com a letra")
 	await _free_modal(help)
+
+
+## Texto aprovado das 4 telas (about-task.md), copiado literalmente: o teste nao
+## le StoryIntro.LINES, senao aprovaria qualquer texto.
+const STORY_TEXTS := [
+	(
+		"O Comando Norte tomou o arquipélago em uma noite: "
+		+ "um pulso eletromagnético queimou todos os computadores de mira da frota."
+	),
+	(
+		"As fortalezas que a Engenheira Ada projetou viraram castelos deles, "
+		+ "blindados contra o pulso. Os nossos canhões viraram sucata."
+	),
+	(
+		"Ada consertou o último que restou: o seu tanque. Sem computador, "
+		+ "ele só dispara com a conta certa."
+	),
+	"Ela sabe onde cada castelo falha. O resto é cálculo.",
+]
+
+
+func _test_story_intro() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	await _check_story_texts()
+	await _check_story_end()
+	await _check_story_skip()
+	await _check_story_controls()
+	if _save_snapshot(g) != before:
+		_fail("o enredo mexeu no save")
+	print("ok: story intro")
+
+
+func _new_story() -> Node:
+	var s: Node = load("res://scripts/ui/story_intro.gd").new()
+	root.add_child(s)
+	await _frames(1)
+	s.open()
+	await _frames(1)
+	return s
+
+
+## Cada elemento: [skipped] de cada emissao de `finished`.
+func _record_finished(s: Node) -> Array:
+	var log := []
+	s.finished.connect(func(skipped: bool): log.append(skipped))
+	return log
+
+
+## T23: o texto das 4 telas, caractere a caractere.
+func _check_story_texts() -> void:
+	var s := await _new_story()
+	if s.LINES.size() != 4:
+		_fail("T23: o enredo tem %d telas, esperava 4" % s.LINES.size())
+	for i in range(STORY_TEXTS.size()):
+		if s._line_label.text != STORY_TEXTS[i]:
+			_fail("T23: texto da tela %d diferente do aprovado: '%s'" % [i + 1, s._line_label.text])
+		if s.current_index() != i:
+			_fail("T23: indice %d na tela %d" % [s.current_index(), i + 1])
+		s.advance()
+		await _frames(1)
+	await _free_modal(s)
+
+
+## T24: quatro avancos terminam o enredo, uma vez, sem pular.
+func _check_story_end() -> void:
+	var s := await _new_story()
+	var log := _record_finished(s)
+	if _find_button(s, "PRÓXIMO →") == null:
+		_fail("T24: a tela 1 nao tem o botao PRÓXIMO")
+	for _i in range(3):
+		s.advance()
+	await _frames(1)
+	if not log.is_empty():
+		_fail("T24: terminou antes da tela 4")
+	if _find_button(s, "COMEÇAR") == null:
+		_fail("T24: a tela 4 nao troca PRÓXIMO por COMEÇAR")
+	s.advance()
+	s.advance()
+	await _frames(1)
+	if log != [false]:
+		_fail("T24: finished = %s, esperava [false]" % str(log))
+	if s.visible:
+		_fail("T24: o enredo continua visivel depois do fim")
+	await _free_modal(s)
+
+
+## PULAR e Esc: finished(true) uma vez, em qualquer tela.
+func _check_story_skip() -> void:
+	var s := await _new_story()
+	var log := _record_finished(s)
+	s.advance()
+	s.skip()
+	s.skip()
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: skip() emitiu %s, esperava [true]" % str(log))
+	await _free_modal(s)
+
+	s = await _new_story()
+	log = _record_finished(s)
+	var skip_btn := _find_button(s, "PULAR")
+	if skip_btn == null:
+		_fail("T24: a tela nao tem o botao PULAR")
+	else:
+		skip_btn.pressed.emit()
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: o botao PULAR emitiu %s" % str(log))
+	await _free_modal(s)
+
+	s = await _new_story()
+	log = _record_finished(s)
+	_press(s, "ui_cancel")
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: Esc emitiu %s" % str(log))
+	await _free_modal(s)
+
+
+## Reabrir recomeca da tela 1; fechado, o enredo ignora avancar; texto grande.
+func _check_story_controls() -> void:
+	var s := await _new_story()
+	s.advance()
+	s.advance()
+	s.skip()
+	s.open()
+	await _frames(1)
+	if s.current_index() != 0 or not s.visible:
+		_fail("T24: open() nao recomecou na tela 1")
+	var g = root.get_node("Global")
+	var old_big: bool = g.big_text
+	g.big_text = true
+	s.open()
+	await _frames(1)
+	var big: int = s._line_label.get_theme_font_size("font_size")
+	g.big_text = old_big
+	s.open()
+	await _frames(1)
+	if big <= s._line_label.get_theme_font_size("font_size"):
+		_fail("T24: big_text nao aumenta a frase")
+	await _free_modal(s)
