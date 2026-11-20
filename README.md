@@ -125,6 +125,8 @@ BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_run
 
 `BV_SAVE_PATH` troca o arquivo de progresso, para os testes nunca tocarem no save real.
 
+O runner sai com código 1 se algum teste falhar **ou se ocorrer qualquer `SCRIPT ERROR`** durante a execução (um erro de execução aborta só a função de teste em curso, e antes passava por verde); avisos e o aviso de vazamento de objetos no encerramento não reprovam.
+
 ---
 
 ## 🔄 CI/CD e Releases
