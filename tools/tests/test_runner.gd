@@ -98,21 +98,6 @@ func _fail(msg: String) -> void:
 	failures.append(msg)
 
 
-## Falhas ja conhecidas e registradas no log da task (sdd). Imprime PENDENTE no
-## lugar de reprovar. Ao resolver o motivo, apague a entrada: o teste volta a
-## reprovar de verdade.
-const KNOWN_PENDING := {
-	"T7": "aba 'A parabola' da ajuda passa de 720 px; grupo 7, so depois do merge da 02",
-}
-
-
-func _fail_known(tag: String, msg: String) -> void:
-	if KNOWN_PENDING.has(tag):
-		print("PENDENTE (%s): %s" % [KNOWN_PENDING[tag], msg])
-	else:
-		_fail(msg)
-
-
 # ── 1. Compilacao ────────────────────────────────────────────────────
 
 
@@ -1735,13 +1720,10 @@ func _test_help_fits() -> void:
 		await _frames(4)
 		var win: Rect2 = help.window.get_global_rect()
 		if not _on_screen(win):
-			_fail_known("T7", "T7: aba %d da ajuda fora da tela (janela %s)" % [i, win])
+			_fail("T7: aba %d da ajuda fora da tela (janela %s)" % [i, win])
 		for label in help.window.find_children("*", "Label", true, false):
 			if label.is_visible_in_tree() and not win.grow(1).encloses(label.get_global_rect()):
-				_fail_known(
-					"T7",
-					"T7: aba %d, texto fora da janela: '%s'" % [i, String(label.text).left(40)]
-				)
+				_fail("T7: aba %d, texto fora da janela: '%s'" % [i, String(label.text).left(40)])
 				break
 	help.close()
 
