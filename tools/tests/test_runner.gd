@@ -16,8 +16,8 @@ extends SceneTree
 ##   6. o progresso salvo volta igual ao carregar (e o kit de emergencia aparece);
 ##   7. as falas da Ada: abertura curta da fase, dica no 1o limiar de erros,
 ##      missoes na estrela e tom dos textos (sem "!" nem diminutivo gratuito).
-## Sai com codigo 1 se qualquer teste falhar. BV_SAVE_PATH evita tocar no save
-## de quem joga na mesma maquina.
+## Sai com codigo 1 se qualquer teste falhar ou ocorrer SCRIPT ERROR. BV_SAVE_PATH
+## evita tocar no save de quem joga na mesma maquina.
 
 const BOSS_R := 85.0
 const SMALL_R := 35.0
@@ -25,9 +25,34 @@ const SMALL_R := 35.0
 const LANDING_TOLERANCE_M := 0.2
 
 var failures: Array = []
+var _script_errors := ScriptErrorLogger.new()
+
+
+## Conta os erros de script (SCRIPT ERROR). Um erro de execucao so aborta a funcao
+## de teste em curso e o runner seguia verde; avisos e o vazamento de objetos no
+## encerramento nao sao do tipo script, entao nao entram na conta.
+class ScriptErrorLogger:
+	extends Logger
+	var messages: Array = []
+
+	func _log_error(
+		function: String,
+		file: String,
+		line: int,
+		code: String,
+		rationale: String,
+		_editor_notify: bool,
+		error_type: int,
+		_script_backtraces: Array
+	) -> void:
+		if error_type == Logger.ERROR_TYPE_SCRIPT:
+			messages.append(
+				"%s (%s:%d): %s" % [function, file, line, rationale if rationale else code]
+			)
 
 
 func _initialize() -> void:
+	OS.add_logger(_script_errors)
 	_run.call_deferred()
 
 
@@ -44,6 +69,8 @@ func _run() -> void:
 	_test_text_tone()
 	await _test_help_tone()
 	await _test_qa_adversarial()
+	for msg in _script_errors.messages:
+		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
 		print("TODOS OS TESTES PASSARAM")
 		quit(0)

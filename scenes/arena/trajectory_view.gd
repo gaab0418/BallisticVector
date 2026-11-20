@@ -233,7 +233,7 @@ func _draw_vertex() -> void:
 		var tip := (
 			"Abaixe o canhão: aqui a parábola abre para cima!"
 			if up
-			else "Levante o canhão para formar a parábola!"
+			else "Levante o canhão para formar a parábola."
 		)
 		var icon_rect := Rect2(pivot + Vector2(-80, -86), Vector2(16, 16))
 		UiIcon.paint(self, "arrow_up", icon_rect, UiTokens.EDITABLE)
