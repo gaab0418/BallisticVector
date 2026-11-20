@@ -13,7 +13,9 @@ extends SceneTree
 ##   5. cada tela principal abre sem travar;
 ##   5b. os botoes do mapa e do menu abrem o que prometem (Loja, Oficina,
 ##      Caderno, ilhas, Duelo) e o Duelo aceita um tiro;
-##   6. o progresso salvo volta igual ao carregar (e o kit de emergencia aparece).
+##   6. o progresso salvo volta igual ao carregar (e o kit de emergencia aparece);
+##   7. as falas da Ada: abertura curta da fase, dica no 1o limiar de erros,
+##      missoes na estrela e tom dos textos (sem "!" nem diminutivo gratuito).
 ## Sai com codigo 1 se qualquer teste falhar. BV_SAVE_PATH evita tocar no save
 ## de quem joga na mesma maquina.
 
@@ -39,6 +41,8 @@ func _run() -> void:
 	_test_save_roundtrip()
 	_test_ada_intro()
 	await _test_ada_in_arena()
+	_test_text_tone()
+	await _test_help_tone()
 	if failures.is_empty():
 		print("TODOS OS TESTES PASSARAM")
 		quit(0)
@@ -672,3 +676,65 @@ func _check_no_bubble_without_lesson(a: Node) -> void:
 	a.coach.start_stage()
 	if a.coach.ada.visible or a.coach.ada._mode != "":
 		_fail("fase sem licao abriu balao da Ada")
+
+
+## Palavras que o publico (ensino medio) leria como infantis.
+const TONE_BANNED := [
+	"rapidinho",
+	"pouquinho",
+	"pertinho",
+	"fraquinha",
+	"fininha",
+	"baixinho",
+	"pontinhos",
+	"setinha",
+	"igualzinho",
+	"instantinho",
+	"devagarinho",
+	"barquinho",
+	"sorriso",
+]
+
+
+## Devolve o que quebra o tom em `text` ("" se estiver tudo certo).
+func _tone_problem(text: String) -> String:
+	if "!" in text:
+		return "tem '!'"
+	var low := text.to_lower()
+	for w in TONE_BANNED:
+		if w in low:
+			return "tem '%s'" % w
+	return ""
+
+
+func _test_text_tone() -> void:
+	var texts := {}
+	for entry in _all_stages():
+		texts[entry[0] + " lesson"] = entry[1].lesson
+		texts[entry[0] + " tip"] = entry[1].tip
+	var pages: Array = load("res://scripts/notebook.gd").PAGES
+	for i in range(pages.size()):
+		texts["caderno %d" % (i + 1)] = pages[i].text
+	var rules: Dictionary = _coach_script().CHIEF_RULES
+	for kind in rules:
+		texts["chefe " + kind] = rules[kind]
+	texts["chefe (fallback)"] = _coach_script().CHIEF_FALLBACK
+	for key in texts:
+		var problem := _tone_problem(texts[key])
+		if problem != "":
+			_fail("tom em %s: %s (%s)" % [key, problem, texts[key]])
+	print("ok: tom dos textos")
+
+
+func _test_help_tone() -> void:
+	var help: Node = load("res://scripts/help_overlay.gd").new()
+	root.add_child(help)
+	await _frames(1)
+	for node in help.find_children("*", "Control", true, false):
+		if node is Label or node is Button:
+			var problem := _tone_problem(node.text)
+			if problem != "":
+				_fail("tom na ajuda: %s (%s)" % [problem, node.text])
+	help.queue_free()
+	await _frames(1)
+	print("ok: tom da ajuda")
