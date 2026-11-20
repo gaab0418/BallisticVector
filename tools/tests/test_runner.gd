@@ -1,3 +1,4 @@
+# gdlint: disable=max-file-lines
 extends SceneTree
 ## Testes automaticos do Ballistic Vector, rodados pela CI.
 ##
@@ -1029,6 +1030,9 @@ func _test_chief_volley_math() -> void:
 		_fail("T6: aviso + voo %.2f s < %.2f s para sair do marcador" % [wait, need])
 	_test_dodge_lock()
 	_test_firing_data()
+	_test_chief_fires_speech()
+	if boss_brain.SHOT_WARN_S < 0.5 or boss_brain.SHOT_COOLDOWN_S <= 0.0:
+		_fail("T24: aviso curto demais ou sem pausa entre tiros")
 	print("ok: morteiro do chefe (conta, justica e dados)")
 
 
@@ -1120,6 +1124,35 @@ func _test_firing_data() -> void:
 			_fail("T8: a Bravo 3 devia ter 12 m e faixa 40-250")
 
 
+## T21-T23: a Ada avisa que o chefe revida, so no chefe com `fires`.
+func _test_chief_fires_speech() -> void:
+	var coach := _coach_script()
+	var suffix := " Ele revida: saia do marcador."
+	for key in [["Base_B", 2], ["Base_D", 2]]:
+		var lines: Array = coach.intro_lines_for(Campaign.BASES[key[0]].stages[key[1]], "CAP")
+		var text: String = lines[1].text
+		if not text.ends_with(suffix) or text.length() > 130 or text.contains("!"):
+			_fail(
+				"T21: fala do chefe %s sem o aviso ou fora do limite (%d)" % [key[0], text.length()]
+			)
+		if lines.size() != 2 or lines[1].caption != "CHEFE":
+			_fail("T21: fala do chefe %s mudou de forma" % key[0])
+	var no_fire: Array = [
+		Campaign.BASES.Base_N.stages[2],
+		Campaign.BASES.Base_A.stages[2],
+		{"lesson": "", "chief": {"name": "Castelo X", "kind": "moving", "fires": false}},
+	]
+	for st in no_fire:
+		for line in coach.intro_lines_for(st, "CAP"):
+			if line.text.contains("revida"):
+				_fail("T22: chefe sem fires revida na fala: %s" % line.text)
+	if coach.CHIEF_FIRES_SUFFIX != "Ele revida: saia do marcador.":
+		_fail("T23: texto do aviso mudou")
+	for w in TONE_BANNED:
+		if coach.CHIEF_FIRES_SUFFIX.to_lower().contains(w):
+			_fail("T23: palavra banida no aviso: " + w)
+
+
 # ── 8b. Morteiro ao vivo ─────────────────────────────────────────────
 
 
@@ -1140,6 +1173,8 @@ func _open_arena(base_id: String, stage: int) -> Node:
 	var a = current_scene
 	if a.coach.ada.is_talking():
 		a.coach.ada._finish()
+	# _finish() despausa com set_deferred: espera o quadro para nao despausar depois.
+	await process_frame
 	paused = false
 	for e in a.active_enemies:
 		if not e.has_meta("is_boss"):
@@ -1303,6 +1338,30 @@ func _test_chief_volley_live() -> void:
 		brain._process(1.0 / 60.0)
 	if _chief_shots(a).is_empty():
 		_fail("T16: a bala nao saiu depois do aviso")
+
+	# T17: a pausa durante o aviso segura a bala.
+	a = await _open_arena("Base_B", 2)
+	brain = _brain(a)
+	brain._begin_warning()
+	paused = true
+	await _secs(1.5)
+	if brain._phase != phase.WARN or not _chief_shots(a).is_empty():
+		_fail(
+			(
+				"T17: o aviso andou com o jogo pausado (fase %d, balas %d)"
+				% [brain._phase, _chief_shots(a).size()]
+			)
+		)
+	paused = false
+
+	# T18: sem combustivel o chefe segura o fogo.
+	a = await _open_arena("Base_B", 2)
+	brain = _brain(a)
+	a.fuel_m = 0.5
+	brain._begin_warning()
+	await _frames(2)
+	if brain._phase != phase.IDLE or not _chief_shots(a).is_empty():
+		_fail("T18: o chefe atirou sem combustivel para desviar")
 
 	# T20: sem tanque, sem aviso e sem erro.
 	a = await _open_arena("Base_B", 2)

@@ -11,7 +11,7 @@ extends Node2D
 ## Quem atira: so o chefe com `"fires": true` na fase (Castelo sobre Rodas, da
 ## Bravo 3, e Castelo Fujao, da Delta 3). O Iglu Blindado (Norte 3) e `moving`,
 ## mas nao atira; por isso a regra e o dado `fires`, nao o `kind`.
-## O tiro e um morteiro avisado: aviso de 1 s com marcador no chao, voo de ~3,2 s
+## O tiro e um morteiro avisado: aviso de 1 s com marcador no chao, voo de ~3,25 s
 ## e uma folga de sobra para o jogador sair andando. So conta tempo por `delta`
 ## (nada de create_timer, que corre com o jogo pausado).
 
