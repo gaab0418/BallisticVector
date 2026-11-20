@@ -1376,6 +1376,8 @@ func _test_chief_volley_live() -> void:
 	g.reset_progress()
 	g.reset_armor()
 	print("ok: morteiro do chefe ao vivo")
+
+
 # ── 9. Legibilidade e HUD ────────────────────────────────────────────
 
 
@@ -1470,7 +1472,7 @@ func _text_w(font: Font, text_value: String) -> float:
 
 
 ## Abre a arena com a Ada fechada e o jogo despausado.
-func _open_arena(base_id: String, stage: int) -> Node:
+func _open_arena_hud(base_id: String, stage: int) -> Node:
 	var g = root.get_node("Global")
 	g.lab_mode = false
 	g.current_base_id = base_id
@@ -1511,7 +1513,7 @@ func _inner_fits(btn: Button) -> bool:
 
 
 func _test_hud_gears_and_formula() -> void:
-	var a := await _open_arena("Base_D", 0)
+	var a := await _open_arena_hud("Base_D", 0)
 	var hud = a.hud
 	var p = hud.parabola
 	var abc := ["abc", "abc", "abc"]
@@ -1712,7 +1714,7 @@ func _test_ada_bubble_fits() -> void:
 
 ## T7: as tres abas da ajuda cabem na tela e o texto cabe na janela.
 func _test_help_fits() -> void:
-	var a := await _open_arena("Base_A", 0)
+	var a := await _open_arena_hud("Base_A", 0)
 	var help = a.help_overlay
 	help.open()
 	for i in range(3):
@@ -1730,7 +1732,7 @@ func _test_help_fits() -> void:
 
 ## T8: a gaveta "Ver conta" no pior caso nao cobre os botoes da HUD.
 func _test_formula_drawer_fits() -> void:
-	var a := await _open_arena("Base_A", 0)
+	var a := await _open_arena_hud("Base_A", 0)
 	var hud = a.hud
 	hud.formula.visible = true
 	hud.formula.set_height_line(5.0)
@@ -1765,7 +1767,7 @@ func _find_icon(node: Node, icon_name: String) -> UiIcon:
 
 ## T15 (guess_btn e _goals_btn), T16, T17 e T18: botoes de icone e faixa de baixo.
 func _test_hud_icon_buttons_and_strip() -> void:
-	var a := await _open_arena("Base_D", 1)
+	var a := await _open_arena_hud("Base_D", 1)
 	var hud = a.hud
 	var guess: Button = hud.guess_btn
 
