@@ -28,7 +28,7 @@ const BADGE_TEXT_W := 168.0
 ## O painel da parabola e a insignia da fase disputam o topo: com o espacamento
 ## novo o painel passa de 790 px e cruzaria a insignia. Empurrar o conjunto para
 ## a direita usa a folga que sobra antes da estrela e do placar.
-const CENTER_SHIFT := 28.0
+const CENTER_SHIFT := 48.0
 ## Botoes de icone com tecla (modo chute).
 const GUESS_BTN_SIZE := Vector2(68, 40)
 const GUESS_TOOLTIP := "Modo chute (C): esconde a curva. Calcule e clique onde a bala cai."
