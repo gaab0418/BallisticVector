@@ -25,10 +25,12 @@ const GEAR_ANGULO: int = 0
 const GEAR_FORCA: int = 1
 const GEAR_GRAVIDADE: int = 2
 
-const GEAR_WIDTH: float = 156.0
+const GEAR_WIDTH: float = 164.0
 const RESULT_WIDTH: float = 104.0
+const FORMULA_BTN_SIZE := Vector2(64, 36)
 const COEF_DECIMALS := [3, 2, 2]
 
+var formula_button: Button
 var _gears: Array = []
 var _coef_labels: Array = []
 var _coef_chips: Array = []
@@ -67,10 +69,10 @@ func setup(panel_style: StyleBox) -> void:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_child(row)
 
-	for title in ["Ângulo", "Força", "Gravidade"]:
+	for entry in [["Ângulo", "angle"], ["Força", "force"], ["Gravidade", "planet"]]:
 		var gear = GearWidgetScript.new()
 		row.add_child(gear)
-		gear.setup(title, GEAR_WIDTH)
+		gear.setup(entry[0], entry[1], GEAR_WIDTH)
 		var index: int = _gears.size()
 		gear.dragged.connect(_on_gear_dragged.bind(index))
 		gear.grabbed.connect(_on_gear_grabbed.bind(index))
@@ -110,7 +112,7 @@ func set_state(view: Dictionary) -> void:
 	var s: Dictionary = view.shot
 	_gears[GEAR_ANGULO].set_value_text("%d°" % roundi(view.angle_deg))
 	_gears[GEAR_FORCA].set_value_text(Ballistics.fmt(s.v) + " m/s")
-	_gears[GEAR_FORCA].set_title_text("Força %d%%" % roundi(view.power * 100.0))
+	_gears[GEAR_FORCA].set_detail_text("%d%%" % roundi(view.power * 100.0))
 	_gears[GEAR_GRAVIDADE].set_value_text(Ballistics.fmt(s.g) + " m/s²")
 
 	_effects = view.effects
@@ -186,14 +188,29 @@ func _build_equation_row() -> HBoxContainer:
 	spacer.custom_minimum_size = Vector2(UiTokens.GAP, 0)
 	row.add_child(spacer)
 
-	var btn := UiButton.create("Ver conta (F)", UiButton.Kind.SECONDARY)
-	btn.custom_minimum_size = Vector2(0, 32)
-	btn.add_theme_font_size_override("font_size", UiTokens.FONT_XS)
-	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	btn.tooltip_text = "Mostra de onde saem a, b, c, o vértice e a raiz"
-	btn.pressed.connect(func(): formula_toggled.emit())
-	row.add_child(btn)
+	formula_button = _build_formula_button()
+	row.add_child(formula_button)
 	return row
+
+
+## Botao de icone: o ƒ e o UiIcon "formula" (a VT323 e a Handjet podem nao ter
+## o glifo, que viraria um quadradinho) mais a tecla F desenhada.
+func _build_formula_button() -> Button:
+	var btn := UiButton.create("", UiButton.Kind.ICON)
+	btn.custom_minimum_size = FORMULA_BTN_SIZE
+	btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	btn.tooltip_text = "Ver conta (F): de onde saem a, b, c, o vértice e a raiz"
+	btn.pressed.connect(func(): formula_toggled.emit())
+	# Filho com FULL_RECT nao faz o botao crescer: o tamanho vem do minimo acima.
+	var inner := HBoxContainer.new()
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	inner.alignment = BoxContainer.ALIGNMENT_CENTER
+	inner.add_theme_constant_override("separation", 4)
+	btn.add_child(inner)
+	inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inner.add_child(UiIcon.make("formula", UiTokens.TEXT, 18.0))
+	inner.add_child(UiKeycap.make("F"))
+	return btn
 
 
 func _eq_label(text_value: String) -> Label:

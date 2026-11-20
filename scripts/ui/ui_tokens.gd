@@ -166,10 +166,11 @@ const LINE_SPACING := 8
 ## Espaco entre palavras (FontVariation.spacing_space). E da fonte, montada em
 ## runtime por UiTheme.body_font(): nao entra no .tres.
 const WORD_SPACING := 4
-## Espaco entre letras (FontVariation.spacing_glyph). +1 px separa os tracos de
-## pixel de letras vizinhas ("rn" deixa de virar "m"); mais que isso estoura as
-## larguras fixas da HUD, porque a VT323 e monoespacada.
-const GLYPH_SPACING := 1
+## Espaco entre letras (FontVariation.spacing_glyph). Era 1 no plano: +1 px separa
+## os tracos de pixel de letras vizinhas, mas a VT323 e monoespacada e cada px
+## alarga todo texto da HUD (o painel da parabola passou a cruzar a insignia da
+## fase). Caiu para 0 pela mitigacao do Risco 2 (log 08); reavaliar nos prints.
+const GLYPH_SPACING := 0
 
 # ── Escala tipografica ───────────────────────────────────────────────
 # A VT323 tem desenho pequeno dentro do corpo: 20 nela le como um 16 comum. O

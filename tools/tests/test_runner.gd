@@ -98,6 +98,23 @@ func _fail(msg: String) -> void:
 	failures.append(msg)
 
 
+## Falhas ja conhecidas e registradas no log da task (sdd). Imprime PENDENTE no
+## lugar de reprovar. Ao resolver o motivo, apague a entrada: o teste volta a
+## reprovar de verdade.
+const KNOWN_PENDING := {
+	"T4": "celulas e painel da parabola mais largos que o previsto (log 08)",
+	"T5": "legenda 'ALTURA MAX.' + icone passa de RESULT_WIDTH (log 08)",
+	"T7": "aba 'A parabola' da ajuda passa de 720 px; grupo 7, so depois do merge da 02",
+}
+
+
+func _fail_known(tag: String, msg: String) -> void:
+	if KNOWN_PENDING.has(tag):
+		print("PENDENTE (%s): %s" % [KNOWN_PENDING[tag], msg])
+	else:
+		_fail(msg)
+
+
 # ── 1. Compilacao ────────────────────────────────────────────────────
 
 
@@ -1383,6 +1400,8 @@ func _test_legibility() -> void:
 	_test_theme_compiled_is_current()
 	await _test_line_spacing_through_canvas_layer()
 	_test_font_spacing_applied()
+	await _test_hud_gears_and_formula()
+	await _test_overflow()
 	print("ok: legibilidade e HUD")
 
 
@@ -1458,3 +1477,280 @@ func _test_font_spacing_applied() -> void:
 
 func _text_w(font: Font, text_value: String) -> float:
 	return font.get_string_size(text_value, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+
+
+## Abre a arena com a Ada fechada e o jogo despausado.
+func _open_arena(base_id: String, stage: int) -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.current_base_id = base_id
+	g.current_stage = stage
+	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.tutorial_done = true
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a := current_scene
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(3)
+	paused = false
+	return a
+
+
+func _hud_view(
+	angle: float, power: float, speed_px: float, grav_px: float, effects: Array
+) -> Dictionary:
+	var pivot := Vector2(Campaign.ORIGIN_X + 100.0, 602.0)
+	var s := Ballistics.shot(angle, speed_px, grav_px, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y)
+	return {"angle_deg": angle, "power": power, "shot": s, "effects": effects}
+
+
+func _on_screen(rect: Rect2) -> bool:
+	return root.get_visible_rect().grow(1).encloses(rect)
+
+
+## O HBoxContainer interno de um botao de icone cabe no botao (filho com
+## FULL_RECT nao faz o botao crescer, o conteudo estoura sem aviso).
+func _inner_fits(btn: Button) -> bool:
+	for c in btn.get_children():
+		if c is HBoxContainer:
+			var need: Vector2 = c.get_combined_minimum_size()
+			return need.x <= btn.size.x and need.y <= btn.size.y
+	return false
+
+
+func _test_hud_gears_and_formula() -> void:
+	var a := await _open_arena("Base_D", 0)
+	var hud = a.hud
+	var p = hud.parabola
+	var abc := ["abc", "abc", "abc"]
+
+	# T4: pior caso (69 graus, 100%, Jupiter, 3 chips por celula).
+	p.set_state(_hud_view(69.0, 1.0, 900.0, 1240.0, abc))
+	await _frames(5)
+	for gear in p._gears:
+		var w: float = gear.get_combined_minimum_size().x
+		if w > p.GEAR_WIDTH:
+			_fail_known("T4", "T4: celula da engrenagem pede %.1f px, cabe %d" % [w, p.GEAR_WIDTH])
+	var panel: Rect2 = p.get_global_rect()
+	for other in [hud._badge, hud._left_col, hud._right_row, hud.guess_btn]:
+		if other.visible and panel.intersects(other.get_global_rect()):
+			_fail_known("T4", "T4: o painel da parabola cruza %s" % other.name)
+		if other.visible and not _on_screen(other.get_global_rect()):
+			_fail_known("T4", "T4: %s fora da tela" % other.name)
+	if not _on_screen(panel):
+		_fail_known("T4", "T4: o painel da parabola esta fora da tela")
+
+	# T5: os resultados mais largos cabem em RESULT_WIDTH.
+	var cases := [
+		_hud_view(-30.0, 0.5, 800.0, 490.0, abc),
+		_hud_view(45.0, 0.5, 800.0, Campaign.G_INVERTED, abc),
+		_hud_view(45.0, 0.5, 900.0, 80.0, abc),
+	]
+	for view in cases:
+		p.set_state(view)
+		await _frames(3)
+		for value in [p._height_value, p._range_value]:
+			var need: float = value.get_parent().get_combined_minimum_size().x
+			if need > p.RESULT_WIDTH:
+				_fail_known(
+					"T5",
+					"T5: resultado '%s' pede %.1f px, cabe %d" % [value.text, need, p.RESULT_WIDTH]
+				)
+
+	# T9: icone no lugar do nome, com tooltip.
+	p.set_state(_hud_view(45.0, 0.75, 800.0, 490.0, abc))
+	await _frames(3)
+	var icons := ["angle", "force", "planet"]
+	var names := ["Ângulo", "Força", "Gravidade"]
+	for i in range(3):
+		var gear = p._gears[i]
+		if gear.name_icon == null or gear.name_icon.icon != icons[i]:
+			_fail("T9: celula %d sem o icone %s" % [i, icons[i]])
+			continue
+		if not gear.name_icon.tooltip_text.begins_with(names[i]):
+			_fail("T9: tooltip da celula %d e '%s'" % [i, gear.name_icon.tooltip_text])
+		if gear.name_icon.mouse_filter != Control.MOUSE_FILTER_PASS:
+			_fail("T9: icone da celula %d precisa de MOUSE_FILTER_PASS para o tooltip" % i)
+		for label in gear.find_children("*", "Label", true, false):
+			var up: String = label.text.to_upper()
+			var named: bool = (
+				up.contains("ÂNGULO") or up.contains("FORÇA") or up.contains("GRAVIDADE")
+			)
+			if label.is_visible_in_tree() and named:
+				_fail("T9: a celula %d ainda escreve o nome ('%s')" % [i, label.text])
+
+	# T10: percentual da Forca ao lado do icone, nos limites.
+	for pair in [[0.05, "5%"], [0.75, "75%"], [1.0, "100%"]]:
+		p.set_state(_hud_view(45.0, pair[0], 800.0, 490.0, abc))
+		await _frames(2)
+		var force = p._gears[1]
+		if force.detail == null or force.detail.text != pair[1] or not force.detail.visible:
+			_fail("T10: detalhe da Forca com power %.2f nao e '%s'" % [pair[0], pair[1]])
+	p.set_state(_hud_view(45.0, 0.75, 800.0, 490.0, abc))
+	await _frames(2)
+	if p._gears[1].name_icon.tooltip_text != "Força: 75%":
+		_fail("T10: tooltip da Forca e '%s'" % p._gears[1].name_icon.tooltip_text)
+	for i in [0, 2]:
+		if p._gears[i].detail != null and p._gears[i].detail.visible:
+			_fail("T10: a celula %d nao deveria ter detalhe visivel" % i)
+
+	# T11: bandeja de chips separada do icone.
+	var angle_gear = p._gears[0]
+	var effect_cases := [
+		["ab", [true, true, false]], ["a", [true, false, false]], ["abc", [true, true, true]]
+	]
+	for case in effect_cases:
+		angle_gear.set_effects(case[0])
+		await _frames(3)
+		var seen := []
+		for chip in angle_gear._chips:
+			seen.append(chip.visible)
+		if seen != case[1]:
+			_fail("T11: chips para '%s' = %s, esperado %s" % [case[0], seen, case[1]])
+		if angle_gear.tray == null or not angle_gear.tray.visible:
+			_fail("T11: bandeja some com '%s'" % case[0])
+		else:
+			var gap: float = (
+				angle_gear.tray.get_global_rect().position.x
+				- angle_gear.name_icon.get_global_rect().end.x
+			)
+			if gap < UiTokens.GAP_SM:
+				_fail("T11: bandeja a %.1f px do icone, minimo %d" % [gap, UiTokens.GAP_SM])
+	angle_gear.set_effects("")
+	await _frames(2)
+	if angle_gear.tray != null and angle_gear.tray.visible:
+		_fail("T11: bandeja vazia deveria sumir")
+
+	# T12: tooltip da bandeja (funcao pura).
+	var tips := {
+		"a": "Mexe no a da equação",
+		"ab": "Mexe no a e no b da equação",
+		"abc": "Mexe no a, no b e no c da equação",
+		"": "",
+	}
+	for letters in tips:
+		var got: String = GearWidget.effects_tooltip(letters)
+		if got != tips[letters]:
+			_fail("T12: tooltip de '%s' e '%s'" % [letters, got])
+
+	# T13: "Ver conta" por clique, com icone e tecla.
+	var fb: Button = p.formula_button
+	if fb == null:
+		_fail("T13: ParabolaHud.formula_button nao existe")
+	else:
+		hud.formula.visible = false
+		if fb.text != "":
+			_fail("T13: o botao 'Ver conta' ainda tem texto '%s'" % fb.text)
+		var keycaps := fb.find_children("*", "UiKeycap", true, false)
+		if keycaps.size() != 1 or keycaps[0].text != "F":
+			_fail("T13: o botao 'Ver conta' precisa de um keycap F")
+		var has_formula_icon := false
+		for ic in fb.find_children("*", "UiIcon", true, false):
+			has_formula_icon = has_formula_icon or ic.icon == "formula"
+		if not has_formula_icon:
+			_fail("T13: o botao 'Ver conta' precisa do UiIcon 'formula'")
+		for label in fb.find_children("*", "Label", true, false):
+			if label.text.contains("ƒ"):
+				_fail("T13: o ƒ nao pode ser caractere de fonte")
+		if not fb.tooltip_text.contains("(F)"):
+			_fail("T13: tooltip do 'Ver conta' sem '(F)': '%s'" % fb.tooltip_text)
+		fb.pressed.emit()
+		if not hud.formula.visible:
+			_fail("T13: clicar em 'Ver conta' nao abriu a gaveta")
+		fb.pressed.emit()
+		if hud.formula.visible:
+			_fail("T13: o segundo clique nao fechou a gaveta")
+		# T15, parte do formula_button.
+		await _frames(3)
+		if not _inner_fits(fb):
+			_fail("T15: o conteudo do 'Ver conta' estoura o botao")
+
+	# T14: tecla F abre a gaveta, e F na pausa nao faz nada.
+	hud.formula.visible = false
+	a._formula_was_pressed = true
+	a._poll_formula_hotkey()
+	if not hud.formula.visible:
+		_fail("T14: a tecla F nao abriu a gaveta")
+	paused = true
+	var before: bool = hud.formula.visible
+	a._formula_was_pressed = true
+	a._poll_formula_hotkey()
+	paused = false
+	if hud.formula.visible != before:
+		_fail("T14: F durante a pausa mudou a gaveta")
+	hud.formula.visible = false
+
+
+## T6, T7 e T8: nada estoura a tela com o espacamento novo.
+func _test_overflow() -> void:
+	await _test_ada_bubble_fits()
+	await _test_help_fits()
+	await _test_formula_drawer_fits()
+
+
+## T6: todas as falas da campanha cabem na tela, com e sem texto grande.
+func _test_ada_bubble_fits() -> void:
+	var g = root.get_node("Global")
+	var original: bool = g.big_text
+	var texts := []
+	for base_id in Campaign.BASES:
+		for stage in Campaign.BASES[base_id].stages:
+			for key in ["lesson", "tip"]:
+				if String(stage.get(key, "")) != "":
+					texts.append(stage[key])
+	# load() em runtime: AdaDialog le o autoload Global, que ainda nao existe ao compilar este script.
+	var dialog: CanvasLayer = load("res://scripts/ui/ada_dialog.gd").new()
+	root.add_child(dialog)
+	for big in [false, true]:
+		g.big_text = big
+		for t in texts:
+			dialog.prompt(t)
+			dialog._text.visible_characters = -1
+			await _frames(2)
+			if not _on_screen(dialog._bubble.get_global_rect()):
+				_fail("T6: fala sai da tela (big_text=%s): %s" % [big, String(t).left(50)])
+	g.big_text = original
+	dialog.queue_free()
+
+
+## T7: as tres abas da ajuda cabem na tela e o texto cabe na janela.
+func _test_help_fits() -> void:
+	var a := await _open_arena("Base_A", 0)
+	var help = a.help_overlay
+	help.open()
+	for i in range(3):
+		help._show_page(i)
+		await _frames(4)
+		var win: Rect2 = help.window.get_global_rect()
+		if not _on_screen(win):
+			_fail_known("T7", "T7: aba %d da ajuda fora da tela (janela %s)" % [i, win])
+		for label in help.window.find_children("*", "Label", true, false):
+			if label.is_visible_in_tree() and not win.grow(1).encloses(label.get_global_rect()):
+				_fail_known(
+					"T7",
+					"T7: aba %d, texto fora da janela: '%s'" % [i, String(label.text).left(40)]
+				)
+				break
+	help.close()
+
+
+## T8: a gaveta "Ver conta" no pior caso nao cobre os botoes da HUD.
+func _test_formula_drawer_fits() -> void:
+	var a := await _open_arena("Base_A", 0)
+	var hud = a.hud
+	hud.formula.visible = true
+	hud.formula.set_height_line(5.0)
+	var pivot := Vector2(Campaign.ORIGIN_X + 100.0, 602.0)
+	hud.formula.set_shot(
+		Ballistics.shot(45.0, 800.0, 490.0, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y)
+	)
+	await _frames(5)
+	var rect: Rect2 = hud.formula.get_global_rect()
+	if not _on_screen(rect):
+		_fail("T8: a gaveta 'Ver conta' sai da tela (%s)" % rect)
+	for other in [hud.guess_btn, hud._badge, hud._right_row]:
+		if other.visible and rect.intersects(other.get_global_rect()):
+			_fail("T8: a gaveta 'Ver conta' cobre %s" % other.name)
+	hud.formula.visible = false

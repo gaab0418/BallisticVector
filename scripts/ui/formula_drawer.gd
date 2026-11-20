@@ -72,10 +72,10 @@ func set_shot(s: Dictionary) -> void:
 	lines.append(
 		(
 			(
-				"[b]a[/b] = −g / (2·v²·cos²θ) = [color=%s][b]%s[/b][/color]      "
+				"[b]a[/b] = −g / (2·v²·cos²θ) = [color=%s][b]%s[/b][/color]    "
 				% [calc, Ballistics.fmt(s.a, 4)]
 			)
-			+ "[b]b[/b] = tg θ = [color=%s][b]%s[/b][/color]      " % [calc, Ballistics.fmt(s.t, 2)]
+			+ "[b]b[/b] = tg θ = [color=%s][b]%s[/b][/color]    " % [calc, Ballistics.fmt(s.t, 2)]
 			+ (
 				"[b]c[/b] = altura do canhão = [color=%s][b]%s m[/b][/color]"
 				% [calc, Ballistics.fmt(s.h_cannon, 1)]
