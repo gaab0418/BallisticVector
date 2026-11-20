@@ -361,6 +361,6 @@ func _para(text_value: String) -> Label:
 	var label := Label.new()
 	label.text = text_value
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(370, 0)
+	label.custom_minimum_size = Vector2(420, 0)
 	label.add_theme_font_size_override("font_size", UiTokens.FONT_SM)
 	return label

@@ -82,6 +82,7 @@ func _run() -> void:
 	await _test_qa_adversarial()
 	_test_chief_volley_math()
 	await _test_chief_volley_live()
+	await _test_legibility()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -1375,3 +1376,501 @@ func _test_chief_volley_live() -> void:
 	g.reset_progress()
 	g.reset_armor()
 	print("ok: morteiro do chefe ao vivo")
+
+
+# ── 9. Legibilidade e HUD ────────────────────────────────────────────
+
+
+func _test_legibility() -> void:
+	_test_theme_compiled_is_current()
+	await _test_line_spacing_through_canvas_layer()
+	_test_font_spacing_applied()
+	await _test_hud_gears_and_formula()
+	await _test_overflow()
+	await _test_hud_icon_buttons_and_strip()
+	await _test_help_diagram_labels_fit()
+	print("ok: legibilidade e HUD")
+
+
+## T1: o .tres carregado e o que UiTheme.build() montaria agora. Reprova se
+## alguem mexer em UiTokens/UiTheme e esquecer de regenerar o tema.
+func _test_theme_compiled_is_current() -> void:
+	var built := UiTheme.build()
+	var loaded := ThemeDB.get_project_theme()
+	for type_name in built.get_type_list():
+		for c in built.get_constant_list(type_name):
+			var want := built.get_constant(c, type_name)
+			var got := loaded.get_constant(c, type_name)
+			if want != got:
+				_fail("tema desatualizado: %s/%s = %d, esperado %d" % [type_name, c, got, want])
+		for c in built.get_color_list(type_name):
+			if built.get_color(c, type_name) != loaded.get_color(c, type_name):
+				_fail("tema desatualizado: cor %s/%s" % [type_name, c])
+		for c in built.get_font_size_list(type_name):
+			if built.get_font_size(c, type_name) != loaded.get_font_size(c, type_name):
+				_fail("tema desatualizado: corpo %s/%s" % [type_name, c])
+	for pair in [["Label", "line_spacing"], ["TooltipLabel", "line_spacing"]]:
+		if loaded.get_constant(pair[1], pair[0]) != UiTokens.LINE_SPACING:
+			_fail("%s/%s do tema compilado nao e %d" % [pair[0], pair[1], UiTokens.LINE_SPACING])
+	if loaded.get_constant("line_separation", "RichTextLabel") != UiTokens.LINE_SPACING:
+		_fail("RichTextLabel/line_separation do tema compilado nao e %d" % UiTokens.LINE_SPACING)
+
+
+## T2: a entrelinha chega a uma variacao de Label dentro de um CanvasLayer.
+func _test_line_spacing_through_canvas_layer() -> void:
+	var layer := CanvasLayer.new()
+	root.add_child(layer)
+	var label := Label.new()
+	label.theme_type_variation = &"InkLabel"
+	layer.add_child(label)
+	await _frames(2)
+	var got := label.get_theme_constant("line_spacing")
+	if got != UiTokens.LINE_SPACING:
+		_fail(
+			(
+				"InkLabel em CanvasLayer com line_spacing %d, esperado %d"
+				% [got, UiTokens.LINE_SPACING]
+			)
+		)
+	layer.queue_free()
+
+
+## T3: espaco entre palavras e entre letras de fato chegam a fonte.
+func _test_font_spacing_applied() -> void:
+	var base: Font = load(UiTokens.FONT_BODY_PATH)
+	var fonts := {
+		"body_font()": UiTheme.body_font(),
+		"body_font(bold)": UiTheme.body_font(UiTokens.WEIGHT_BOLD),
+		"fonte padrao do tema": ThemeDB.get_project_theme().default_font,
+	}
+	for label in fonts:
+		var f: Font = fonts[label]
+		var words := _text_w(f, "a b") - _text_w(base, "a b")
+		# Piso fixo, independente do token: voltar a WORD_SPACING 0 tem que reprovar.
+		if words < MIN_WORD_SPACING_PX:
+			_fail(
+				(
+					"%s: 'a b' ficou %.1f px mais largo que a VT323 pura, minimo %d"
+					% [label, words, MIN_WORD_SPACING_PX]
+				)
+			)
+	var default_font := ThemeDB.get_project_theme().default_font
+	if not (default_font is FontVariation) or default_font.spacing_space != UiTokens.WORD_SPACING:
+		_fail(
+			(
+				"a fonte padrao do tema nao e FontVariation com spacing_space %d"
+				% UiTokens.WORD_SPACING
+			)
+		)
+
+
+const MIN_WORD_SPACING_PX := 4
+
+
+func _text_w(font: Font, text_value: String) -> float:
+	return font.get_string_size(text_value, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
+
+
+## Abre a arena com a Ada fechada e o jogo despausado.
+func _open_arena_hud(base_id: String, stage: int) -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.current_base_id = base_id
+	g.current_stage = stage
+	g.ammo_inventory = {"Enferrujada": 25, "Perfurante": 10}
+	g.tutorial_done = true
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a := current_scene
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(3)
+	paused = false
+	return a
+
+
+func _hud_view(
+	angle: float, power: float, speed_px: float, grav_px: float, effects: Array
+) -> Dictionary:
+	var pivot := Vector2(Campaign.ORIGIN_X + 100.0, 602.0)
+	var s := Ballistics.shot(angle, speed_px, grav_px, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y)
+	return {"angle_deg": angle, "power": power, "shot": s, "effects": effects}
+
+
+func _on_screen(rect: Rect2) -> bool:
+	return root.get_visible_rect().grow(1).encloses(rect)
+
+
+## O HBoxContainer interno de um botao de icone cabe no botao (filho com
+## FULL_RECT nao faz o botao crescer, o conteudo estoura sem aviso).
+func _inner_fits(btn: Button) -> bool:
+	for c in btn.get_children():
+		if c is HBoxContainer:
+			var need: Vector2 = c.get_combined_minimum_size()
+			return need.x <= btn.size.x and need.y <= btn.size.y
+	return false
+
+
+func _test_hud_gears_and_formula() -> void:
+	var a := await _open_arena_hud("Base_D", 0)
+	var hud = a.hud
+	var p = hud.parabola
+	var abc := ["abc", "abc", "abc"]
+
+	# T4: pior caso (69 graus, 100%, Jupiter, 3 chips por celula).
+	p.set_state(_hud_view(69.0, 1.0, 900.0, 1240.0, abc))
+	await _frames(5)
+	var panel: Rect2 = p.get_global_rect()
+	# As celulas pedem o que o valor mais largo (24,8 m/s2 em VT323 28) precisa, mais
+	# que GEAR_WIDTH, e a HUD acomoda (CENTER_SHIFT). O que nao pode e uma celula
+	# vazar do painel, ou o painel empurrar um vizinho.
+	var neighbors := {
+		"a insignia da fase": hud._badge,
+		"o botao de pausa": hud._left_col,
+		"a estrela e o placar": hud._right_row,
+		"o botao do modo chute": hud.guess_btn,
+	}
+	for label in neighbors:
+		var other: Control = neighbors[label]
+		if other.visible and panel.intersects(other.get_global_rect()):
+			_fail("T4: o painel da parabola cruza %s" % label)
+		if other.visible and not _on_screen(other.get_global_rect()):
+			_fail("T4: %s fica fora da tela" % label)
+	if not _on_screen(panel):
+		_fail("T4: o painel da parabola esta fora da tela")
+
+	# T5: os resultados mais largos cabem em RESULT_WIDTH.
+	var cases := [
+		_hud_view(-30.0, 0.5, 800.0, 490.0, abc),
+		_hud_view(45.0, 0.5, 800.0, Campaign.G_INVERTED, abc),
+		_hud_view(45.0, 0.5, 900.0, 80.0, abc),
+	]
+	for view in cases:
+		p.set_state(view)
+		await _frames(3)
+		for value in [p._height_value, p._range_value]:
+			var need: float = value.get_parent().get_combined_minimum_size().x
+			if need > p.RESULT_WIDTH:
+				_fail(
+					"T5: resultado '%s' pede %.1f px, cabe %d" % [value.text, need, p.RESULT_WIDTH]
+				)
+
+	# T9: icone no lugar do nome, com tooltip.
+	p.set_state(_hud_view(45.0, 0.75, 800.0, 490.0, abc))
+	await _frames(3)
+	var icons := ["angle", "force", "planet"]
+	var names := ["Ângulo", "Força", "Gravidade"]
+	for i in range(3):
+		var gear = p._gears[i]
+		if gear.name_icon == null or gear.name_icon.icon != icons[i]:
+			_fail("T9: celula %d sem o icone %s" % [i, icons[i]])
+			continue
+		if not gear.name_icon.tooltip_text.begins_with(names[i]):
+			_fail("T9: tooltip da celula %d e '%s'" % [i, gear.name_icon.tooltip_text])
+		if gear.name_icon.mouse_filter != Control.MOUSE_FILTER_PASS:
+			_fail("T9: icone da celula %d precisa de MOUSE_FILTER_PASS para o tooltip" % i)
+		for label in gear.find_children("*", "Label", true, false):
+			var up: String = label.text.to_upper()
+			var named: bool = (
+				up.contains("ÂNGULO") or up.contains("FORÇA") or up.contains("GRAVIDADE")
+			)
+			if label.is_visible_in_tree() and named:
+				_fail("T9: a celula %d ainda escreve o nome ('%s')" % [i, label.text])
+
+	# T10: percentual da Forca ao lado do icone, nos limites.
+	for pair in [[0.05, "5%"], [0.75, "75%"], [1.0, "100%"]]:
+		p.set_state(_hud_view(45.0, pair[0], 800.0, 490.0, abc))
+		await _frames(2)
+		var force = p._gears[1]
+		if force.detail == null or force.detail.text != pair[1] or not force.detail.visible:
+			_fail("T10: detalhe da Forca com power %.2f nao e '%s'" % [pair[0], pair[1]])
+	p.set_state(_hud_view(45.0, 0.75, 800.0, 490.0, abc))
+	await _frames(2)
+	if p._gears[1].name_icon.tooltip_text != "Força: 75%":
+		_fail("T10: tooltip da Forca e '%s'" % p._gears[1].name_icon.tooltip_text)
+	for i in [0, 2]:
+		if p._gears[i].detail != null and p._gears[i].detail.visible:
+			_fail("T10: a celula %d nao deveria ter detalhe visivel" % i)
+
+	# T11: bandeja de chips separada do icone.
+	var angle_gear = p._gears[0]
+	var effect_cases := [
+		["ab", [true, true, false]], ["a", [true, false, false]], ["abc", [true, true, true]]
+	]
+	for case in effect_cases:
+		angle_gear.set_effects(case[0])
+		await _frames(3)
+		var seen := []
+		for chip in angle_gear._chips:
+			seen.append(chip.visible)
+		if seen != case[1]:
+			_fail("T11: chips para '%s' = %s, esperado %s" % [case[0], seen, case[1]])
+		if angle_gear.tray == null or not angle_gear.tray.visible:
+			_fail("T11: bandeja some com '%s'" % case[0])
+		else:
+			var gap: float = (
+				angle_gear.tray.get_global_rect().position.x
+				- angle_gear.name_icon.get_global_rect().end.x
+			)
+			if gap < UiTokens.GAP_SM:
+				_fail("T11: bandeja a %.1f px do icone, minimo %d" % [gap, UiTokens.GAP_SM])
+	angle_gear.set_effects("")
+	await _frames(2)
+	if angle_gear.tray != null and angle_gear.tray.visible:
+		_fail("T11: bandeja vazia deveria sumir")
+
+	# T12: tooltip da bandeja (funcao pura).
+	var tips := {
+		"a": "Mexe no a da equação",
+		"ab": "Mexe no a e no b da equação",
+		"abc": "Mexe no a, no b e no c da equação",
+		"": "",
+	}
+	for letters in tips:
+		var got: String = GearWidget.effects_tooltip(letters)
+		if got != tips[letters]:
+			_fail("T12: tooltip de '%s' e '%s'" % [letters, got])
+
+	# T13: "Ver conta" por clique, com icone e tecla.
+	var fb: Button = p.formula_button
+	if fb == null:
+		_fail("T13: ParabolaHud.formula_button nao existe")
+	else:
+		hud.formula.visible = false
+		if fb.text != "":
+			_fail("T13: o botao 'Ver conta' ainda tem texto '%s'" % fb.text)
+		var keycaps := fb.find_children("*", "UiKeycap", true, false)
+		if keycaps.size() != 1 or keycaps[0].text != "F":
+			_fail("T13: o botao 'Ver conta' precisa de um keycap F")
+		var has_formula_icon := false
+		for ic in fb.find_children("*", "UiIcon", true, false):
+			has_formula_icon = has_formula_icon or ic.icon == "formula"
+		if not has_formula_icon:
+			_fail("T13: o botao 'Ver conta' precisa do UiIcon 'formula'")
+		for label in fb.find_children("*", "Label", true, false):
+			if label.text.contains("ƒ"):
+				_fail("T13: o ƒ nao pode ser caractere de fonte")
+		if not fb.tooltip_text.contains("(F)"):
+			_fail("T13: tooltip do 'Ver conta' sem '(F)': '%s'" % fb.tooltip_text)
+		fb.pressed.emit()
+		if not hud.formula.visible:
+			_fail("T13: clicar em 'Ver conta' nao abriu a gaveta")
+		fb.pressed.emit()
+		if hud.formula.visible:
+			_fail("T13: o segundo clique nao fechou a gaveta")
+		# T15, parte do formula_button.
+		await _frames(3)
+		if not _inner_fits(fb):
+			_fail("T15: o conteudo do 'Ver conta' estoura o botao")
+
+	# T14: tecla F abre a gaveta, e F na pausa nao faz nada.
+	hud.formula.visible = false
+	a._formula_was_pressed = true
+	a._poll_formula_hotkey()
+	if not hud.formula.visible:
+		_fail("T14: a tecla F nao abriu a gaveta")
+	paused = true
+	var before: bool = hud.formula.visible
+	a._formula_was_pressed = true
+	a._poll_formula_hotkey()
+	paused = false
+	if hud.formula.visible != before:
+		_fail("T14: F durante a pausa mudou a gaveta")
+	hud.formula.visible = false
+
+
+## T6, T7 e T8: nada estoura a tela com o espacamento novo.
+func _test_overflow() -> void:
+	await _test_ada_bubble_fits()
+	await _test_help_fits()
+	await _test_formula_drawer_fits()
+
+
+## T6: todas as falas da campanha cabem na tela, com e sem texto grande.
+func _test_ada_bubble_fits() -> void:
+	var g = root.get_node("Global")
+	var original: bool = g.big_text
+	var texts := []
+	for base_id in Campaign.BASES:
+		for stage in Campaign.BASES[base_id].stages:
+			for key in ["lesson", "tip"]:
+				if String(stage.get(key, "")) != "":
+					texts.append(stage[key])
+	# load() em runtime: AdaDialog le o autoload Global, que ainda nao existe ao compilar este script.
+	var dialog: CanvasLayer = load("res://scripts/ui/ada_dialog.gd").new()
+	root.add_child(dialog)
+	for big in [false, true]:
+		g.big_text = big
+		for t in texts:
+			dialog.prompt(t)
+			dialog._text.visible_characters = -1
+			await _frames(2)
+			if not _on_screen(dialog._bubble.get_global_rect()):
+				_fail("T6: fala sai da tela (big_text=%s): %s" % [big, String(t).left(50)])
+	g.big_text = original
+	dialog.queue_free()
+
+
+## T7: as tres abas da ajuda cabem na tela e o texto cabe na janela.
+func _test_help_fits() -> void:
+	var a := await _open_arena_hud("Base_A", 0)
+	var help = a.help_overlay
+	help.open()
+	for i in range(3):
+		help._show_page(i)
+		await _frames(4)
+		var win: Rect2 = help.window.get_global_rect()
+		if not _on_screen(win):
+			_fail("T7: aba %d da ajuda fora da tela (janela %s)" % [i, win])
+		for label in help.window.find_children("*", "Label", true, false):
+			if label.is_visible_in_tree() and not win.grow(1).encloses(label.get_global_rect()):
+				_fail("T7: aba %d, texto fora da janela: '%s'" % [i, String(label.text).left(40)])
+				break
+	help.close()
+
+
+## T8: a gaveta "Ver conta" no pior caso nao cobre os botoes da HUD.
+func _test_formula_drawer_fits() -> void:
+	var a := await _open_arena_hud("Base_A", 0)
+	var hud = a.hud
+	hud.formula.visible = true
+	hud.formula.set_height_line(5.0)
+	var pivot := Vector2(Campaign.ORIGIN_X + 100.0, 602.0)
+	hud.formula.set_shot(
+		Ballistics.shot(45.0, 800.0, 490.0, pivot, Campaign.ORIGIN_X, Campaign.GROUND_Y)
+	)
+	await _frames(5)
+	var rect: Rect2 = hud.formula.get_global_rect()
+	if not _on_screen(rect):
+		_fail("T8: a gaveta 'Ver conta' sai da tela (%s)" % rect)
+	for other in [hud.guess_btn, hud._badge, hud._right_row]:
+		if other.visible and rect.intersects(other.get_global_rect()):
+			_fail("T8: a gaveta 'Ver conta' cobre %s" % other.name)
+	hud.formula.visible = false
+
+
+## Primeiro UiKeycap descendente de `node` com o texto `key`, ou null.
+func _find_keycap(node: Node, key: String) -> UiKeycap:
+	for k in node.find_children("*", "UiKeycap", true, false):
+		if k.text == key:
+			return k
+	return null
+
+
+func _find_icon(node: Node, icon_name: String) -> UiIcon:
+	for i in node.find_children("*", "UiIcon", true, false):
+		if i.icon == icon_name:
+			return i
+	return null
+
+
+## T15 (guess_btn e _goals_btn), T16, T17 e T18: botoes de icone e faixa de baixo.
+func _test_hud_icon_buttons_and_strip() -> void:
+	var a := await _open_arena_hud("Base_D", 1)
+	var hud = a.hud
+	var guess: Button = hud.guess_btn
+
+	# T15: o conteudo composto cabe nos botoes de icone.
+	await _frames(3)
+	for btn in [guess, hud._goals_btn]:
+		if not _inner_fits(btn):
+			_fail("T15: o conteudo de um botao de icone estoura o botao (%s)" % btn.tooltip_text)
+
+	# T16: modo chute com icone e tecla; a cor segue o estado sem sinal.
+	if guess.text != "":
+		_fail("T16: o modo chute ainda tem texto '%s'" % guess.text)
+	if _find_keycap(guess, "C") == null:
+		_fail("T16: o modo chute precisa do keycap C")
+	if not guess.tooltip_text.begins_with("Modo chute (C)"):
+		_fail("T16: tooltip do modo chute e '%s'" % guess.tooltip_text)
+	var target := _find_icon(guess, "target")
+	if target == null:
+		_fail("T16: o modo chute precisa do icone 'target'")
+	else:
+		guess.set_pressed_no_signal(true)
+		await _frames(2)
+		if target.color != UiTokens.EDITABLE:
+			_fail("T16: icone do modo chute ligado deveria ser ambar")
+		guess.set_pressed_no_signal(false)
+		await _frames(2)
+		if target.color != UiTokens.TEXT:
+			_fail("T16: icone do modo chute desligado deveria ser TEXT")
+	guess.button_pressed = true
+	if not a.guess_mode:
+		_fail("T16: clicar no modo chute nao ligou guess_mode")
+	guess.button_pressed = false
+
+	# T17: municao sem "Tab troca" e com a tecla desenhada.
+	hud.set_ammo(25, Color.RED, "Enferrujada")
+	if hud._ammo_name_label.text != "Enferrujada":
+		_fail("T17: nome da municao e '%s'" % hud._ammo_name_label.text)
+	var tab := _find_keycap(hud._strip, "Tab")
+	if tab == null:
+		_fail("T17: falta o keycap Tab na faixa de baixo")
+	else:
+		if tab.tooltip_text != "Troca a munição (Tab)":
+			_fail("T17: tooltip do Tab e '%s'" % tab.tooltip_text)
+		if tab.mouse_filter != Control.MOUSE_FILTER_PASS:
+			_fail("T17: o keycap Tab precisa de MOUSE_FILTER_PASS para o tooltip")
+	if hud._ammo_label.text != "×25":
+		_fail("T17: contagem e '%s'" % hud._ammo_label.text)
+	hud.set_ammo(0, Color.RED, "Enferrujada")
+	if hud._ammo_label.text != "×0":
+		_fail("T17: contagem zerada e '%s'" % hud._ammo_label.text)
+	if hud._ammo_label.get_theme_color("font_color") != UiTokens.DANGER:
+		_fail("T17: contagem zerada deveria ser DANGER")
+	hud.set_ammo(-1, Color.RED, "Enferrujada")
+	if hud._ammo_label.text != "livre":
+		_fail("T17: municao infinita e '%s'" % hud._ammo_label.text)
+
+	# T18: andar e combustivel, nos limites.
+	hud.set_move_hint(true)
+	await _frames(3)
+	var group: Control = hud._move_group
+	if not group.visible or _find_keycap(group, "A") == null or _find_keycap(group, "D") == null:
+		_fail("T18: o grupo de andar precisa estar visivel com os keycaps A e D")
+	if _find_icon(group, "move") == null:
+		_fail("T18: o grupo de andar precisa do icone 'move'")
+	if group.tooltip_text != "Anda com o tanque (A e D)":
+		_fail("T18: tooltip de andar e '%s'" % group.tooltip_text)
+	var fuel_cases := [
+		[3.46, "combustível 3,5 m"], [0.0, "sem combustível"], [-0.5, "sem combustível"]
+	]
+	for case in fuel_cases:
+		hud.set_fuel(case[0])
+		await _frames(2)
+		if hud._fuel_label.text != case[1]:
+			_fail("T18: combustivel %.2f mostra '%s'" % [case[0], hud._fuel_label.text])
+	if not _on_screen(hud._strip.get_global_rect()):
+		_fail("T18: a faixa de baixo sai da tela")
+	hud.set_move_hint(false)
+	if hud._move_group.visible:
+		_fail("T18: o grupo de andar deveria sumir")
+
+
+## T21: os rotulos do diagrama da ajuda ficam dentro do papel, mesmo com o
+## espaco entre palavras maior.
+func _test_help_diagram_labels_fit() -> void:
+	var diagram := ParabolaDiagram.new()
+	diagram.custom_minimum_size = Vector2(470, 250)
+	diagram.size = Vector2(470, 250)
+	diagram.annotate = true
+	diagram.span_m = 29.0
+	diagram.curves = [
+		{"angle": 45.0, "speed": 800.0, "gravity": 500.0, "color": UiTokens.CALCULATED_ON_PAPER}
+	]
+	root.add_child(diagram)
+	await _frames(3)
+	if diagram.drawn_texts.is_empty():
+		_fail("T21: o diagrama nao desenhou texto nenhum")
+	var paper := Rect2(Vector2.ZERO, diagram.size)
+	for r in diagram.drawn_texts:
+		if r.position.x < 0.0 or r.end.x > paper.end.x:
+			_fail(
+				(
+					"T21: rotulo do diagrama passa da borda do papel (x %.0f a %.0f de %.0f)"
+					% [r.position.x, r.end.x, paper.end.x]
+				)
+			)
+	diagram.queue_free()

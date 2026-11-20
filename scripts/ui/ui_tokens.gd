@@ -155,6 +155,23 @@ const WEIGHT_BODY := 0
 const WEIGHT_BOLD := 1
 const EMBOLDEN := 0.35
 
+# ── Espacamento do texto ─────────────────────────────────────────────
+# Em pixels ABSOLUTOS (nao escalam com o corpo), por isso pesam mais no texto
+# pequeno, que e onde a leitura sofre. Referencia: WCAG 2.1, criterio 1.4.12
+# (Text Spacing), que pede ate 1,5x de entrelinha e +0,16x entre palavras como
+# teto que o conteudo precisa aguentar, nao como meta.
+## Entrelinha: vai ao .tres (line_spacing de Label e TooltipLabel, line_separation
+## de RichTextLabel), entao mudar exige regerar o tema. Ajuste fino: 6 a 12.
+const LINE_SPACING := 8
+## Espaco entre palavras (FontVariation.spacing_space). E da fonte, montada em
+## runtime por UiTheme.body_font(): nao entra no .tres.
+const WORD_SPACING := 4
+## Espaco entre letras (FontVariation.spacing_glyph). Era 1 no plano: +1 px separa
+## os tracos de pixel de letras vizinhas, mas a VT323 e monoespacada e cada px
+## alarga todo texto da HUD (o painel da parabola passou a cruzar a insignia da
+## fase). Caiu para 0 pela mitigacao do Risco 2 (log 08); reavaliar nos prints.
+const GLYPH_SPACING := 0
+
 # ── Escala tipografica ───────────────────────────────────────────────
 # A VT323 tem desenho pequeno dentro do corpo: 20 nela le como um 16 comum. O
 # piso de leitura confortavel a 1280x720 fica em FONT_SM; FONT_XS e so para
@@ -204,6 +221,12 @@ const BTN_ICON_ONLY_MAX := 26
 # ── Alvos de toque ───────────────────────────────────────────────────
 const BTN_MIN := Vector2(280, 52)
 const BTN_ICON := Vector2(48, 48)
+
+# ── Tecla desenhada (UiKeycap) ───────────────────────────────────────
+## Altura da tecla na HUD. Com a moldura de UiButton.make_style seriam 46 px.
+const KEYCAP_H := 22
+## Respiro de cada lado do rotulo, alem da beirada da tecla.
+const KEYCAP_PAD := 4
 
 # ── Animacao ─────────────────────────────────────────────────────────
 const ANIM_FAST := 0.12
