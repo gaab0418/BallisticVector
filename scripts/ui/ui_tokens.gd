@@ -155,6 +155,22 @@ const WEIGHT_BODY := 0
 const WEIGHT_BOLD := 1
 const EMBOLDEN := 0.35
 
+# ── Espacamento do texto ─────────────────────────────────────────────
+# Em pixels ABSOLUTOS (nao escalam com o corpo), por isso pesam mais no texto
+# pequeno, que e onde a leitura sofre. Referencia: WCAG 2.1, criterio 1.4.12
+# (Text Spacing), que pede ate 1,5x de entrelinha e +0,16x entre palavras como
+# teto que o conteudo precisa aguentar, nao como meta.
+## Entrelinha: vai ao .tres (line_spacing de Label e TooltipLabel, line_separation
+## de RichTextLabel), entao mudar exige regerar o tema. Ajuste fino: 6 a 12.
+const LINE_SPACING := 8
+## Espaco entre palavras (FontVariation.spacing_space). E da fonte, montada em
+## runtime por UiTheme.body_font(): nao entra no .tres.
+const WORD_SPACING := 4
+## Espaco entre letras (FontVariation.spacing_glyph). +1 px separa os tracos de
+## pixel de letras vizinhas ("rn" deixa de virar "m"); mais que isso estoura as
+## larguras fixas da HUD, porque a VT323 e monoespacada.
+const GLYPH_SPACING := 1
+
 # ── Escala tipografica ───────────────────────────────────────────────
 # A VT323 tem desenho pequeno dentro do corpo: 20 nela le como um 16 comum. O
 # piso de leitura confortavel a 1280x720 fica em FONT_SM; FONT_XS e so para

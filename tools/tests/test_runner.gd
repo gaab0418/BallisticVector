@@ -82,6 +82,7 @@ func _run() -> void:
 	await _test_qa_adversarial()
 	_test_chief_volley_math()
 	await _test_chief_volley_live()
+	await _test_legibility()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -1375,3 +1376,85 @@ func _test_chief_volley_live() -> void:
 	g.reset_progress()
 	g.reset_armor()
 	print("ok: morteiro do chefe ao vivo")
+# ── 9. Legibilidade e HUD ────────────────────────────────────────────
+
+
+func _test_legibility() -> void:
+	_test_theme_compiled_is_current()
+	await _test_line_spacing_through_canvas_layer()
+	_test_font_spacing_applied()
+	print("ok: legibilidade e HUD")
+
+
+## T1: o .tres carregado e o que UiTheme.build() montaria agora. Reprova se
+## alguem mexer em UiTokens/UiTheme e esquecer de regenerar o tema.
+func _test_theme_compiled_is_current() -> void:
+	var built := UiTheme.build()
+	var loaded := ThemeDB.get_project_theme()
+	for type_name in built.get_type_list():
+		for c in built.get_constant_list(type_name):
+			var want := built.get_constant(c, type_name)
+			var got := loaded.get_constant(c, type_name)
+			if want != got:
+				_fail("tema desatualizado: %s/%s = %d, esperado %d" % [type_name, c, got, want])
+		for c in built.get_color_list(type_name):
+			if built.get_color(c, type_name) != loaded.get_color(c, type_name):
+				_fail("tema desatualizado: cor %s/%s" % [type_name, c])
+		for c in built.get_font_size_list(type_name):
+			if built.get_font_size(c, type_name) != loaded.get_font_size(c, type_name):
+				_fail("tema desatualizado: corpo %s/%s" % [type_name, c])
+	for pair in [["Label", "line_spacing"], ["TooltipLabel", "line_spacing"]]:
+		if loaded.get_constant(pair[1], pair[0]) != UiTokens.LINE_SPACING:
+			_fail("%s/%s do tema compilado nao e %d" % [pair[0], pair[1], UiTokens.LINE_SPACING])
+	if loaded.get_constant("line_separation", "RichTextLabel") != UiTokens.LINE_SPACING:
+		_fail("RichTextLabel/line_separation do tema compilado nao e %d" % UiTokens.LINE_SPACING)
+
+
+## T2: a entrelinha chega a uma variacao de Label dentro de um CanvasLayer.
+func _test_line_spacing_through_canvas_layer() -> void:
+	var layer := CanvasLayer.new()
+	root.add_child(layer)
+	var label := Label.new()
+	label.theme_type_variation = &"InkLabel"
+	layer.add_child(label)
+	await _frames(2)
+	var got := label.get_theme_constant("line_spacing")
+	if got != UiTokens.LINE_SPACING:
+		_fail(
+			(
+				"InkLabel em CanvasLayer com line_spacing %d, esperado %d"
+				% [got, UiTokens.LINE_SPACING]
+			)
+		)
+	layer.queue_free()
+
+
+## T3: espaco entre palavras e entre letras de fato chegam a fonte.
+func _test_font_spacing_applied() -> void:
+	var base: Font = load(UiTokens.FONT_BODY_PATH)
+	var fonts := {
+		"body_font()": UiTheme.body_font(),
+		"body_font(bold)": UiTheme.body_font(UiTokens.WEIGHT_BOLD),
+		"fonte padrao do tema": ThemeDB.get_project_theme().default_font,
+	}
+	for label in fonts:
+		var f: Font = fonts[label]
+		var words := _text_w(f, "a b") - _text_w(base, "a b")
+		var letters := _text_w(f, "abcd") - _text_w(base, "abcd")
+		# Negrito sintetico alarga a letra, entao so o piso e comparado.
+		if words < UiTokens.WORD_SPACING + UiTokens.GLYPH_SPACING:
+			_fail("%s: espaco entre palavras +%.1f, esperado >= %d" % [label, words, 5])
+		if letters < 3 * UiTokens.GLYPH_SPACING:
+			_fail("%s: espaco entre letras +%.1f em 4 letras" % [label, letters])
+	var default_font := ThemeDB.get_project_theme().default_font
+	if not (default_font is FontVariation) or default_font.spacing_space != UiTokens.WORD_SPACING:
+		_fail(
+			(
+				"a fonte padrao do tema nao e FontVariation com spacing_space %d"
+				% UiTokens.WORD_SPACING
+			)
+		)
+
+
+func _text_w(font: Font, text_value: String) -> float:
+	return font.get_string_size(text_value, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
