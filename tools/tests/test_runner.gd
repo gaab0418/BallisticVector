@@ -20,7 +20,8 @@ extends SceneTree
 ##   8. o morteiro avisado dos chefes que atiram: conta, justica (da para
 ##      desviar andando) e as regras de parada (pausa, chefe derrubado, vitoria).
 ## Sai com codigo 1 se qualquer teste falhar ou ocorrer SCRIPT ERROR. BV_SAVE_PATH
-## evita tocar no save de quem joga na mesma maquina.
+## evita tocar no save de quem joga na mesma maquina; sem ela, sai com 2 antes de
+## qualquer teste.
 
 const BOSS_R := 85.0
 const SMALL_R := 35.0
@@ -60,6 +61,11 @@ var boss_brain: GDScript
 
 
 func _initialize() -> void:
+	# Sem BV_SAVE_PATH os testes gravariam (e apagariam) o save real de quem joga.
+	if OS.get_environment("BV_SAVE_PATH").strip_edges().is_empty():
+		printerr("BV_SAVE_PATH vazio: defina um arquivo temporario no mesmo comando do runner.")
+		quit(2)
+		return
 	OS.add_logger(_script_errors)
 	_run.call_deferred()
 
@@ -74,6 +80,7 @@ func _run() -> void:
 	await _test_landing_matches_hud()
 	await _test_scenes_open()
 	await _test_buttons()
+	await _test_war_map_objective()
 	_test_save_roundtrip()
 	_test_ada_intro()
 	await _test_ada_in_arena()
@@ -83,6 +90,13 @@ func _run() -> void:
 	_test_chief_volley_math()
 	await _test_chief_volley_live()
 	await _test_legibility()
+	_test_onboarding_flags()
+	_test_angle_hit_reachable()
+	await _test_alpha1_without_old_tutorial()
+	await _test_practice_arena()
+	await _test_tutorial_modal()
+	await _test_story_intro()
+	await _test_menu_onboarding()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -1874,3 +1888,1367 @@ func _test_help_diagram_labels_fit() -> void:
 				)
 			)
 	diagram.queue_free()
+
+
+# ── 8. Flags de primeira vez (enredo e tutorial) ─────────────────────
+
+
+## Zera as tres flags de primeira vez so em memoria (sem gravar).
+func _clear_onboarding(g: Node) -> void:
+	g.story_seen = false
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+
+
+## Grava um save "a mao", como um arquivo de uma versao anterior do jogo.
+## `player` e `bases` sao {chave: valor} e {base_id: {chave: valor}}.
+func _write_old_save(g: Node, player: Dictionary, bases: Dictionary) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 1)
+	cfg.set_value("player", "money", 150)
+	for k in player:
+		cfg.set_value("player", k, player[k])
+	for base_id in bases:
+		for k in bases[base_id]:
+			cfg.set_value(base_id, k, bases[base_id][k])
+	cfg.save(g.save_path)
+
+
+func _flags(g: Node) -> Array:
+	return [g.story_seen, g.tutorial_done, g.tutorial_skipped]
+
+
+func _test_onboarding_flags() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	_check_flags_roundtrip(g)
+	_check_old_saves(g)
+	_check_string_bools(g)
+	_check_onboarding_order(g)
+	_check_mark_functions(g)
+	_check_reset_keeps_flags(g)
+	_clear_onboarding(g)
+	g.reset_progress()
+	print("ok: flags de primeira vez no save")
+
+
+## T1 e T2: ida e volta das flags novas, com a versao 2 no arquivo.
+func _check_flags_roundtrip(g: Node) -> void:
+	g.story_seen = true
+	g.tutorial_done = false
+	g.tutorial_skipped = true
+	g.save_game()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, false, true]:
+		_fail("T1: flags nao voltaram do save: %s" % [_flags(g)])
+	var cfg := ConfigFile.new()
+	cfg.load(g.save_path)
+	if cfg.get_value("meta", "version", 0) != 2:
+		_fail("T1: save sem [meta] version = 2")
+	if not cfg.has_section_key("player", "story_seen"):
+		_fail("T1: save sem a chave story_seen")
+	if not cfg.has_section_key("player", "tutorial_skipped"):
+		_fail("T1: save sem a chave tutorial_skipped")
+	g.story_seen = true
+	g.tutorial_done = true
+	g.tutorial_skipped = false
+	g.save_game()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, true, false] or g.next_onboarding() != "":
+		_fail("T2: tutorial concluido nao voltou do save: %s" % [_flags(g)])
+
+
+## T3 a T8: saves antigos (sem as chaves novas), tipo errado e arquivo ausente.
+func _check_old_saves(g: Node) -> void:
+	var cases := [
+		# [rotulo, player, bases, story_seen, tutorial_skipped, next_onboarding]
+		["T3 sem progresso", {"tutorial_done": false}, {}, false, false, "story"],
+		[
+			"T4 veterano",
+			{"tutorial_done": true},
+			{"Base_A": {"stages_cleared": 1, "stars": [2, 0, 0]}},
+			true,
+			false,
+			""
+		],
+		[
+			"T5 Modo Professor",
+			{"tutorial_done": false, "teacher_mode": true},
+			{"Base_C": {"stars": [1, 0, 0]}},
+			true,
+			true,
+			""
+		],
+		["T6 tutorial antigo sem estrela", {"tutorial_done": true}, {}, true, false, ""],
+		[
+			"T7 tipo errado",
+			{"tutorial_done": false, "story_seen": "sim", "tutorial_skipped": 1},
+			{},
+			false,
+			false,
+			"story"
+		],
+	]
+	for c in cases:
+		# Sem isto as estrelas de um caso anterior ficam na memoria: o load nao
+		# zera as que faltam no arquivo.
+		g.reset_progress()
+		g.teacher_mode = false
+		_clear_onboarding(g)
+		g.story_seen = not c[3]
+		g.tutorial_skipped = not c[4]
+		_write_old_save(g, c[1], c[2])
+		g.load_game()
+		if g.story_seen != c[3] or g.tutorial_skipped != c[4] or g.next_onboarding() != c[5]:
+			_fail(
+				(
+					"%s: story_seen=%s tutorial_skipped=%s next='%s'"
+					% [c[0], g.story_seen, g.tutorial_skipped, g.next_onboarding()]
+				)
+			)
+	g.teacher_mode = false
+	# T8: sem arquivo, nada muda e o fluxo comeca pelo enredo.
+	DirAccess.remove_absolute(g.save_path)
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [false, false, false] or g.next_onboarding() != "story":
+		_fail("T8: sem save, flags %s e next '%s'" % [_flags(g), g.next_onboarding()])
+
+
+## T7b: save editado a mao com texto no lugar das bools do player. Carrega sem
+## SCRIPT ERROR, as bools ficam como estavam e as estrelas voltam.
+func _check_string_bools(g: Node) -> void:
+	g.reset_progress()
+	g.teacher_mode = false
+	_clear_onboarding(g)
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 2)
+	cfg.set_value("player", "money", 150)
+	for key in [
+		"teacher_mode",
+		"tutorial_done",
+		"map_intro_done",
+		"victory_seen",
+		"narration",
+		"big_text",
+		"story_seen",
+		"tutorial_skipped",
+	]:
+		cfg.set_value("player", key, "sim")
+	cfg.set_value("Base_A", "stages_cleared", 2)
+	cfg.set_value("Base_A", "stars", [2, 1, 0])
+	cfg.save(g.save_path)
+	var before := {}
+	for key in ["teacher_mode", "map_intro_done", "victory_seen", "narration", "big_text"]:
+		before[key] = g.get(key)
+	var errors_before: int = _script_errors.messages.size()
+	g.load_game()
+	if _script_errors.messages.size() != errors_before:
+		_fail("T7b: bool com texto no save deu SCRIPT ERROR no load_game")
+	if g.total_stars() != 3 or g.bases["Base_A"]["stages_cleared"] != 2:
+		_fail("T7b: load_game parou antes das estrelas (%d estrelas)" % g.total_stars())
+	for key in before:
+		if g.get(key) != before[key]:
+			_fail("T7b: %s mudou para %s com texto no save" % [key, g.get(key)])
+	if _flags(g) != [false, false, false]:
+		_fail("T7b: flags com texto no save: %s" % [_flags(g)])
+	g.teacher_mode = false
+	g.reset_progress()
+
+
+## T9: tabela-verdade do proximo passo da primeira vez.
+func _check_onboarding_order(g: Node) -> void:
+	var table := [
+		[[false, false, false], "story"],
+		[[true, false, false], "tutorial"],
+		[[true, true, false], ""],
+		[[true, false, true], ""],
+		[[false, true, false], "story"],
+	]
+	for row in table:
+		g.story_seen = row[0][0]
+		g.tutorial_done = row[0][1]
+		g.tutorial_skipped = row[0][2]
+		if g.next_onboarding() != row[1]:
+			_fail("T9: %s deu '%s' (esperado '%s')" % [row[0], g.next_onboarding(), row[1]])
+
+
+## T10 e T11: as funcoes mark_* gravam e respeitam a conclusao.
+func _check_mark_functions(g: Node) -> void:
+	_clear_onboarding(g)
+	g.mark_story_seen()
+	g.story_seen = false
+	g.load_game()
+	if not g.story_seen:
+		_fail("mark_story_seen nao gravou no save")
+	g.tutorial_skipped = true
+	g.mark_tutorial_done()
+	_clear_onboarding(g)
+	g.load_game()
+	if not g.tutorial_done or g.tutorial_skipped:
+		_fail("T10: depois de mark_tutorial_done: %s" % [_flags(g)])
+	g.mark_tutorial_skipped()
+	if g.tutorial_skipped:
+		_fail("T11: mark_tutorial_skipped desfez a conclusao do tutorial")
+	g.tutorial_done = false
+	g.mark_tutorial_skipped()
+	g.tutorial_skipped = false
+	g.load_game()
+	if not g.tutorial_skipped:
+		_fail("mark_tutorial_skipped nao gravou no save")
+
+
+## T12: RECOMECAR zera a campanha, mas nao reapresenta enredo nem tutorial.
+func _check_reset_keeps_flags(g: Node) -> void:
+	g.story_seen = true
+	g.tutorial_done = true
+	g.tutorial_skipped = true
+	g.money = 999
+	g.record_stars("Base_A", 0, 3)
+	g.reset_progress()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, true, true]:
+		_fail("T12: RECOMECAR mexeu nas flags: %s" % [_flags(g)])
+	if g.money != 150 or g.total_stars() != 0:
+		_fail("T12: RECOMECAR nao zerou ouro (%d) ou estrelas (%d)" % [g.money, g.total_stars()])
+
+
+# ── 9. Alpha 1 sem o tutorial falado ─────────────────────────────────
+
+
+## Algum tiro com o angulo do desafio `angle_hit` acerta o castelo sem bater
+## antes numa montanha (a estrela precisa ser alcancavel).
+func _angle_hit_reachable(st: Dictionary, goal: Dictionary) -> bool:
+	var polys := []
+	for o in st.obstacles:
+		var gp := PackedVector2Array()
+		for p in Campaign.rounded(o.poly):
+			gp.append(o.pos + p)
+		polys.append(gp)
+	for t in _targets(st):
+		if not t.get("boss", false):
+			continue
+		for s in _shots(st):
+			if s.angle_deg >= goal.min and s.angle_deg <= goal.max and _hits(s, polys, t):
+				return true
+	return false
+
+
+## T21 (estrelas): todo desafio de angulo da campanha tem um tiro possivel.
+func _test_angle_hit_reachable() -> void:
+	for entry in _all_stages():
+		for goal in entry[1].goals:
+			if goal.type == "angle_hit" and not _angle_hit_reachable(entry[1], goal):
+				_fail("%s: desafio de angulo %d-%d impossivel" % [entry[0], goal.min, goal.max])
+	# Controle negativo: um angulo que nao chega ao castelo tem que ser acusado.
+	var alpha1: Dictionary = Campaign.BASES.Base_A.stages[0]
+	if _angle_hit_reachable(alpha1, {"min": 88.0, "max": 90.0}):
+		_fail("verificador de angle_hit aceitou 88-90 graus na Alpha 1")
+	print("ok: desafios de angulo alcancaveis")
+
+
+## Pelo script: o segundo aviao da fase ganha um nome automatico (@Node2D@N).
+func _is_airplane(e: Node) -> bool:
+	var script: Script = e.get_script()
+	return script != null and script.resource_path.ends_with("airplane_enemy.gd")
+
+
+## T21 e T22: a Alpha 1 abre como fase normal e a ajuda nao reativa o tutorial.
+func _test_alpha1_without_old_tutorial() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	g.lab_mode = false
+	g.practice_mode = false
+	g.tutorial_done = false
+	g.save_game()
+	g.current_base_id = "Base_A"
+	g.current_stage = 0
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a = current_scene
+	if a.coach.has_method("_run_tutorial") or "in_tutorial" in a.coach:
+		_fail("T21: o coach ainda tem o tutorial falado")
+	for e in a.active_enemies:
+		if _is_airplane(e) and e.process_mode == Node.PROCESS_MODE_DISABLED:
+			_fail("T21: aviao congelado na Alpha 1")
+	var intro: Array = _coach_script().intro_lines_for(a.stage_data, "")
+	if not a.coach.ada.is_talking() or a.coach.ada._text.text != intro[0].text:
+		_fail("T21: Alpha 1 nao abriu com a fala normal: '%s'" % a.coach.ada._text.text)
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(2)
+	# Na pratica a tecla C nao liga o chute (era o papel do in_tutorial).
+	g.practice_mode = true
+	a._set_guess_mode(true)
+	g.practice_mode = false
+	if a.guess_mode or a.hud.guess_btn.button_pressed:
+		_fail("o chute ligou com practice_mode")
+	_check_help_without_tutorial(a, g)
+	if g.tutorial_done:
+		_fail("T21: a Alpha 1 gravou tutorial_done")
+	paused = false
+	g.reset_progress()
+	print("ok: Alpha 1 sem o tutorial falado")
+
+
+## T22: nenhum botao da ajuda fala em tutorial, e nada no save muda.
+func _check_help_without_tutorial(a: Node, g: Node) -> void:
+	var help: Node = a.help_overlay
+	if help.has_method("_replay_tutorial"):
+		_fail("T22: a ajuda ainda tem _replay_tutorial")
+	for node in help.find_children("*", "Button", true, false):
+		if "tutorial" in node.text.to_lower():
+			_fail("T22: botao da ajuda fala em tutorial: '%s'" % node.text)
+	if g.tutorial_done:
+		_fail("T22: a ajuda mexeu em tutorial_done")
+
+
+# ── 10. Arena de pratica do tutorial ─────────────────────────────────
+
+const PRACTICE_OPENING := "Canhão consertado. Antes de partir, vamos calibrar."
+const EXIT_QUESTION := "Deseja sair do tutorial?"
+
+
+## Abre a arena de pratica como o fluxo do tutorial abriria.
+func _open_practice(origin: String) -> Node:
+	var g = root.get_node("Global")
+	g.lab_mode = false
+	g.practice_mode = true
+	g.tutorial_origin = origin
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	return current_scene
+
+
+## Fecha a fala de abertura (ela pausa o jogo).
+func _finish_opening(a: Node) -> void:
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(2)
+
+
+func _practice_boss(a: Node) -> Node2D:
+	for e in a.active_enemies:
+		if is_instance_valid(e) and e.has_meta("is_boss"):
+			return e
+	return null
+
+
+## Todo o save como {"secao/chave": valor}, para comparar antes e depois.
+func _save_snapshot(g: Node) -> Dictionary:
+	var cfg := ConfigFile.new()
+	var out := {}
+	if cfg.load(g.save_path) != OK:
+		return out
+	for section in cfg.get_sections():
+		for key in cfg.get_section_keys(section):
+			out[section + "/" + key] = cfg.get_value(section, key)
+	return out
+
+
+func _scene_path() -> String:
+	return current_scene.scene_file_path if current_scene else ""
+
+
+## T19 e T20: a fala do objetivo so aparece na primeira visita ao mapa.
+func _test_war_map_objective() -> void:
+	var g = root.get_node("Global")
+	var objective := (
+		"Retome as ilhas, base por base, até o Norte. " + "Clique numa ilha para escolher a fase."
+	)
+	g.reset_progress()
+	g.map_intro_done = false
+	paused = false
+	change_scene_to_file(MAP_SCENE)
+	await _frames(20)
+	if _scene_path() != MAP_SCENE:
+		_fail("T19: o mapa nao abriu (%s)" % _scene_path())
+	else:
+		var said: String = current_scene._ada._text.text
+		if said != objective or not said.contains("até o Norte"):
+			_fail("T19: fala da primeira visita = '%s'" % said)
+	if not g.map_intro_done:
+		_fail("T19: map_intro_done continua false depois da primeira visita")
+	g.map_intro_done = true
+	change_scene_to_file(MAP_SCENE)
+	await _frames(20)
+	if _scene_path() == MAP_SCENE and current_scene._ada._text.text == objective:
+		_fail("T20: a segunda visita repetiu o objetivo")
+	g.reset_progress()
+	print("ok: objetivo do mapa")
+
+
+func _test_practice_arena() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	g.map_intro_done = true
+	g.story_seen = true
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+	g.save_game()
+	_check_practice_stage_reachable()
+	await _check_practice_setup()
+	await _check_practice_free_shots()
+	await _check_practice_keeps_progress()
+	await _check_practice_exit_first_run()
+	await _check_no_practice_leak()
+	await _check_practice_from_menu()
+	g.practice_mode = false
+	g.tutorial_origin = "first_run"
+	paused = false
+	g.reset_progress()
+	print("ok: arena de pratica")
+
+
+## T15: o chefe da pratica e alcancavel (mesmo verificador das fases).
+func _check_practice_stage_reachable() -> void:
+	var before := failures.size()
+	var st: Dictionary = load("res://scripts/campaign.gd").practice_stage()
+	_check_stage("pratica", st)
+	if failures.size() != before:
+		_fail("T15: o chefe da pratica nao e alcancavel")
+	if Campaign.BASES.has("Practice") or st.get("goals", [1]) != []:
+		_fail("T15: a pratica entrou na campanha ou tem desafios")
+
+
+## T14 e T35: fortaleza em ruinas com 1 HP, sem avioes, HUD da calibragem.
+func _check_practice_setup() -> void:
+	var a = await _open_practice("first_run")
+	if a.get("practice") == null:
+		_fail("T14: a arena nao montou a pratica")
+		return
+	var boss := _practice_boss(a)
+	if a.active_enemies.size() != 1 or boss == null:
+		_fail("T14: pratica com %d inimigos" % a.active_enemies.size())
+	elif boss.get_meta("hp") != 1 or boss.get_meta("max_hp") != 3:
+		_fail("T14: chefe com hp %s / max %s" % [boss.get_meta("hp"), boss.get_meta("max_hp")])
+	for e in a.active_enemies:
+		if _is_airplane(e):
+			_fail("T14: aviao na pratica")
+	if a.stage_data.get("title", "") != "Calibragem":
+		_fail("T14: titulo da pratica '%s'" % a.stage_data.get("title", ""))
+	if a.hud._stage_name_label.text != "Calibragem" or a.hud._goals_btn.visible:
+		_fail("T14: HUD sem a calibragem ou com a estrela de missoes")
+	if a.hud.guess_btn.visible or a.hud._ammo_label.text != "livre":
+		_fail("T14: HUD com chute ou sem municao livre")
+	var line: String = a.coach.ada._text.text
+	if not a.coach.ada.is_talking() or line != PRACTICE_OPENING or "Antes do Norte" in line:
+		_fail("T35: abertura da pratica '%s'" % line)
+	await _finish_opening(a)
+
+
+## T16: errar nao termina o tutorial e nao gasta municao, nem com o estoque zerado.
+func _check_practice_free_shots() -> void:
+	var g = root.get_node("Global")
+	for stock in [15, 0]:
+		g.ammo_inventory = {"Enferrujada": stock, "Perfurante": 5}
+		var a = await _open_practice("first_run")
+		await _finish_opening(a)
+		a.current_ammo_index = 0
+		a.cannon.rotation = 0.6
+		a._fire_projectile()
+		var proj: Node = null
+		for ch in a.get_children():
+			if ch.get_script() == a.ProjectileScript:
+				proj = ch
+		if proj == null:
+			_fail("T16: a pratica nao disparou com %d balas no estoque" % stock)
+		var t := 0.0
+		while is_instance_valid(proj) and t < 5.0:
+			await process_frame
+			t += 1.0 / 60.0
+		await _frames(2)
+		if g.tutorial_done or a.stage_cleared:
+			_fail("T16: errar o tiro terminou o tutorial")
+		if g.ammo_inventory["Enferrujada"] != stock or a.ammo_counts[0] != stock:
+			_fail("T16: a pratica gastou municao (%s)" % [g.ammo_inventory])
+	g.ammo_inventory = {"Enferrujada": 15, "Perfurante": 5}
+	g.save_game()
+
+
+## T13: derrubar o chefe so muda tutorial_done no save (invariante da pratica).
+func _check_practice_keeps_progress() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	var a = await _open_practice("first_run")
+	await _finish_opening(a)
+	var boss := _practice_boss(a)
+	if boss == null:
+		_fail("T13: pratica sem chefe")
+		return
+	a.on_enemy_hit(boss, 1)
+	await _frames(3)
+	if not g.tutorial_done or not a.coach.ada.is_talking():
+		_fail("T13: chefe derrubado sem tutorial_done ou sem a fala final")
+	a.coach.ada._finish()
+	var after := _save_snapshot(g)
+	for key in after:
+		var changed: bool = not before.has(key) or before[key] != after[key]
+		if changed and key != "player/tutorial_done":
+			_fail("T13: a pratica mudou %s no save (%s -> %s)" % [key, before.get(key), after[key]])
+	if after.get("player/tutorial_done") != true:
+		_fail("T13: tutorial_done nao foi gravado")
+	if g.money != 150 or g.brass != 0 or g.total_stars() != 0 or not g.achievements.is_empty():
+		_fail("T13: pratica mexeu em ouro, latao, estrelas ou selos em memoria")
+	if g.ammo_inventory != {"Enferrujada": 15, "Perfurante": 5}:
+		_fail("T13: pratica mexeu na municao: %s" % [g.ammo_inventory])
+	await _frames(10)
+	if g.practice_mode or _scene_path() != "res://scenes/war_map/war_map.tscn":
+		_fail("T13: depois da pratica, cena %s e practice %s" % [_scene_path(), g.practice_mode])
+	g.tutorial_done = false
+	g.save_game()
+
+
+## T17: pausar na pratica pede confirmacao; cancelar fica; confirmar sai ao mapa.
+func _check_practice_exit_first_run() -> void:
+	var g = root.get_node("Global")
+	var a = await _open_practice("first_run")
+	await _finish_opening(a)
+	var esc := InputEventAction.new()
+	esc.action = "ui_cancel"
+	esc.pressed = true
+	a._unhandled_input(esc)
+	var modal = a.practice.exit_modal
+	if not modal.is_confirming() or a.pause_menu.visible:
+		_fail("T17: Esc na pratica nao abriu a confirmacao (ou abriu a pausa)")
+	var asked := false
+	for label in modal.find_children("*", "Label", true, false):
+		asked = asked or label.text == EXIT_QUESTION
+	if not asked:
+		_fail("T17: confirmacao sem o texto '%s'" % EXIT_QUESTION)
+	modal._input(esc)
+	await _frames(2)
+	if modal.visible or not g.practice_mode or g.tutorial_skipped:
+		_fail("T17: cancelar a saida nao voltou para a pratica")
+	a._on_pause_pressed()
+	if not modal.is_confirming() or a.pause_menu.visible:
+		_fail("T17: o botao de pausa nao abriu a confirmacao")
+	modal.confirm_exit()
+	if g.practice_mode or not g.tutorial_skipped or g.tutorial_done:
+		_fail("T17: sair confirmado: %s practice=%s" % [_flags(g), g.practice_mode])
+	g.tutorial_skipped = false
+	g.load_game()
+	if not g.tutorial_skipped:
+		_fail("T17: tutorial_skipped nao foi gravado")
+	await _frames(10)
+	if _scene_path() != "res://scenes/war_map/war_map.tscn":
+		_fail("T17: sair da pratica levou a %s" % _scene_path())
+
+
+## T18: depois de sair da pratica, a Alpha 1 abre normal.
+func _check_no_practice_leak() -> void:
+	var g = root.get_node("Global")
+	g.current_base_id = "Base_A"
+	g.current_stage = 0
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a = current_scene
+	var planes := 0
+	for e in a.active_enemies:
+		if _is_airplane(e):
+			planes += 1
+	if a.stage_data.title != "Primeiro disparo" or planes != 2 or a.get("practice") != null:
+		_fail("T18: practice_mode vazou (%s, %d avioes)" % [a.stage_data.title, planes])
+	await _finish_opening(a)
+
+
+## Origem "menu": sair nao grava tutorial_skipped; derrubar o chefe volta ao menu.
+func _check_practice_from_menu() -> void:
+	var g = root.get_node("Global")
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+	g.save_game()
+	var a = await _open_practice("menu")
+	await _finish_opening(a)
+	a._on_pause_pressed()
+	a.practice.exit_modal.confirm_exit()
+	await _frames(10)
+	if g.tutorial_skipped or g.practice_mode:
+		_fail("sair da pratica pelo menu gravou tutorial_skipped")
+	if _scene_path() != "res://scenes/menu_play/menu_play.tscn":
+		_fail("sair da pratica pelo menu levou a %s" % _scene_path())
+	a = await _open_practice("menu")
+	await _finish_opening(a)
+	a.on_enemy_hit(_practice_boss(a), 1)
+	await _frames(3)
+	a.coach.ada._finish()
+	await _frames(10)
+	if not g.tutorial_done or g.practice_mode:
+		_fail("T31f: pratica pelo menu sem tutorial_done ou com practice_mode")
+	if _scene_path() != "res://scenes/menu_play/menu_play.tscn":
+		_fail("T31f: pratica pelo menu terminou em %s" % _scene_path())
+
+
+# ── 11. Tutorial modal (7 paginas, moldura branca, saida) ────────────
+
+const TUTORIAL_PAGE_7 := (
+	"Antes de partir, a Ada testa o canhão " + "numa fortaleza que já caiu. Um acerto derruba."
+)
+const TUTORIAL_COMMANDS := [
+	["Espaço", "dispara"],
+	["A e D", "anda, quando há combustível"],
+	["Tab", "troca a munição"],
+	["Estrela", "missões da fase (três estrelas)"],
+	["H", "ajuda"],
+]
+const HELP_SCRIPT_PATH := "res://scripts/help_overlay.gd"
+const TUTORIAL_SHEET_PAGES := [0, 1, 2, 3, 4, 6]
+
+
+func _test_tutorial_modal() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	_check_tutorial_tokens()
+	await _check_tutorial_pages()
+	await _check_tutorial_exit()
+	await _check_tutorial_footer()
+	await _check_tutorial_sheet()
+	await _check_tutorial_commands()
+	await _check_tutorial_text_size()
+	await _check_help_keycap()
+	if _save_snapshot(g) != before:
+		_fail("o tutorial modal mexeu no save")
+	print("ok: tutorial modal")
+
+
+func _new_tutorial() -> Node:
+	var m: Node = load("res://scripts/ui/tutorial_modal.gd").new()
+	root.add_child(m)
+	await _frames(1)
+	return m
+
+
+func _press(m: Node, action: String) -> void:
+	var ev := InputEventAction.new()
+	ev.action = action
+	ev.pressed = true
+	m._input(ev)
+
+
+func _free_modal(m: Node) -> void:
+	m.queue_free()
+	await _frames(1)
+
+
+## Contador de emissoes de um sinal sem argumentos.
+func _count_signal(sig: Signal) -> Array:
+	var n := [0]
+	sig.connect(func(): n[0] += 1)
+	return n
+
+
+func _visible_label(m: Node, text: String) -> Label:
+	for l in m.find_children("*", "Label", true, false):
+		if l.is_visible_in_tree() and l.text == text:
+			return l
+	return null
+
+
+func _find_button(m: Node, text: String) -> Button:
+	for b in m.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree() and b.text == text:
+			return b
+	return null
+
+
+func _next_pages(m: Node, n: int) -> void:
+	for _i in range(n):
+		m.next_page()
+	await _frames(1)
+
+
+## Molduras brancas (UiFrame com fill == branco) visiveis no modal.
+func _white_frames(m: Node) -> int:
+	var n := 0
+	for p in m.find_children("*", "PanelContainer", true, false):
+		var box: StyleBox = p.get_theme_stylebox("panel")
+		if p.is_visible_in_tree() and box is UiFrame and box.fill == Color("ffffff"):
+			n += 1
+	return n
+
+
+## T33 (tokens): SHEET branco, PULSE_FLASH existe e o Kind.SHEET e a moldura branca.
+func _check_tutorial_tokens() -> void:
+	var tokens := load("res://scripts/ui/ui_tokens.gd") as GDScript
+	var consts: Dictionary = tokens.get_script_constant_map()
+	if consts.get("SHEET") != Color("ffffff"):
+		_fail("T33: UiTokens.SHEET nao e branco (%s)" % str(consts.get("SHEET")))
+	if not consts.get("PULSE_FLASH") is Color:
+		_fail("T33: UiTokens.PULSE_FLASH nao existe")
+	if not UiPanel.Kind.has("SHEET"):
+		_fail("T33: UiPanel.Kind.SHEET nao existe")
+		return
+	var box: UiFrame = UiPanel.create(UiPanel.Kind.get("SHEET"))
+	if box.fill != Color("ffffff") or box.rivets:
+		_fail("T33: Kind.SHEET nao e uma moldura branca lisa")
+
+
+## As 7 paginas, o texto da 7 (T35) e a navegacao com limites.
+func _check_tutorial_pages() -> void:
+	var m := await _new_tutorial()
+	var pages: Array = m.PAGES
+	if pages.size() != 7:
+		_fail("T30: o tutorial tem %d paginas, esperava 7" % pages.size())
+	for i in range(pages.size()):
+		if str(pages[i].get("title", "")) == "":
+			_fail("pagina %d do tutorial sem titulo" % (i + 1))
+		var problem := _tone_problem(str(pages[i].get("text", "")))
+		if problem != "":
+			_fail("tom na pagina %d do tutorial: %s" % [i + 1, problem])
+	if pages.size() == 7 and pages[6].get("text", "") != TUTORIAL_PAGE_7:
+		_fail("T35: texto da pagina 7 diferente do plano: '%s'" % pages[6].get("text", ""))
+	m.open()
+	await _frames(2)
+	if m.page_index() != 0 or not m.visible:
+		_fail("open() nao abriu na pagina 0 (%d)" % m.page_index())
+	if paused:
+		_fail("o tutorial pausou o jogo por padrao")
+	m.prev_page()
+	if m.page_index() != 0:
+		_fail("prev_page() na pagina 1 saiu do limite (%d)" % m.page_index())
+	await _next_pages(m, 6)
+	if m.page_index() != 6:
+		_fail("next_page() 6x foi para a pagina %d" % m.page_index())
+	if _visible_label(m, TUTORIAL_PAGE_7) == null:
+		_fail("T35: a pagina 7 nao mostra o texto 'Antes de partir'")
+	await _next_pages(m, 1)
+	if m.page_index() != 6:
+		_fail("next_page() na ultima pagina passou do limite (%d)" % m.page_index())
+	m.prev_page()
+	if m.page_index() != 5:
+		_fail("prev_page() nao voltou (%d)" % m.page_index())
+	await _free_modal(m)
+
+
+## T27, T28 e a semantica herdada da ponte (open_exit_prompt).
+func _check_tutorial_exit() -> void:
+	var m := await _new_tutorial()
+	var done := _count_signal(m.completed)
+	var aborted := _count_signal(m.aborted)
+	m.open()
+	await _next_pages(m, 2)
+	m.ask_exit()
+	await _frames(2)
+	if not m.is_confirming() or _visible_label(m, EXIT_QUESTION) == null:
+		_fail("T27: ask_exit() nao mostrou '%s'" % EXIT_QUESTION)
+	var focus := m.get_viewport().gui_get_focus_owner()
+	if not focus is Button or focus.text != "CONTINUAR O TUTORIAL":
+		_fail("T27: o foco da confirmacao nao esta em CONTINUAR O TUTORIAL")
+	if _visible_label(m, str(m.PAGES[2].get("text", "?"))) != null:
+		_fail("T27: a pagina continuou visivel durante a confirmacao")
+	_press(m, "ui_right")
+	if m.page_index() != 2:
+		_fail("a seta mudou de pagina durante a confirmacao")
+	m.cancel_exit()
+	await _frames(1)
+	if m.is_confirming() or m.page_index() != 2 or not m.visible:
+		_fail("T27: cancelar nao voltou ao passo 3 (%d)" % m.page_index())
+	if _visible_label(m, str(m.PAGES[2].get("text", "?"))) == null:
+		_fail("T27: a pagina 3 nao voltou a aparecer depois de cancelar")
+	_press(m, "ui_cancel")
+	if not m.is_confirming():
+		_fail("T28: Esc na pagina nao pediu a saida")
+	_press(m, "ui_cancel")
+	if m.is_confirming() or m.page_index() != 2:
+		_fail("T28: segundo Esc nao voltou ao passo 3")
+	if aborted[0] != 0 or done[0] != 0:
+		_fail("sinais emitidos sem confirmar a saida")
+	m.ask_exit()
+	m.confirm_exit()
+	await _frames(1)
+	if aborted[0] != 1 or m.visible or m.is_confirming():
+		_fail("T29: confirm_exit() nao fechou e emitiu aborted uma vez (%d)" % aborted[0])
+	# Modo da arena de pratica: cancelar fecha; depois, no modo normal, so esconde.
+	m.open_exit_prompt()
+	await _frames(1)
+	if not m.is_confirming():
+		_fail("open_exit_prompt() nao abriu na confirmacao")
+	m.cancel_exit()
+	if m.visible:
+		_fail("open_exit_prompt(): cancelar nao fechou o modal")
+	m.open()
+	m.ask_exit()
+	m.cancel_exit()
+	if not m.visible or m.page_index() != 0:
+		_fail("depois do modo da pratica, cancelar fechou o modal normal")
+	await _free_modal(m)
+
+
+## Rodape: contador, ANTERIOR, setas, SAIR e o botao da ultima pagina (T30).
+func _check_tutorial_footer() -> void:
+	var m := await _new_tutorial()
+	var done := _count_signal(m.completed)
+	m.open()
+	await _frames(2)
+	if _visible_label(m, "Passo 1 de 7") == null:
+		_fail("rodape sem 'Passo 1 de 7'")
+	var prev := _find_button(m, "← ANTERIOR")
+	if prev == null or not prev.disabled:
+		_fail("ANTERIOR nao esta desabilitado na pagina 1")
+	_press(m, "ui_right")
+	_press(m, "ui_right")
+	await _frames(1)
+	if m.page_index() != 2 or _visible_label(m, "Passo 3 de 7") == null:
+		_fail("a seta direita nao levou ao passo 3 (%d)" % m.page_index())
+	_press(m, "ui_left")
+	if m.page_index() != 1:
+		_fail("a seta esquerda nao voltou uma pagina")
+	var next := _find_button(m, "PRÓXIMO →")
+	if next == null:
+		_fail("sem o botao PRÓXIMO →")
+	else:
+		next.pressed.emit()
+		if m.page_index() != 2:
+			_fail("PRÓXIMO → nao avancou")
+	var leave := _find_button(m, "SAIR DO TUTORIAL")
+	if leave == null:
+		_fail("sem o botao SAIR DO TUTORIAL")
+	else:
+		leave.pressed.emit()
+		if not m.is_confirming():
+			_fail("SAIR DO TUTORIAL nao abriu a confirmacao")
+		m.cancel_exit()
+	await _next_pages(m, 4)
+	var last := _find_button(m, "IR PARA A CALIBRAGEM")
+	if last == null or _find_button(m, "PRÓXIMO →") != null:
+		_fail("T30: a ultima pagina nao troca PRÓXIMO por IR PARA A CALIBRAGEM")
+		await _free_modal(m)
+		return
+	if done[0] != 0:
+		_fail("T30: completed emitido antes da hora")
+	last.pressed.emit()
+	await _frames(1)
+	if done[0] != 1 or m.visible:
+		_fail("T30: IR PARA A CALIBRAGEM nao emitiu completed uma vez e fechou (%d)" % done[0])
+	await _free_modal(m)
+
+
+## T33: moldura branca nas paginas 1-5 e 7; a 6 e a lista no fundo do modal.
+func _check_tutorial_sheet() -> void:
+	var m := await _new_tutorial()
+	m.open()
+	await _frames(2)
+	for i in range(7):
+		var n := _white_frames(m)
+		var want: bool = i in TUTORIAL_SHEET_PAGES
+		if want and n < 1:
+			_fail("T33: a pagina %d nao tem moldura branca" % (i + 1))
+		elif not want and n != 0:
+			_fail("T33: a pagina %d (lista de comandos) tem moldura branca" % (i + 1))
+		await _next_pages(m, 1)
+	await _free_modal(m)
+
+
+## T34: lista de comandos da pagina 6, com as teclas desenhadas.
+func _check_tutorial_commands() -> void:
+	var m := await _new_tutorial()
+	m.open()
+	await _next_pages(m, 5)
+	var list: Node = m.find_child("CommandList", true, false)
+	if list == null or not list.is_visible_in_tree():
+		_fail("T34: a pagina 6 nao mostra a lista de comandos")
+		await _free_modal(m)
+		return
+	var rows := list.get_children()
+	if rows.size() != TUTORIAL_COMMANDS.size():
+		_fail("T34: %d linhas na lista, esperava 5" % rows.size())
+		await _free_modal(m)
+		return
+	for i in range(rows.size()):
+		var text_col: Node = rows[i].get_child(rows[i].get_child_count() - 1)
+		var got := [text_col.get_child(0).text, text_col.get_child(1).text]
+		if got != TUTORIAL_COMMANDS[i]:
+			_fail("T34: linha %d = %s, esperava %s" % [i + 1, str(got), str(TUTORIAL_COMMANDS[i])])
+	_check_command_visuals(rows)
+	await _free_modal(m)
+
+
+func _keycap_letters(row: Node) -> Array:
+	var out := []
+	for c in row.find_children("*", "PanelContainer", true, false):
+		for l in c.find_children("*", "Label", true, false):
+			out.append(l.text)
+	return out
+
+
+func _check_command_visuals(rows: Array) -> void:
+	if rows[0].find_children("*", "TextureRect", true, false).is_empty():
+		_fail("T34: Espaco sem o desenho da tecla")
+	if rows[2].find_children("*", "TextureRect", true, false).is_empty():
+		_fail("T34: Tab sem o desenho da tecla")
+	if _keycap_letters(rows[1]) != ["A", "D"]:
+		_fail("T34: 'A e D' deveria ter duas teclas, A e D (%s)" % str(_keycap_letters(rows[1])))
+	if _keycap_letters(rows[4]) != ["H"]:
+		_fail("T34: 'H' deveria ter uma tecla H (%s)" % str(_keycap_letters(rows[4])))
+	var star := false
+	for n in rows[3].find_children("*", "Control", true, false):
+		if n is UiIcon and n.icon == "star":
+			star = true
+	if not star:
+		_fail("T34: 'Estrela' sem o icone de estrela")
+
+
+## big_text sobe o corpo do texto e a narracao nao quebra o modal.
+func _check_tutorial_text_size() -> void:
+	var g = root.get_node("Global")
+	var big_before: bool = g.big_text
+	var narr_before: bool = g.narration
+	var m := await _new_tutorial()
+	for big in [false, true]:
+		g.big_text = big
+		m.open()
+		await _frames(2)
+		var label := _visible_label(m, str(m.PAGES[0].get("text", "?")))
+		var want: int = UiTokens.FONT_LG if big else UiTokens.FONT_MD
+		if label == null or label.get_theme_font_size("font_size") != want:
+			_fail("big_text=%s: corpo do tutorial nao esta em %d" % [str(big), want])
+		m.close()
+	g.narration = true
+	m.open()
+	await _next_pages(m, 5)
+	m.ask_exit()
+	m.cancel_exit()
+	m.close()
+	g.big_text = big_before
+	g.narration = narr_before
+	await _free_modal(m)
+
+
+## T36: a aba "As teclas" da ajuda continua igual depois de extrair keycap().
+func _check_help_keycap() -> void:
+	var script := load(HELP_SCRIPT_PATH) as GDScript
+	var has_keycap := false
+	for info in script.get_script_method_list():
+		has_keycap = has_keycap or info.name == "keycap"
+	if not has_keycap:
+		_fail("T36: HelpOverlay.keycap() nao existe")
+	var help: Node = script.new()
+	root.add_child(help)
+	await _frames(1)
+	var grid: Node = help._pages[0]
+	if grid.get_child_count() != 11:
+		_fail("T36: a aba As teclas tem %d linhas, esperava 11" % grid.get_child_count())
+	var letters := []
+	for row in grid.get_children():
+		if row.get_child(0) is PanelContainer:
+			var cap: PanelContainer = row.get_child(0)
+			letters.append(cap.get_child(0).text)
+			if cap.custom_minimum_size != Vector2(44, 40):
+				_fail("T36: a tecla com letra mudou de tamanho")
+	if letters != ["A", "F", "C", "H"]:
+		_fail("T36: teclas com letra da ajuda = %s" % str(letters))
+	if has_keycap:
+		var cap: Node = script.call("keycap", "Q")
+		if not cap is PanelContainer or cap.get_child(0).text != "Q":
+			_fail("T36: keycap('Q') nao devolve a tecla com a letra")
+	await _free_modal(help)
+
+
+## Texto aprovado das 4 telas (about-task.md), copiado literalmente: o teste nao
+## le StoryIntro.LINES, senao aprovaria qualquer texto.
+const STORY_TEXTS := [
+	(
+		"O Comando Norte tomou o arquipélago em uma noite: "
+		+ "um pulso eletromagnético queimou todos os computadores de mira da frota."
+	),
+	(
+		"As fortalezas que a Engenheira Ada projetou viraram castelos deles, "
+		+ "blindados contra o pulso. Os nossos canhões viraram sucata."
+	),
+	(
+		"Ada consertou o último que restou: o seu tanque. Sem computador, "
+		+ "ele só dispara com a conta certa."
+	),
+	"Ela sabe onde cada castelo falha. O resto é cálculo.",
+]
+
+
+func _test_story_intro() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	await _check_story_texts()
+	await _check_story_end()
+	await _check_story_skip()
+	await _check_story_controls()
+	if _save_snapshot(g) != before:
+		_fail("o enredo mexeu no save")
+	print("ok: story intro")
+
+
+func _new_story() -> Node:
+	var s: Node = load("res://scripts/ui/story_intro.gd").new()
+	root.add_child(s)
+	await _frames(1)
+	s.open()
+	await _frames(1)
+	return s
+
+
+## Cada elemento: [skipped] de cada emissao de `finished`.
+func _record_finished(s: Node) -> Array:
+	var log := []
+	s.finished.connect(func(skipped: bool): log.append(skipped))
+	return log
+
+
+## T23: o texto das 4 telas, caractere a caractere.
+func _check_story_texts() -> void:
+	var s := await _new_story()
+	if s.LINES.size() != 4:
+		_fail("T23: o enredo tem %d telas, esperava 4" % s.LINES.size())
+	for i in range(STORY_TEXTS.size()):
+		if s._line_label.text != STORY_TEXTS[i]:
+			_fail("T23: texto da tela %d diferente do aprovado: '%s'" % [i + 1, s._line_label.text])
+		if s.current_index() != i:
+			_fail("T23: indice %d na tela %d" % [s.current_index(), i + 1])
+		s.advance()
+		await _frames(1)
+	await _free_modal(s)
+
+
+## T24: quatro avancos terminam o enredo, uma vez, sem pular.
+func _check_story_end() -> void:
+	var s := await _new_story()
+	var log := _record_finished(s)
+	if _find_button(s, "PRÓXIMO →") == null:
+		_fail("T24: a tela 1 nao tem o botao PRÓXIMO")
+	for _i in range(3):
+		s.advance()
+	await _frames(1)
+	if not log.is_empty():
+		_fail("T24: terminou antes da tela 4")
+	if _find_button(s, "COMEÇAR") == null:
+		_fail("T24: a tela 4 nao troca PRÓXIMO por COMEÇAR")
+	s.advance()
+	s.advance()
+	await _frames(1)
+	if log != [false]:
+		_fail("T24: finished = %s, esperava [false]" % str(log))
+	if s.visible:
+		_fail("T24: o enredo continua visivel depois do fim")
+	await _free_modal(s)
+
+
+## PULAR e Esc: finished(true) uma vez, em qualquer tela.
+func _check_story_skip() -> void:
+	var s := await _new_story()
+	var log := _record_finished(s)
+	s.advance()
+	s.skip()
+	s.skip()
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: skip() emitiu %s, esperava [true]" % str(log))
+	await _free_modal(s)
+
+	s = await _new_story()
+	log = _record_finished(s)
+	var skip_btn := _find_button(s, "PULAR")
+	if skip_btn == null:
+		_fail("T24: a tela nao tem o botao PULAR")
+	else:
+		skip_btn.pressed.emit()
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: o botao PULAR emitiu %s" % str(log))
+	await _free_modal(s)
+
+	s = await _new_story()
+	log = _record_finished(s)
+	_press(s, "ui_cancel")
+	await _frames(1)
+	if log != [true]:
+		_fail("T24: Esc emitiu %s" % str(log))
+	await _free_modal(s)
+
+
+## Reabrir recomeca da tela 1; fechado, o enredo ignora avancar; texto grande.
+func _check_story_controls() -> void:
+	var s := await _new_story()
+	s.advance()
+	s.advance()
+	s.skip()
+	s.open()
+	await _frames(1)
+	if s.current_index() != 0 or not s.visible:
+		_fail("T24: open() nao recomecou na tela 1")
+	var g = root.get_node("Global")
+	var old_big: bool = g.big_text
+	g.big_text = true
+	s.open()
+	await _frames(1)
+	var big: int = s._line_label.get_theme_font_size("font_size")
+	g.big_text = old_big
+	s.open()
+	await _frames(1)
+	if big <= s._line_label.get_theme_font_size("font_size"):
+		_fail("T24: big_text nao aumenta a frase")
+	await _free_modal(s)
+
+
+# ── 13. Menu: orquestracao da primeira vez ───────────────────────────
+
+const MENU_SCENE := "res://scenes/menu_play/menu_play.tscn"
+const MAP_SCENE := "res://scenes/war_map/war_map.tscn"
+const ARENA_SCENE := "res://scenes/arena/arena.tscn"
+const TUTORIAL_BUTTON := 9
+
+
+func _test_menu_onboarding() -> void:
+	var g = root.get_node("Global")
+	await _check_menu_resets_practice()
+	await _check_play_all_done()
+	await _check_play_story_then_map()
+	await _check_play_first_run()
+	await _check_play_tutorial_to_practice()
+	await _check_tutorial_button_opens_story()
+	await _check_tutorial_button_skip_saves_story()
+	await _check_tutorial_button_leave()
+	await _check_tutorial_before_first_play()
+	await _check_tutorial_button_practice()
+	g.practice_mode = false
+	g.tutorial_origin = "first_run"
+	paused = false
+	_clear_onboarding(g)
+	g.reset_progress()
+	print("ok: menu da primeira vez")
+
+
+## Grava as flags (story_seen, tutorial_done, tutorial_skipped) e abre o menu.
+func _open_menu(flags: Array) -> Node:
+	var g = root.get_node("Global")
+	g.practice_mode = false
+	g.lab_mode = false
+	g.tutorial_origin = "first_run"
+	g.map_intro_done = true
+	g.story_seen = flags[0]
+	g.tutorial_done = flags[1]
+	g.tutorial_skipped = flags[2]
+	g.save_game()
+	paused = false
+	change_scene_to_file(MENU_SCENE)
+	await _frames(20)
+	return current_scene
+
+
+## Recarrega o save e devolve as flags gravadas.
+func _saved_flags(g: Node) -> Array:
+	_clear_onboarding(g)
+	g.load_game()
+	return _flags(g)
+
+
+## Reset defensivo: um practice_mode que vazou morre ao abrir o menu.
+func _check_menu_resets_practice() -> void:
+	var g = root.get_node("Global")
+	g.practice_mode = true
+	paused = false
+	change_scene_to_file(MENU_SCENE)
+	await _frames(20)
+	if g.practice_mode:
+		_fail("o menu nao zerou practice_mode no _ready")
+
+
+## T32: JOGAR com tudo concluido vai direto ao mapa.
+func _check_play_all_done() -> void:
+	var menu := await _open_menu([true, true, false])
+	menu._on_play_pressed()
+	if menu._story.visible or menu._tutorial.visible:
+		_fail("T32: JOGAR com tudo concluido abriu o enredo ou o tutorial")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T32: JOGAR com tudo concluido levou a %s" % _scene_path())
+
+
+## T26: enredo pulado com o tutorial ja feito vai ao mapa, sem o tutorial.
+func _check_play_story_then_map() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([false, true, false])
+	menu._on_play_pressed()
+	if not menu._story.visible:
+		_fail("T26: JOGAR sem story_seen nao abriu o enredo")
+	menu._story.skip()
+	if menu._tutorial.visible:
+		_fail("T26: o tutorial abriu com tutorial_done")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T26: pular o enredo com o tutorial feito levou a %s" % _scene_path())
+	if _saved_flags(g) != [true, true, false]:
+		_fail("T26: flags gravadas %s" % [_flags(g)])
+
+
+## T25 e T29: primeira vez pelo JOGAR; pular o enredo abre o tutorial e sair
+## dele grava tutorial_skipped e leva ao mapa.
+func _check_play_first_run() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([false, false, false])
+	menu._on_play_pressed()
+	if not menu._story.visible or menu._story.current_index() != 0:
+		_fail("T25: JOGAR na primeira vez nao abriu o enredo na tela 1")
+	menu._story.advance()
+	menu._story.skip()
+	await _frames(2)
+	if not g.story_seen:
+		_fail("T25: pular o enredo nao marcou story_seen")
+	if not menu._tutorial.visible or menu._tutorial.page_index() != 0:
+		_fail("T25: pular o enredo nao abriu o tutorial no passo 1")
+	if _scene_path() != MENU_SCENE:
+		_fail("T25: pular o enredo saiu do menu (%s)" % _scene_path())
+	var aborted := _count_signal(menu._tutorial.aborted)
+	menu._tutorial.confirm_exit()
+	if aborted[0] != 1:
+		_fail("T29: aborted emitido %d vezes" % aborted[0])
+	if _saved_flags(g) != [true, false, true]:
+		_fail("T25/T29: flags gravadas %s, esperava [true, false, true]" % [_flags(g)])
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T29: sair do tutorial na primeira vez levou a %s" % _scene_path())
+
+
+## Vai do passo 1 ao 7 e aperta o botao da ultima pagina.
+func _finish_tutorial_pages(menu: Node) -> Array:
+	var done := _count_signal(menu._tutorial.completed)
+	await _next_pages(menu._tutorial, 6)
+	var last := _find_button(menu._tutorial, menu._tutorial.LAST_LABEL)
+	if last == null:
+		_fail("T30: a ultima pagina nao tem o botao %s" % menu._tutorial.LAST_LABEL)
+	else:
+		last.pressed.emit()
+	return done
+
+
+## T30: fim das paginas leva a pratica (JOGAR com o enredo ja visto).
+func _check_play_tutorial_to_practice() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._on_play_pressed()
+	if menu._story.visible or not menu._tutorial.visible:
+		_fail("T30: JOGAR com story_seen nao foi direto ao tutorial")
+	var done := await _finish_tutorial_pages(menu)
+	if done[0] != 1 or not g.practice_mode:
+		_fail("T30: completed=%d practice_mode=%s" % [done[0], g.practice_mode])
+	await _frames(10)
+	if _scene_path() != ARENA_SCENE or current_scene.get("practice") == null:
+		_fail("T30: o fim do tutorial levou a %s" % _scene_path())
+	else:
+		await _finish_opening(current_scene)
+	g.practice_mode = false
+	paused = false
+
+
+## T31b e T31g: o botao TUTORIAL fica na linha do DUELO e sempre abre o enredo.
+func _check_tutorial_button_opens_story() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, true, false])
+	var btn: Button = menu._buttons[TUTORIAL_BUTTON] if menu._buttons.size() > 9 else null
+	if btn == null or btn.text != "TUTORIAL":
+		_fail("T31b: _buttons[9] nao e o botao TUTORIAL")
+		return
+	if btn.get_parent() != menu._buttons[7].get_parent():
+		_fail("T31b: o botao TUTORIAL nao esta na linha do DUELO")
+	btn.pressed.emit()
+	if not menu._story.visible or menu._story.current_index() != 0:
+		_fail("T31b/T31g: o botao TUTORIAL nao abriu o enredo na tela 1 (story_seen=true)")
+	if menu._tutorial.visible:
+		_fail("T31b: o botao TUTORIAL abriu o tutorial antes do enredo")
+	if g.tutorial_origin != "menu":
+		_fail("T31b: tutorial_origin=%s, esperava menu" % g.tutorial_origin)
+
+
+## T31c2 (PULAR) e T31d (Esc): pelo botao, pular o enredo grava story_seen e
+## abre o tutorial no passo 1, mesmo com tutorial_done.
+func _check_tutorial_button_skip_saves_story() -> void:
+	var g = root.get_node("Global")
+	for how in ["skip", "esc"]:
+		var menu := await _open_menu([false, true, false])
+		menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+		if how == "skip":
+			menu._story.advance()
+			menu._story.skip()
+		else:
+			_press(menu._story, "ui_cancel")
+		await _frames(2)
+		var tag := "T31c2" if how == "skip" else "T31d"
+		if not menu._tutorial.visible or menu._tutorial.page_index() != 0:
+			_fail("%s: pular o enredo pelo botao nao abriu o tutorial no passo 1" % tag)
+		if not g.story_seen:
+			_fail("%s: pular o enredo pelo botao nao marcou story_seen" % tag)
+		if _saved_flags(g) != [true, true, false]:
+			_fail("%s: flags gravadas %s" % [tag, _flags(g)])
+		menu._tutorial.close()
+
+
+## T31e: sair do tutorial pelo botao fica no menu e nao grava tutorial_skipped.
+func _check_tutorial_button_leave() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	menu._tutorial.confirm_exit()
+	await _frames(10)
+	if current_scene != menu:
+		_fail("T31e: sair do tutorial pelo botao levou a %s" % _scene_path())
+		return
+	if g.tutorial_skipped or _saved_flags(g)[2]:
+		_fail("T31e: sair do tutorial pelo botao gravou tutorial_skipped")
+	if not menu._buttons[TUTORIAL_BUTTON].has_focus():
+		_fail("T31e: o foco nao voltou ao botao TUTORIAL")
+
+
+## T31h (log 07): TUTORIAL antes do primeiro JOGAR. Depois, o JOGAR oferece o
+## tutorial sem o enredo, e sair dele ja conta como primeira vez.
+func _check_tutorial_before_first_play() -> void:
+	var g = root.get_node("Global")
+	DirAccess.remove_absolute(g.save_path)
+	g.reset_progress()
+	var menu := await _open_menu([false, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	menu._tutorial.confirm_exit()
+	await _frames(2)
+	if _saved_flags(g) != [true, false, false]:
+		_fail("T31h: flags gravadas %s, esperava [true, false, false]" % [_flags(g)])
+	if g.next_onboarding() != "tutorial":
+		_fail("T31h: next_onboarding()=%s, esperava tutorial" % g.next_onboarding())
+	menu._on_play_pressed()
+	if not menu._tutorial.visible or menu._story.visible:
+		_fail("T31h: JOGAR depois do botao nao foi direto ao tutorial")
+	menu._tutorial.confirm_exit()
+	if not g.tutorial_skipped:
+		_fail("T31h: sair do tutorial pelo JOGAR (depois do botao) nao gravou tutorial_skipped")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T31h: sair do tutorial pelo JOGAR levou a %s" % _scene_path())
+
+
+## T31f: pelo botao, o fluxo inteiro (enredo, paginas, pratica) volta ao menu e
+## so derrubar o chefe grava tutorial_done.
+func _check_tutorial_button_practice() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	await _finish_tutorial_pages(menu)
+	if g.tutorial_done:
+		_fail("T31f: tutorial_done gravado antes do chefe cair")
+	await _frames(10)
+	var a = current_scene
+	if _scene_path() != ARENA_SCENE or a.get("practice") == null:
+		_fail("T31f: o tutorial pelo botao nao abriu a pratica (%s)" % _scene_path())
+		g.practice_mode = false
+		return
+	await _finish_opening(a)
+	a.on_enemy_hit(_practice_boss(a), 1)
+	await _frames(3)
+	a.coach.ada._finish()
+	await _frames(10)
+	if _saved_flags(g) != [true, true, false] or g.practice_mode:
+		_fail("T31f: flags %s practice_mode=%s" % [_flags(g), g.practice_mode])
+	if _scene_path() != MENU_SCENE:
+		_fail("T31f: a pratica pelo botao terminou em %s" % _scene_path())

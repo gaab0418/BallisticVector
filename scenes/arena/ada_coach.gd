@@ -1,5 +1,5 @@
 extends Node
-## A Engenheira Ada na arena: tutorial da primeira vez, abertura curta de cada
+## A Engenheira Ada na arena: abertura curta de cada
 ## fase (uma frase da licao e o aviso do chefe), dicas apos erros seguidos,
 ## parabens por desafio e o botao de estrela. A arena so avisa os eventos (tiro,
 ## acerto, bala que sumiu); a Ada decide o que dizer.
@@ -9,12 +9,9 @@ const BAND_LABEL_SECONDS := 12.0
 
 var arena: Node2D
 var ada: AdaDialog
-var spot: Spotlight
-var in_tutorial := false
 
 var _misses := 0
 var _hit_since_fire := false
-var _hit_in_tutorial := false
 var _stage_tip_given := false
 var _elapsed := 0.0
 var _prev_states: Array = []
@@ -25,15 +22,13 @@ func setup(host: Node2D) -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	ada = AdaDialog.new()
 	host.add_child(ada)
-	spot = Spotlight.new()
-	host.add_child(spot)
 	_prev_states = arena.goals.states.duplicate()
 	arena.goals.changed.connect(_on_goals_changed)
 	arena.hud.goals_pressed.connect(_on_goals_pressed)
 
 
 func busy() -> bool:
-	return ada.is_talking() or in_tutorial
+	return ada.is_talking()
 
 
 func _process(delta: float) -> void:
@@ -71,13 +66,6 @@ func start_stage() -> void:
 				]
 			)
 		)
-		return
-	if (
-		Global.current_base_id == "Base_A"
-		and Global.current_stage == 0
-		and not Global.tutorial_done
-	):
-		_run_tutorial()
 		return
 	var lines := _intro_lines()
 	if not lines.is_empty():
@@ -154,148 +142,8 @@ static func _sentences(text: String) -> Array:
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  TUTORIAL (Base Alpha, fase 1, primeira vez)
+#  ALVO
 # ═════════════════════════════════════════════════════════════════════
-
-
-func _run_tutorial() -> void:
-	in_tutorial = true
-	arena.trajectory.band_label = false
-	_freeze_enemies(true)
-	await _say(
-		[
-			{
-				"text": "Oi, recruta! Eu sou a Engenheira Ada.",
-				"expr": "happy",
-				"caption": "BEM-VINDO"
-			},
-			{"text": "Vou te mostrar como este canhão funciona. É rapidinho!", "expr": "proud"},
-		]
-	)
-	var hud = arena.hud
-	spot.focus(hud.parabola.gear_rect(0), "orbit")
-	ada.prompt(
-		"Segure a seta ↑ (ou gire a engrenagem com o mouse) até o ÂNGULO passar de 30°.",
-		"neutral",
-		"PASSO 1"
-	)
-	await _until(func(): return arena._angle_deg() >= 30.0)
-	ada.hide_now()
-
-	spot.focus(arena.trajectory.curve_rect())
-	await _say(
-		[
-			{
-				"text": "Viu a linha mudar? Esse caminho da bala se chama PARÁBOLA.",
-				"expr": "surprised"
-			}
-		]
-	)
-	spot.focus(_vertex_rect())
-	await _say(
-		[
-			{
-				"text": "O losango é o VÉRTICE: o ponto mais alto. O número é a altura máxima.",
-				"expr": "thinking"
-			}
-		]
-	)
-	spot.focus(_root_rect())
-	await _say([_root_line()])
-	spot.focus(hud.parabola.equation_rect())
-	await _say(
-		[
-			{
-				"text":
-				"Aqui em cima está a conta da curva. Os números mudam quando você gira as engrenagens.",
-				"expr": "thinking",
-			}
-		]
-	)
-
-	spot.focus(hud.parabola.gear_rect(1), "orbit")
-	ada.prompt("Agora aperte → para escolher a FORÇA e use ↑ ↓ para mudar.", "neutral", "PASSO 2")
-	var p0: float = arena.current_power
-	await _until(func(): return arena.selected_gear == 1 and absf(arena.current_power - p0) > 0.06)
-	ada.hide_now()
-
-	spot.focus(_castle_rect())
-	ada.prompt("Leve a bandeira até o castelo e aperte ESPAÇO para atirar!", "proud", "PASSO 3")
-	_hit_in_tutorial = false
-	var shots_before: int = arena.goals.shots
-	await _until(func(): return arena.goals.shots > shots_before)
-	ada.hide_now()
-	spot.clear()
-	await _until(func(): return not _player_shot_alive())
-	if _hit_in_tutorial:
-		await _say([{"text": "Na mosca! A matemática levou a bala até o alvo.", "expr": "proud"}])
-	else:
-		await _say(
-			[
-				{
-					"text": "Quase! Olhe onde caiu, ajuste e tente de novo. Cada tiro ensina.",
-					"expr": "happy"
-				}
-			]
-		)
-	await _say(
-		[
-			{"text": "Os aviões vão acordar agora. Cuidado com as bombas!", "expr": "surprised"},
-			{"text": "A ★ lá em cima mostra suas missões. Boa sorte, recruta!", "expr": "proud"},
-		]
-	)
-	_freeze_enemies(false)
-	Global.tutorial_done = true
-	Global.save_game()
-	in_tutorial = false
-
-
-## Com a raiz fora da tela a bandeira vira uma seta na borda: a fala muda junto.
-func _root_line() -> Dictionary:
-	var r := Ballistics.root(arena.current_shot())
-	if not is_nan(r) and Campaign.ORIGIN_X + Ballistics.to_px(r) > 1240.0:
-		var txt := "A setinha diz que a bala cai depois da tela: %s m!" % Ballistics.fmt(r)
-		return {"text": txt + " Menos força traz a bandeira de volta.", "expr": "surprised"}
-	return {"text": "A bandeira mostra onde a bala cai. Confira na régua do chão!", "expr": "happy"}
-
-
-func _say(lines: Array) -> void:
-	ada.say(lines)
-	await ada.finished
-
-
-func _until(cond: Callable) -> void:
-	while not cond.call():
-		await get_tree().process_frame
-
-
-func _freeze_enemies(on: bool) -> void:
-	for e in arena.active_enemies:
-		if is_instance_valid(e) and not e.has_meta("is_boss"):
-			e.process_mode = Node.PROCESS_MODE_DISABLED if on else Node.PROCESS_MODE_INHERIT
-
-
-func _player_shot_alive() -> bool:
-	for c in arena.get_children():
-		if c.has_meta("shot") and not c.is_queued_for_deletion():
-			return true
-	return false
-
-
-func _vertex_rect() -> Rect2:
-	var s: Dictionary = arena.current_shot()
-	if not Ballistics.has_arc(s):
-		return arena.trajectory.curve_rect()
-	var p := Ballistics.point_px(s, Ballistics.vertex(s).x)
-	return Rect2(p - Vector2(24, 34), Vector2(230, 56))
-
-
-func _root_rect() -> Rect2:
-	var s: Dictionary = arena.current_shot()
-	var r := Ballistics.root(s)
-	var x: float = s.origin_x_px + Ballistics.to_px(0.0 if is_nan(r) else r)
-	x = minf(x, 1180.0)
-	return Rect2(Vector2(x - 30, Campaign.GROUND_Y - 60), Vector2(220, 96))
 
 
 func _castle_rect() -> Rect2:
@@ -316,7 +164,6 @@ func on_fire() -> void:
 
 func on_hit() -> void:
 	_hit_since_fire = true
-	_hit_in_tutorial = true
 	_misses = 0
 
 
@@ -324,7 +171,7 @@ func on_hit() -> void:
 ## viram uma dica da Ada: a primeira e a `tip` da fase; as seguintes olham o que
 ## aconteceu com o ultimo tiro.
 func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
-	if in_tutorial or _hit_since_fire:
+	if _hit_since_fire:
 		return
 	_misses += 1
 	if _misses < MISSES_FOR_TIP:

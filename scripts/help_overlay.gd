@@ -59,10 +59,6 @@ func _build_content() -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", UiTokens.GAP)
 	body.add_child(buttons)
-	var again := UiButton.create("Rever o tutorial da Ada", UiButton.Kind.SECONDARY, null, true)
-	again.custom_minimum_size = Vector2(300, 52)
-	again.pressed.connect(_replay_tutorial.bind(again))
-	buttons.add_child(again)
 	_close_btn = UiButton.create("ENTENDI", UiButton.Kind.PRIMARY, null, true)
 	_close_btn.pressed.connect(close)
 	buttons.add_child(_close_btn)
@@ -72,14 +68,6 @@ func _build_content() -> void:
 func open() -> void:
 	super()
 	_close_btn.grab_focus.call_deferred()
-
-
-## O tutorial volta a aparecer na proxima vez que a Base Alpha, fase 1, abrir.
-func _replay_tutorial(button: Button) -> void:
-	Global.tutorial_done = false
-	Global.save_game()
-	button.text = "Ok! Ele aparece na Alpha, fase 1"
-	button.disabled = true
 
 
 func _on_tab_toggled(on: bool, index: int) -> void:
@@ -132,18 +120,7 @@ func _key_row(tex: Texture2D, key: String, text: String) -> Control:
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(icon)
 	else:
-		# Tecla sem desenho no pack: a letra numa moldura de tecla.
-		var cap := PanelContainer.new()
-		cap.add_theme_stylebox_override(
-			"panel", UiButton.make_style(UiTokens.TEXT, UiTokens.TEXT_DIM, false, 4)
-		)
-		cap.custom_minimum_size = Vector2(44, 40)
-		var letter := Label.new()
-		letter.text = key.substr(0, 1)
-		letter.add_theme_color_override("font_color", UiTokens.INK)
-		letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cap.add_child(letter)
-		row.add_child(cap)
+		row.add_child(keycap(key.substr(0, 1)))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", -4)
 	var k := Label.new()
@@ -158,6 +135,22 @@ func _key_row(tex: Texture2D, key: String, text: String) -> Control:
 	col.add_child(t)
 	row.add_child(col)
 	return row
+
+
+## Tecla sem desenho no pack: a letra numa moldura de tecla. Tambem e usada pela
+## pagina de comandos do tutorial (TutorialModal).
+static func keycap(letter: String) -> PanelContainer:
+	var cap := PanelContainer.new()
+	cap.add_theme_stylebox_override(
+		"panel", UiButton.make_style(UiTokens.TEXT, UiTokens.TEXT_DIM, false, 4)
+	)
+	cap.custom_minimum_size = Vector2(44, 40)
+	var label := Label.new()
+	label.text = letter
+	label.add_theme_color_override("font_color", UiTokens.INK)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cap.add_child(label)
+	return cap
 
 
 # ═════════════════════════════════════════════════════════════════════

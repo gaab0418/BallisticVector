@@ -10,6 +10,7 @@ enum Kind {
 	HUD,  # faixa translucida sobre o gameplay
 	PAPER,  # papel envelhecido com tinta: diagrama da ajuda, cartao do mapa
 	SELECTED,  # celula escolhida (engrenagem ativa): anel ambar
+	SHEET,  # folha branca lisa das figuras do tutorial
 }
 
 
@@ -62,6 +63,10 @@ static func create(kind: int = Kind.PANEL) -> UiFrame:
 			var paper := frame(UiTokens.PAPER, UiTokens.PAPER_DARK, 2, UiTokens.PAD)
 			paper.outline = UiTokens.INK
 			return paper
+		Kind.SHEET:
+			var sheet := frame(UiTokens.SHEET, UiTokens.PAPER_DARK, 2, UiTokens.PAD)
+			sheet.outline = UiTokens.INK
+			return sheet
 		Kind.SELECTED:
 			var sel := frame(UiTokens.BG_SELECTED, UiTokens.EDITABLE, 1, 4)
 			sel.bevel_light = UiTokens.TRANSPARENT

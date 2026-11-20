@@ -18,6 +18,10 @@ const WarTableScript = preload("res://scenes/war_map/war_table.gd")
 const SFX_CLICK := "res://assets/audio/menu_click.ogg"
 const SFX_BACK := "res://assets/audio/menu_back.ogg"
 const SFX_ERROR := "res://assets/audio/erro.ogg"
+## Fala da primeira visita ao mapa: diz o que fazer, antes de qualquer outro recado.
+const OBJECTIVE_LINE := (
+	"Retome as ilhas, base por base, até o Norte. " + "Clique numa ilha para escolher a fase."
+)
 
 const TOP_BAR_H := 60.0
 const NAV_BUTTON_SIZE := Vector2(170, 52)
@@ -66,6 +70,8 @@ var _quiet_focus := false
 
 
 func _ready() -> void:
+	# O modo prática é transitório: se sobrou de uma saída mal feita, zera aqui.
+	Global.practice_mode = false
 	if Global.are_all_bases_complete() and not Global.victory_seen:
 		get_tree().change_scene_to_file("res://scenes/victory/victory.tscn")
 		return
@@ -97,7 +103,7 @@ func _ready() -> void:
 	add_child(_ada)
 	var line := ""
 	if not Global.map_intro_done:
-		line = "Este é o mapa de guerra! Cada ilha é um capítulo. Clique numa ilha para escolher a fase."
+		_ada.pop(OBJECTIVE_LINE, "proud", 7.0)
 		Global.map_intro_done = true
 	elif Notebook.unseen_count() > 0:
 		line = 'Página nova no meu caderno. Abra o "Caderno" para ver a animação.'

@@ -1,3 +1,4 @@
+# gdlint: disable=max-public-methods
 extends Node
 
 ## Arquivo de progresso. user:// e a pasta de dados do jogo no sistema do
@@ -6,7 +7,9 @@ const SAVE_PATH := "user://progresso.cfg"
 ## Por caminho: este autoload compila antes do cache de classes globais.
 const CosmeticsData := preload("res://scripts/cosmetics.gd")
 const AchievementsData := preload("res://scripts/achievements.gd")
-const SAVE_VERSION := 1
+## Versao 2: flags de primeira vez (story_seen, tutorial_skipped). So documenta o
+## formato: o load decide pela presenca da chave, nao pela versao.
+const SAVE_VERSION := 2
 ## Kit de emergencia: municao gratis quando a crianca fica sem bala e sem ouro
 ## para comprar (senao ela fica presa, sem poder jogar nem comprar).
 const EMERGENCY_AMMO := 8
@@ -35,8 +38,20 @@ var teacher_mode: bool = false
 var lab_mode: bool = false
 ## Mundo escolhido no Laboratorio (chave de Campaign.LAB_WORLDS).
 var lab_world: String = "earth"
-## A Ada ja deu o tutorial da primeira fase.
+## Arena de pratica do tutorial (chefe com 1 HP). Transitoria, como lab_mode:
+## nunca vai para o save e precisa ser zerada em toda saida da pratica.
+var practice_mode: bool = false
+## De onde o tutorial foi aberto: "menu" (botao TUTORIAL) ou "first_run".
+## Qualquer outro valor vale como "first_run". Transitoria.
+var tutorial_origin: String = "first_run"
+## Flags de primeira vez. So as funcoes mark_* escrevem nelas.
+## Enredo de abertura visto ou pulado.
+var story_seen: bool = false
+## O jogador derrubou o chefe da arena de pratica (fim do tutorial modal). Ate a
+## versao 1 do save, a mesma chave dizia "viu o tutorial falado da Alpha 1".
 var tutorial_done: bool = false
+## O jogador saiu do tutorial na primeira vez: ele nao reabre sozinho.
+var tutorial_skipped: bool = false
 ## Acessibilidade: a Ada fala em voz alta, e as falas e o caderno usam letra maior.
 var narration: bool = false
 var big_text: bool = false
@@ -212,6 +227,8 @@ func save_game() -> void:
 	cfg.set_value("player", "achievements", achievements)
 	cfg.set_value("player", "stats", stats)
 	cfg.set_value("player", "tutorial_done", tutorial_done)
+	cfg.set_value("player", "story_seen", story_seen)
+	cfg.set_value("player", "tutorial_skipped", tutorial_skipped)
 	cfg.set_value("player", "map_intro_done", map_intro_done)
 	cfg.set_value("player", "victory_seen", victory_seen)
 	cfg.set_value("player", "narration", narration)
@@ -235,7 +252,7 @@ func load_game() -> void:
 	if ammo is Dictionary:
 		for k in ammo:
 			ammo_inventory[k] = int(ammo[k])
-	teacher_mode = bool(cfg.get_value("player", "teacher_mode", teacher_mode))
+	teacher_mode = _read_flag(cfg, "teacher_mode", teacher_mode)
 	brass = int(cfg.get_value("player", "brass", brass))
 	var own = cfg.get_value("player", "owned", owned)
 	if own is Dictionary:
@@ -254,11 +271,11 @@ func load_game() -> void:
 	if eq is Dictionary:
 		for k in eq:
 			equipped[k] = str(eq[k])
-	tutorial_done = bool(cfg.get_value("player", "tutorial_done", tutorial_done))
-	map_intro_done = bool(cfg.get_value("player", "map_intro_done", map_intro_done))
-	victory_seen = bool(cfg.get_value("player", "victory_seen", victory_seen))
-	narration = bool(cfg.get_value("player", "narration", narration))
-	big_text = bool(cfg.get_value("player", "big_text", big_text))
+	tutorial_done = _read_flag(cfg, "tutorial_done", tutorial_done)
+	map_intro_done = _read_flag(cfg, "map_intro_done", map_intro_done)
+	victory_seen = _read_flag(cfg, "victory_seen", victory_seen)
+	narration = _read_flag(cfg, "narration", narration)
+	big_text = _read_flag(cfg, "big_text", big_text)
 	for base_id in bases:
 		var total: int = bases[base_id]["total_stages"]
 		var cleared := int(cfg.get_value(base_id, "stages_cleared", 0))
@@ -268,6 +285,58 @@ func load_game() -> void:
 			var list: Array = bases[base_id]["stars"]
 			for i in range(mini(list.size(), stars.size())):
 				list[i] = clampi(int(stars[i]), 0, 3)
+	# Depois do laco das bases: a regra do veterano depende das estrelas do arquivo.
+	_load_onboarding(cfg)
+
+
+## Flags de primeira vez. Save sem `story_seen` e anterior ao enredo: quem ja
+## jogava (estrelas ou o tutorial antigo) nao e mandado de volta para a abertura.
+## O Modo Professor pode ter estrelas sem nunca ter feito o tutorial: fica
+## `tutorial_skipped`, para o tutorial tambem nao abrir sozinho.
+func _load_onboarding(cfg: ConfigFile) -> void:
+	if cfg.has_section_key("player", "story_seen"):
+		story_seen = _read_flag(cfg, "story_seen", false)
+		tutorial_skipped = _read_flag(cfg, "tutorial_skipped", false)
+		return
+	var veteran := total_stars() > 0 or tutorial_done
+	story_seen = veteran
+	tutorial_skipped = veteran and not tutorial_done
+
+
+## So aceita bool: um save editado a mao ("sim", 1) cai no padrao sem erro.
+static func _read_flag(cfg: ConfigFile, key: String, default: bool) -> bool:
+	var value = cfg.get_value("player", key, default)
+	return value if value is bool else default
+
+
+## Proximo passo da primeira vez: "story", "tutorial" ou "" (direto ao mapa).
+## Ponto unico que decide o fluxo; o menu e os testes usam so ela.
+func next_onboarding() -> String:
+	if not story_seen:
+		return "story"
+	if not tutorial_done and not tutorial_skipped:
+		return "tutorial"
+	return ""
+
+
+func mark_story_seen() -> void:
+	story_seen = true
+	save_game()
+
+
+## Chefe da pratica derrubado: concluir apaga um "pulei" anterior.
+func mark_tutorial_done() -> void:
+	tutorial_done = true
+	tutorial_skipped = false
+	save_game()
+
+
+## Sair do tutorial nunca desfaz uma conclusao.
+func mark_tutorial_skipped() -> void:
+	if tutorial_done:
+		return
+	tutorial_skipped = true
+	save_game()
 
 
 ## Comeca a campanha do zero (botao do menu, com confirmacao).

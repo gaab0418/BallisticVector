@@ -89,6 +89,25 @@ static func lab_stage(world_key: String) -> Dictionary:
 	return st
 
 
+## Arena de pratica do fim do tutorial: uma fortaleza que ja caiu, com 1 HP, sem
+## avioes e sem desafios. Fica fora de BASES: nao conta estrela nem progresso.
+const PRACTICE_STAGE := {
+	"title": "Calibragem",
+	"lesson": "",
+	"tip": "",
+	"obstacles": [],
+	"boss_x": 900.0,
+	"boss_hp": 1,
+	"planes": 0,
+	"plane_hp": 1,
+	"goals": [],
+}
+
+
+static func practice_stage() -> Dictionary:
+	return PRACTICE_STAGE.duplicate(true)
+
+
 ## Planetas que a engrenagem da gravidade reconhece, para a crianca ligar o
 ## numero a um lugar de verdade.
 const PLANETS := [

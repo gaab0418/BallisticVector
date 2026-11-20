@@ -141,7 +141,7 @@ BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_run
 ```
 
 `BV_SAVE_PATH` troca o arquivo de progresso, para os testes nunca tocarem no save real. A variável
-precisa estar **no mesmo comando** que roda o runner: se faltar, o runner grava no save real. Em
+precisa estar **no mesmo comando** que roda o runner: se faltar, o runner para com código 2 antes de qualquer teste, sem tocar no save real. Em
 PowerShell e entre chamadas separadas de shell, `VAR=valor comando` (sintaxe Bash) não vale.
 
 A **seção 7** do runner (`_test_legibility()`, em `tools/tests/test_runner.gd`) cobre a legibilidade
