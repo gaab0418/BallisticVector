@@ -67,6 +67,8 @@ func _run() -> void:
 	_test_scripts_compile()
 	_test_obstacles_valid()
 	_test_stages_winnable()
+	_test_alpha_content()
+	_test_shot_budget()
 	await _test_landing_matches_hud()
 	await _test_scenes_open()
 	await _test_buttons()
@@ -201,6 +203,9 @@ func _targets(st: Dictionary) -> Array:
 				Vector2(x, Campaign.GROUND_Y - Ballistics.to_px(st.route.x * xm + st.route.y))
 			)
 		out.append({"name": "drone na rota", "pts": pts, "r": SMALL_R})
+	if st.has("tanks"):
+		for x in [st.tanks.zone.x, st.tanks.zone.y]:
+			out.append({"name": "tanque em x=%d" % x, "p": Vector2(x, 630.0), "r": SMALL_R})
 	for b in st.get("balloons", []):
 		var p := Vector2(b.x, Campaign.GROUND_Y - Ballistics.to_px(b.y))
 		out.append({"name": "balao", "p": p, "r": SMALL_R})
@@ -208,6 +213,48 @@ func _targets(st: Dictionary) -> Array:
 		var p := Vector2(x, Campaign.GROUND_Y - 14.0)
 		out.append({"name": "bunker", "p": p, "r": SMALL_R, "steep_deg": 40.0})
 	return out
+
+
+## T17: a Alpha 2 ganha um tanque inimigo e a Alpha 3 um balao, as duas com
+## combustivel; a Alpha 1 fica como estava.
+func _test_alpha_content() -> void:
+	var a2 := Campaign.stage("Base_A", 1)
+	var a3 := Campaign.stage("Base_A", 2)
+	if a2.get("tanks", {}) != {"count": 1, "zone": Vector2(740, 880)}:
+		_fail("T17: A2 sem o tanque inimigo em 740-880")
+	if a3.get("balloons", []) != [Vector2(620, 4.0)]:
+		_fail("T17: A3 sem o balao em (620; 4,0 m)")
+	for st in [a2, a3]:
+		if st.get("move_zone", Vector2.ZERO) != Vector2(40, 250) or st.get("fuel_m", 0.0) != 3.0:
+			_fail("T17: %s sem combustivel 40-250 e 3 m" % st.title)
+	var a2_shots := 0
+	for goal in a2.goals:
+		if goal.type == "max_shots":
+			a2_shots = goal.value
+	if a2_shots != 9:
+		_fail("T17: A2 max_shots = %d, esperado 9" % a2_shots)
+	var a1 := Campaign.stage("Base_A", 0)
+	if a1.has("move_zone") or a1.has("fuel_m") or a1.has("tanks") or a1.has("balloons"):
+		_fail("T17: a Alpha 1 devia ficar intacta")
+
+
+## T19: o limite de tiros de toda fase cobre as vidas dos alvos (castelo, avioes,
+## baloes, 2 por bunker, drones e 2 por tanque inimigo).
+func _test_shot_budget() -> void:
+	for base_id in Campaign.BASES:
+		var stages: Array = Campaign.BASES[base_id].stages
+		for i in range(stages.size()):
+			var st: Dictionary = stages[i]
+			for goal in st.goals:
+				if goal.type != "max_shots":
+					continue
+				var lives: int = st.get("boss_hp", 3) + st.get("planes", 0)
+				lives += st.get("balloons", []).size() + 2 * st.get("bunkers", []).size()
+				lives += st.get("drones", 0) + 2 * st.get("tanks", {}).get("count", 0)
+				if goal.value < lives:
+					_fail(
+						"T19: %s/%d max_shots %d < %d vidas" % [base_id, i + 1, goal.value, lives]
+					)
 
 
 ## Algum tiro (direto) cai dentro do intervalo, sem bater antes.
