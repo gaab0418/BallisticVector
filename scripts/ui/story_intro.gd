@@ -43,7 +43,6 @@ const TOWER := preload("res://assets/sprites/cartography/Default/towerTall.png")
 const PLANE := preload("res://assets/sprites/airplane_enemy_01.png")
 const BOSS := preload("res://assets/sprites/boss.png")
 const TANK := preload("res://assets/sprites/tank_player.png")
-const BARREL := preload("res://assets/sprites/tank_barrel.png")
 
 var _index := 0
 var _done := true
@@ -218,16 +217,13 @@ func _illustrate_pulse() -> void:
 	_sprite(PLANE, Vector2(600, 90), Vector2(120, 66), true)
 
 
-## Tela 2: tres fortalezas blindadas e o canhao antigo caido, sucata.
+## Tela 2: tres fortalezas blindadas, sem canhao nenhum.
 func _illustrate_enemy_castles() -> void:
 	for x in [180.0, 440.0, 700.0]:
 		_sprite(BOSS, Vector2(x, 140), Vector2(200, 110))
 		var shield := UiIcon.make("shield", UiTokens.CALCULATED, 56.0)
 		shield.position = Vector2(x, 130) - Vector2(28, 28)
 		_stage.add_child(shield)
-	var scrap := _sprite(BARREL, Vector2(440, 268), Vector2(170, 30))
-	scrap.rotation_degrees = 100.0
-	scrap.self_modulate = UiTokens.TEXT_DISABLED
 
 
 ## Tela 3: a Ada ao lado do tanque que ela consertou.

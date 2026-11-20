@@ -18,6 +18,8 @@ const EXIT_QUESTION := "Deseja sair do tutorial?"
 const PANEL_SIZE := Vector2(880, 0)
 const CONFIRM_SIZE := Vector2(440, 260)
 const FIGURE_SIZE := Vector2(640, 230)
+## Teto do angulo na demonstracao da pagina "Angulo".
+const SWEEP_MAX_ANGLE := 60.0
 const TEXT_WIDTH := 700.0
 
 const NEXT_LABEL := "PRÓXIMO →"
@@ -383,7 +385,7 @@ func _build_figure(kind: String) -> Control:
 		"gears":
 			return _figure_gears()
 		"sweep":
-			return _figure_diagram("sweep", {})
+			return _figure_diagram("sweep", {"max_angle": SWEEP_MAX_ANGLE})
 		"power":
 			return _figure_diagram("power", {})
 		"gravity":
