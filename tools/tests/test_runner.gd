@@ -83,6 +83,7 @@ func _run() -> void:
 	_test_chief_volley_math()
 	await _test_chief_volley_live()
 	await _test_legibility()
+	_test_onboarding_flags()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -1874,3 +1875,187 @@ func _test_help_diagram_labels_fit() -> void:
 				)
 			)
 	diagram.queue_free()
+
+
+# ── 8. Flags de primeira vez (enredo e tutorial) ─────────────────────
+
+
+## Zera as tres flags de primeira vez so em memoria (sem gravar).
+func _clear_onboarding(g: Node) -> void:
+	g.story_seen = false
+	g.tutorial_done = false
+	g.tutorial_skipped = false
+
+
+## Grava um save "a mao", como um arquivo de uma versao anterior do jogo.
+## `player` e `bases` sao {chave: valor} e {base_id: {chave: valor}}.
+func _write_old_save(g: Node, player: Dictionary, bases: Dictionary) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 1)
+	cfg.set_value("player", "money", 150)
+	for k in player:
+		cfg.set_value("player", k, player[k])
+	for base_id in bases:
+		for k in bases[base_id]:
+			cfg.set_value(base_id, k, bases[base_id][k])
+	cfg.save(g.save_path)
+
+
+func _flags(g: Node) -> Array:
+	return [g.story_seen, g.tutorial_done, g.tutorial_skipped]
+
+
+func _test_onboarding_flags() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	_check_flags_roundtrip(g)
+	_check_old_saves(g)
+	_check_onboarding_order(g)
+	_check_mark_functions(g)
+	_check_reset_keeps_flags(g)
+	_clear_onboarding(g)
+	g.reset_progress()
+	print("ok: flags de primeira vez no save")
+
+
+## T1 e T2: ida e volta das flags novas, com a versao 2 no arquivo.
+func _check_flags_roundtrip(g: Node) -> void:
+	g.story_seen = true
+	g.tutorial_done = false
+	g.tutorial_skipped = true
+	g.save_game()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, false, true]:
+		_fail("T1: flags nao voltaram do save: %s" % [_flags(g)])
+	var cfg := ConfigFile.new()
+	cfg.load(g.save_path)
+	if cfg.get_value("meta", "version", 0) != 2:
+		_fail("T1: save sem [meta] version = 2")
+	if not cfg.has_section_key("player", "story_seen"):
+		_fail("T1: save sem a chave story_seen")
+	if not cfg.has_section_key("player", "tutorial_skipped"):
+		_fail("T1: save sem a chave tutorial_skipped")
+	g.story_seen = true
+	g.tutorial_done = true
+	g.tutorial_skipped = false
+	g.save_game()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, true, false] or g.next_onboarding() != "":
+		_fail("T2: tutorial concluido nao voltou do save: %s" % [_flags(g)])
+
+
+## T3 a T8: saves antigos (sem as chaves novas), tipo errado e arquivo ausente.
+func _check_old_saves(g: Node) -> void:
+	var cases := [
+		# [rotulo, player, bases, story_seen, tutorial_skipped, next_onboarding]
+		["T3 sem progresso", {"tutorial_done": false}, {}, false, false, "story"],
+		[
+			"T4 veterano",
+			{"tutorial_done": true},
+			{"Base_A": {"stages_cleared": 1, "stars": [2, 0, 0]}},
+			true,
+			false,
+			""
+		],
+		[
+			"T5 Modo Professor",
+			{"tutorial_done": false, "teacher_mode": true},
+			{"Base_C": {"stars": [1, 0, 0]}},
+			true,
+			true,
+			""
+		],
+		["T6 tutorial antigo sem estrela", {"tutorial_done": true}, {}, true, false, ""],
+		[
+			"T7 tipo errado",
+			{"tutorial_done": false, "story_seen": "sim", "tutorial_skipped": 1},
+			{},
+			false,
+			false,
+			"story"
+		],
+	]
+	for c in cases:
+		# Sem isto as estrelas de um caso anterior ficam na memoria: o load nao
+		# zera as que faltam no arquivo.
+		g.reset_progress()
+		g.teacher_mode = false
+		_clear_onboarding(g)
+		g.story_seen = not c[3]
+		g.tutorial_skipped = not c[4]
+		_write_old_save(g, c[1], c[2])
+		g.load_game()
+		if g.story_seen != c[3] or g.tutorial_skipped != c[4] or g.next_onboarding() != c[5]:
+			_fail(
+				(
+					"%s: story_seen=%s tutorial_skipped=%s next='%s'"
+					% [c[0], g.story_seen, g.tutorial_skipped, g.next_onboarding()]
+				)
+			)
+	g.teacher_mode = false
+	# T8: sem arquivo, nada muda e o fluxo comeca pelo enredo.
+	DirAccess.remove_absolute(g.save_path)
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [false, false, false] or g.next_onboarding() != "story":
+		_fail("T8: sem save, flags %s e next '%s'" % [_flags(g), g.next_onboarding()])
+
+
+## T9: tabela-verdade do proximo passo da primeira vez.
+func _check_onboarding_order(g: Node) -> void:
+	var table := [
+		[[false, false, false], "story"],
+		[[true, false, false], "tutorial"],
+		[[true, true, false], ""],
+		[[true, false, true], ""],
+		[[false, true, false], "story"],
+	]
+	for row in table:
+		g.story_seen = row[0][0]
+		g.tutorial_done = row[0][1]
+		g.tutorial_skipped = row[0][2]
+		if g.next_onboarding() != row[1]:
+			_fail("T9: %s deu '%s' (esperado '%s')" % [row[0], g.next_onboarding(), row[1]])
+
+
+## T10 e T11: as funcoes mark_* gravam e respeitam a conclusao.
+func _check_mark_functions(g: Node) -> void:
+	_clear_onboarding(g)
+	g.mark_story_seen()
+	g.story_seen = false
+	g.load_game()
+	if not g.story_seen:
+		_fail("mark_story_seen nao gravou no save")
+	g.tutorial_skipped = true
+	g.mark_tutorial_done()
+	_clear_onboarding(g)
+	g.load_game()
+	if not g.tutorial_done or g.tutorial_skipped:
+		_fail("T10: depois de mark_tutorial_done: %s" % [_flags(g)])
+	g.mark_tutorial_skipped()
+	if g.tutorial_skipped:
+		_fail("T11: mark_tutorial_skipped desfez a conclusao do tutorial")
+	g.tutorial_done = false
+	g.mark_tutorial_skipped()
+	g.tutorial_skipped = false
+	g.load_game()
+	if not g.tutorial_skipped:
+		_fail("mark_tutorial_skipped nao gravou no save")
+
+
+## T12: RECOMECAR zera a campanha, mas nao reapresenta enredo nem tutorial.
+func _check_reset_keeps_flags(g: Node) -> void:
+	g.story_seen = true
+	g.tutorial_done = true
+	g.tutorial_skipped = true
+	g.money = 999
+	g.record_stars("Base_A", 0, 3)
+	g.reset_progress()
+	_clear_onboarding(g)
+	g.load_game()
+	if _flags(g) != [true, true, true]:
+		_fail("T12: RECOMECAR mexeu nas flags: %s" % [_flags(g)])
+	if g.money != 150 or g.total_stars() != 0:
+		_fail("T12: RECOMECAR nao zerou ouro (%d) ou estrelas (%d)" % [g.money, g.total_stars()])
