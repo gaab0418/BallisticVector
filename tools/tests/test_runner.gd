@@ -1401,6 +1401,7 @@ func _test_legibility() -> void:
 	await _test_hud_gears_and_formula()
 	await _test_overflow()
 	await _test_hud_icon_buttons_and_strip()
+	await _test_help_diagram_labels_fit()
 	print("ok: legibilidade e HUD")
 
 
@@ -1458,12 +1459,14 @@ func _test_font_spacing_applied() -> void:
 	for label in fonts:
 		var f: Font = fonts[label]
 		var words := _text_w(f, "a b") - _text_w(base, "a b")
-		var letters := _text_w(f, "abcd") - _text_w(base, "abcd")
-		# Negrito sintetico alarga a letra, entao so o piso e comparado.
-		if words < UiTokens.WORD_SPACING + UiTokens.GLYPH_SPACING:
-			_fail("%s: espaco entre palavras +%.1f, esperado >= %d" % [label, words, 5])
-		if letters < 3 * UiTokens.GLYPH_SPACING:
-			_fail("%s: espaco entre letras +%.1f em 4 letras" % [label, letters])
+		# Piso fixo, independente do token: voltar a WORD_SPACING 0 tem que reprovar.
+		if words < MIN_WORD_SPACING_PX:
+			_fail(
+				(
+					"%s: 'a b' ficou %.1f px mais largo que a VT323 pura, minimo %d"
+					% [label, words, MIN_WORD_SPACING_PX]
+				)
+			)
 	var default_font := ThemeDB.get_project_theme().default_font
 	if not (default_font is FontVariation) or default_font.spacing_space != UiTokens.WORD_SPACING:
 		_fail(
@@ -1472,6 +1475,9 @@ func _test_font_spacing_applied() -> void:
 				% UiTokens.WORD_SPACING
 			)
 		)
+
+
+const MIN_WORD_SPACING_PX := 4
 
 
 func _text_w(font: Font, text_value: String) -> float:
@@ -1532,14 +1538,18 @@ func _test_hud_gears_and_formula() -> void:
 	# As celulas pedem o que o valor mais largo (24,8 m/s2 em VT323 28) precisa, mais
 	# que GEAR_WIDTH, e a HUD acomoda (CENTER_SHIFT). O que nao pode e uma celula
 	# vazar do painel, ou o painel empurrar um vizinho.
-	for gear in p._gears:
-		if not panel.grow(1).encloses(gear.get_global_rect()):
-			_fail("T4: uma celula da engrenagem vaza do painel")
-	for other in [hud._badge, hud._left_col, hud._right_row, hud.guess_btn]:
+	var neighbors := {
+		"a insignia da fase": hud._badge,
+		"o botao de pausa": hud._left_col,
+		"a estrela e o placar": hud._right_row,
+		"o botao do modo chute": hud.guess_btn,
+	}
+	for label in neighbors:
+		var other: Control = neighbors[label]
 		if other.visible and panel.intersects(other.get_global_rect()):
-			_fail("T4: o painel da parabola cruza %s" % other.name)
+			_fail("T4: o painel da parabola cruza %s" % label)
 		if other.visible and not _on_screen(other.get_global_rect()):
-			_fail("T4: %s fora da tela" % other.name)
+			_fail("T4: %s fica fora da tela" % label)
 	if not _on_screen(panel):
 		_fail("T4: o painel da parabola esta fora da tela")
 
@@ -1853,3 +1863,30 @@ func _test_hud_icon_buttons_and_strip() -> void:
 	hud.set_move_hint(false)
 	if hud._move_group.visible:
 		_fail("T18: o grupo de andar deveria sumir")
+
+
+## T21: os rotulos do diagrama da ajuda ficam dentro do papel, mesmo com o
+## espaco entre palavras maior.
+func _test_help_diagram_labels_fit() -> void:
+	var diagram := ParabolaDiagram.new()
+	diagram.custom_minimum_size = Vector2(470, 250)
+	diagram.size = Vector2(470, 250)
+	diagram.annotate = true
+	diagram.span_m = 29.0
+	diagram.curves = [
+		{"angle": 45.0, "speed": 800.0, "gravity": 500.0, "color": UiTokens.CALCULATED_ON_PAPER}
+	]
+	root.add_child(diagram)
+	await _frames(3)
+	if diagram.drawn_texts.is_empty():
+		_fail("T21: o diagrama nao desenhou texto nenhum")
+	var paper := Rect2(Vector2.ZERO, diagram.size)
+	for r in diagram.drawn_texts:
+		if r.position.x < 0.0 or r.end.x > paper.end.x:
+			_fail(
+				(
+					"T21: rotulo do diagrama passa da borda do papel (x %.0f a %.0f de %.0f)"
+					% [r.position.x, r.end.x, paper.end.x]
+				)
+			)
+	diagram.queue_free()

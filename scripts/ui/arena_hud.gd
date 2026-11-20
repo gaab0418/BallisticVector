@@ -126,8 +126,8 @@ func _build_left() -> void:
 
 	_left_col = pause_btn
 
-	# Modo chute, logo abaixo da insignia: esconde a curva e o alcance; a
-	# crianca marca no chao onde a bala vai cair e confere depois do tiro.
+	# Modo chute, logo abaixo da insignia: esconde a curva e o alcance; o
+	# jogador marca no chao onde a bala vai cair e confere depois do tiro.
 	guess_btn = UiButton.create("", UiButton.Kind.ICON)
 	guess_btn.toggle_mode = true
 	guess_btn.tooltip_text = GUESS_TOOLTIP

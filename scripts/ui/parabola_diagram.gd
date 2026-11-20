@@ -10,11 +10,15 @@ extends Control
 
 ## Altura do canhao no diagrama, em metros (a mesma da arena).
 const CANNON_H := 1.0
+## Folga minima entre o fim de um rotulo e a borda do papel.
+const TEXT_MARGIN := 4.0
 
 var curves: Array = []
 var annotate := false
 ## Metros que cabem na largura do grafico.
 var span_m := 28.0
+## Retangulos dos textos do ultimo desenho (para teste e depuracao).
+var drawn_texts: Array[Rect2] = []
 var _font: Font
 
 
@@ -24,6 +28,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
+	drawn_texts.clear()
 	var pad := Vector2(28, 18)
 	var ground := size.y - pad.y - 18.0
 	var origin_x := pad.x
@@ -86,5 +91,10 @@ func _draw_curve(c: Dictionary, origin_x: float, ground: float, ppm: float) -> v
 		_text(Vector2(cx - 12, top - 6), "c", UiTokens.EDITABLE_ON_PAPER, UiTokens.FONT_SM)
 
 
+## O espacamento de palavra alarga os rotulos: o x e limitado para o texto nao
+## passar da borda do papel (ancora a esquerda quando nem assim cabe).
 func _text(at: Vector2, text: String, col: Color, size_px: int) -> void:
-	draw_string(_font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, col)
+	var width := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px).x
+	var x := clampf(at.x, 0.0, maxf(0.0, size.x - width - TEXT_MARGIN))
+	drawn_texts.append(Rect2(Vector2(x, at.y - _font.get_ascent(size_px)), Vector2(width, size_px)))
+	draw_string(_font, Vector2(x, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, col)
