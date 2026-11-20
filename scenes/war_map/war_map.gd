@@ -101,7 +101,7 @@ func _ready() -> void:
 		Global.map_intro_done = true
 	elif Notebook.unseen_count() > 0:
 		line = 'Página nova no meu caderno. Abra o "Caderno" para ver a animação.'
-	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
+	# Voltou de uma base conquistada: o barco navega ate a proxima ilha.
 	if Global.just_conquered != "":
 		_table.animate_boat(_index_of(Global.just_conquered))
 		Global.just_conquered = ""

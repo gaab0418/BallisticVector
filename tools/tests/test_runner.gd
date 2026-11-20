@@ -548,16 +548,26 @@ func _test_ada_intro() -> void:
 func _check_intro_edge_cases() -> void:
 	var castle := {"name": "Castelo X", "kind": "shield"}
 	var odd := {"name": "Castelo X", "kind": "laser"}
+	var fallback: String = _coach_script().CHIEF_FALLBACK
+	# [nome, fase, textos esperados, comparacao, legenda esperada da 1a fala]
 	var cases := [
-		["licao vazia", {"lesson": ""}, []],
-		["licao so com espacos", {"lesson": "   "}, []],
-		["sem pontuacao", {"lesson": "Sem ponto final"}, ["Sem ponto final"]],
-		["duas frases", {"lesson": "Uma. Duas."}, ["Uma."]],
-		["so chefe", {"lesson": "", "chief": castle}, ["Castelo X: a cúpula"]],
+		["licao vazia", {"lesson": ""}, [], "exato", ""],
+		["licao so com espacos", {"lesson": "   "}, [], "exato", ""],
+		["sem pontuacao", {"lesson": "Sem ponto final"}, ["Sem ponto final"], "exato", "CAP"],
+		["duas frases", {"lesson": "Uma. Duas."}, ["Uma."], "exato", "CAP"],
+		[
+			"so chefe",
+			{"lesson": "", "chief": castle},
+			["Castelo X: a cúpula"],
+			"comeca_com",
+			"CHEFE"
+		],
 		[
 			"chefe sem regra",
 			{"lesson": "", "chief": odd},
-			["Castelo X: " + _coach_script().CHIEF_FALLBACK]
+			["Castelo X: " + fallback],
+			"exato",
+			"CHEFE"
 		],
 	]
 	for c in cases:
@@ -567,15 +577,12 @@ func _check_intro_edge_cases() -> void:
 			_fail("abertura (%s) com %d falas (esperado %d)" % [c[0], lines.size(), want.size()])
 			continue
 		for i in range(want.size()):
-			var ok: bool = (
-				lines[i].text.begins_with(want[i])
-				if c[0] == "so chefe"
-				else lines[i].text == want[i]
-			)
+			var text: String = lines[i].text
+			var ok: bool = text.begins_with(want[i]) if c[3] == "comeca_com" else text == want[i]
 			if not ok:
-				_fail("abertura (%s): '%s'" % [c[0], lines[i].text])
-		if c[0] in ["so chefe", "chefe sem regra"] and lines[0].caption != "CHEFE":
-			_fail("abertura (%s) sem a legenda CHEFE" % c[0])
+				_fail("abertura (%s): '%s'" % [c[0], text])
+		if not lines.is_empty() and lines[0].caption != c[4]:
+			_fail("abertura (%s) com legenda '%s'" % [c[0], lines[0].caption])
 
 
 ## Abre a arena da Base Alpha, fase 2 (indice 1), com a abertura da Ada fechada.
@@ -599,7 +606,8 @@ func _test_ada_in_arena() -> void:
 	var a = await _open_ada_arena()
 	await _check_goals_in_star(a)
 	await _check_tip_after_misses(a)
-	_check_no_bubble_without_lesson(a)
+	await _check_no_bubble_without_lesson(a)
+	await _check_tip_resets_in_new_arena()
 	paused = false
 	print("ok: falas da Ada na arena")
 
@@ -669,13 +677,38 @@ func _check_tip_after_misses(a: Node) -> void:
 	coach.ada.hide_now()
 
 
-## T7: fase sem licao e sem chefe nao abre balao (nem pausa o jogo a toa).
+## T7: fase sem licao e sem chefe nao abre balao nem pausa o jogo a toa
+## (`ada.say([])` pausaria e despausaria a arvore).
 func _check_no_bubble_without_lesson(a: Node) -> void:
+	# O fim da abertura despausa em diferido: espera antes de olhar a pausa.
+	await _frames(3)
+	paused = false
 	a.stage_data = a.stage_data.duplicate()
 	a.stage_data["lesson"] = ""
 	a.coach.start_stage()
+	if paused:
+		_fail("fase sem licao chamou ada.say([]) e pausou o jogo")
 	if a.coach.ada.visible or a.coach.ada._mode != "":
 		_fail("fase sem licao abriu balao da Ada")
+	await _frames(3)
+	paused = false
+
+
+## m4: `_stage_tip_given` reinicia numa arena nova (a tip vale de novo no 1o limiar).
+func _check_tip_resets_in_new_arena() -> void:
+	var stage_tip := "Acerte o castelo duas vezes: uma abaixo de 45° e outra acima."
+	for round_n in range(2):
+		var a = await _open_ada_arena()
+		_miss_times(a.coach, 3, Vector2(300, 652), false)
+		if a.coach.ada._text.text != stage_tip:
+			_fail(
+				(
+					"arena nova %d sem a tip da fase no 1o limiar: '%s'"
+					% [round_n, a.coach.ada._text.text]
+				)
+			)
+		a.coach.ada.hide_now()
+	paused = false
 
 
 ## Palavras que o publico (ensino medio) leria como infantis.
@@ -719,6 +752,9 @@ func _test_text_tone() -> void:
 	for kind in rules:
 		texts["chefe " + kind] = rules[kind]
 	texts["chefe (fallback)"] = _coach_script().CHIEF_FALLBACK
+	var says: Array = load("res://scripts/ui/stage_result.gd").ADA_SAYS
+	for i in range(says.size()):
+		texts["resultado %d" % (i + 1)] = says[i]
 	for key in texts:
 		var problem := _tone_problem(texts[key])
 		if problem != "":

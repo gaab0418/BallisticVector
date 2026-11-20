@@ -84,9 +84,6 @@ func start_stage() -> void:
 		ada.say(lines)
 
 
-## Abertura da fase: so a primeira frase da licao e, se houver chefe, um aviso
-## curto. A dica fica para depois de MISSES_FOR_TIP erros seguidos; as missoes,
-## para o botao de estrela.
 ## Como vencer cada tipo de chefe, na fala de abertura (ver BossBrain).
 const CHIEF_RULES := {
 	"shield": "a cúpula que eu projetei só deixa passar bala caindo de cima. Suba bem o vértice.",
@@ -98,9 +95,8 @@ const CHIEF_RULES := {
 	"o escudo vermelho só cai depois que todos os outros inimigos caírem. Comece por eles.",
 }
 
-const CHIEF_FALLBACK := (
-	"este chefe tem uma regra própria. " + "Observe o primeiro tiro antes de gastar munição."
-)
+# gdlint: ignore=max-line-length
+const CHIEF_FALLBACK := "este chefe tem uma regra própria. Observe o primeiro tiro antes de gastar munição."
 
 
 func _intro_lines() -> Array:
@@ -113,8 +109,9 @@ func _intro_lines() -> Array:
 	return intro_lines_for(arena.stage_data, caption)
 
 
-## Abertura da fase: a 1a frase da licao e, se houver chefe, um aviso curto.
-## Licao vazia e sem chefe devolve lista vazia.
+## Abertura da fase: so a primeira frase da licao e, se houver chefe, um aviso
+## curto. A dica fica para depois de MISSES_FOR_TIP erros seguidos; as missoes,
+## para o botao de estrela. Licao vazia e sem chefe devolve lista vazia.
 static func intro_lines_for(stage: Dictionary, caption: String) -> Array:
 	var lines := []
 	var sentences := _sentences(String(stage.get("lesson", "")))
