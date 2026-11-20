@@ -12,6 +12,9 @@ const MenuShotScript = preload("res://scenes/menu_play/menu_shot.gd")
 const MUSIC_BG := "res://assets/audio/musica_fundo.wav"
 const SFX_FIRE := "res://assets/audio/cannon_fire.ogg"
 const WAR_MAP_SCENE := "res://scenes/war_map/war_map.tscn"
+const ARENA_SCENE := "res://scenes/arena/arena.tscn"
+## Posicao do botao TUTORIAL em _buttons (entra no fim: o resto usa 3, 4 e 7).
+const TUTORIAL_INDEX := 9
 
 ## O tanque olha para a esquerda (espelhado), atirando por cima do acampamento.
 const TANK_POS := Vector2(1010, 560)
@@ -35,9 +38,13 @@ var _fire_timer := 2.5
 var _aim_target := -0.6
 var _buttons: Array = []
 var _teacher_btn: Button
+var _story: StoryIntro
+var _tutorial: TutorialModal
 
 
 func _ready() -> void:
+	# Um practice_mode que vazasse transformaria a proxima fase em pratica.
+	Global.practice_mode = false
 	_setup_background()
 	_build_tank()
 	AudioManager.play_bgm(MUSIC_BG)
@@ -159,14 +166,26 @@ func _setup_ui() -> void:
 	# Com progresso salvo, o botão principal diz "continuar".
 	var play_text := "CONTINUAR" if Global.has_progress() else "JOGAR"
 	var btn_play := UiButton.create(play_text, UiButton.Kind.PRIMARY, null, true)
-	btn_play.pressed.connect(func(): get_tree().change_scene_to_file(WAR_MAP_SCENE))
+	btn_play.pressed.connect(_on_play_pressed)
 	column.add_child(btn_play)
 
 	var duel_modal := _build_duel_modal(hud)
+	var duel_row := HBoxContainer.new()
+	duel_row.add_theme_constant_override("separation", UiTokens.GAP)
+	column.add_child(duel_row)
 	var btn_duel := UiButton.create("DUELO", UiButton.Kind.SECONDARY, null, true)
 	btn_duel.tooltip_text = "Dois tanques, um tiro por vez: contra um amigo ou contra a Ada"
+	btn_duel.custom_minimum_size = Vector2(134, 52)
+	btn_duel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn_duel.pressed.connect(duel_modal.open)
-	column.add_child(btn_duel)
+	duel_row.add_child(btn_duel)
+	_build_onboarding(hud)
+	var btn_tutorial := UiButton.create("TUTORIAL", UiButton.Kind.SECONDARY, null, true)
+	btn_tutorial.tooltip_text = "Rever como o canhão funciona e treinar na calibragem"
+	btn_tutorial.custom_minimum_size = Vector2(134, 52)
+	btn_tutorial.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn_tutorial.pressed.connect(_open_tutorial_from_menu)
+	duel_row.add_child(btn_tutorial)
 
 	notebook_modal = NotebookPanel.new()
 	hud.add_child(notebook_modal)
@@ -237,7 +256,8 @@ func _setup_ui() -> void:
 		btn_reset,
 		btn_quit,
 		btn_duel,
-		btn_book
+		btn_book,
+		btn_tutorial
 	]
 	_animate_entry(panel)
 	btn_play.grab_focus.call_deferred()
@@ -278,6 +298,65 @@ func _build_duel_modal(parent: CanvasLayer) -> CanvasLayer:
 	return modal
 
 
+## Abertura de enredo e tutorial modal da primeira vez (e do botao TUTORIAL).
+func _build_onboarding(parent: CanvasLayer) -> void:
+	_story = StoryIntro.new()
+	parent.add_child(_story)
+	_story.finished.connect(_on_story_finished)
+	_tutorial = TutorialModal.new()
+	parent.add_child(_tutorial)
+	_tutorial.completed.connect(_on_tutorial_completed)
+	_tutorial.aborted.connect(_on_tutorial_aborted)
+
+
+## JOGAR/CONTINUAR: enredo e tutorial so enquanto faltam (Global.next_onboarding).
+func _on_play_pressed() -> void:
+	# A origem "menu" de um tutorial anterior nao vale para o JOGAR.
+	Global.tutorial_origin = "first_run"
+	_continue_onboarding()
+
+
+func _continue_onboarding() -> void:
+	match Global.next_onboarding():
+		"story":
+			_story.open()
+		"tutorial":
+			_tutorial.open()
+		_:
+			get_tree().change_scene_to_file(WAR_MAP_SCENE)
+
+
+## Botao TUTORIAL: sempre pelo enredo, qualquer que seja o estado das flags.
+func _open_tutorial_from_menu() -> void:
+	Global.tutorial_origin = "menu"
+	_story.open()
+
+
+## Ver ou pular o enredo conta como visto nas duas origens (log 07).
+func _on_story_finished(_skipped: bool) -> void:
+	Global.mark_story_seen()
+	if Global.tutorial_origin == "menu":
+		_tutorial.open()
+	else:
+		_continue_onboarding()
+
+
+func _on_tutorial_completed() -> void:
+	Global.practice_mode = true
+	Global.reset_armor()
+	get_tree().change_scene_to_file(ARENA_SCENE)
+
+
+## Pelo botao, sair nao conta como "pulei": o JOGAR ainda oferece o tutorial.
+func _on_tutorial_aborted() -> void:
+	if Global.tutorial_origin == "menu":
+		# Deferido: o foco deferido do enredo, aberto no mesmo quadro, roubaria o foco.
+		_buttons[TUTORIAL_INDEX].grab_focus.call_deferred()
+		return
+	Global.mark_tutorial_skipped()
+	get_tree().change_scene_to_file(WAR_MAP_SCENE)
+
+
 func _start_duel(mode: String, level: String) -> void:
 	Global.duel_mode = mode
 	Global.duel_level = level
@@ -287,7 +366,7 @@ func _start_duel(mode: String, level: String) -> void:
 func _open_lab() -> void:
 	Global.lab_mode = true
 	Global.reset_armor()
-	get_tree().change_scene_to_file("res://scenes/arena/arena.tscn")
+	get_tree().change_scene_to_file(ARENA_SCENE)
 
 
 func _on_teacher_toggled(on: bool) -> void:

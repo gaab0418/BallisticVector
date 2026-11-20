@@ -89,6 +89,7 @@ func _run() -> void:
 	await _test_practice_arena()
 	await _test_tutorial_modal()
 	await _test_story_intro()
+	await _test_menu_onboarding()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -2912,3 +2913,265 @@ func _check_story_controls() -> void:
 	if big <= s._line_label.get_theme_font_size("font_size"):
 		_fail("T24: big_text nao aumenta a frase")
 	await _free_modal(s)
+
+
+# ── 13. Menu: orquestracao da primeira vez ───────────────────────────
+
+const MENU_SCENE := "res://scenes/menu_play/menu_play.tscn"
+const MAP_SCENE := "res://scenes/war_map/war_map.tscn"
+const ARENA_SCENE := "res://scenes/arena/arena.tscn"
+const TUTORIAL_BUTTON := 9
+
+
+func _test_menu_onboarding() -> void:
+	var g = root.get_node("Global")
+	await _check_menu_resets_practice()
+	await _check_play_all_done()
+	await _check_play_story_then_map()
+	await _check_play_first_run()
+	await _check_play_tutorial_to_practice()
+	await _check_tutorial_button_opens_story()
+	await _check_tutorial_button_skip_saves_story()
+	await _check_tutorial_button_leave()
+	await _check_tutorial_before_first_play()
+	await _check_tutorial_button_practice()
+	g.practice_mode = false
+	g.tutorial_origin = "first_run"
+	paused = false
+	_clear_onboarding(g)
+	g.reset_progress()
+	print("ok: menu da primeira vez")
+
+
+## Grava as flags (story_seen, tutorial_done, tutorial_skipped) e abre o menu.
+func _open_menu(flags: Array) -> Node:
+	var g = root.get_node("Global")
+	g.practice_mode = false
+	g.lab_mode = false
+	g.tutorial_origin = "first_run"
+	g.map_intro_done = true
+	g.story_seen = flags[0]
+	g.tutorial_done = flags[1]
+	g.tutorial_skipped = flags[2]
+	g.save_game()
+	paused = false
+	change_scene_to_file(MENU_SCENE)
+	await _frames(20)
+	return current_scene
+
+
+## Recarrega o save e devolve as flags gravadas.
+func _saved_flags(g: Node) -> Array:
+	_clear_onboarding(g)
+	g.load_game()
+	return _flags(g)
+
+
+## Reset defensivo: um practice_mode que vazou morre ao abrir o menu.
+func _check_menu_resets_practice() -> void:
+	var g = root.get_node("Global")
+	g.practice_mode = true
+	paused = false
+	change_scene_to_file(MENU_SCENE)
+	await _frames(20)
+	if g.practice_mode:
+		_fail("o menu nao zerou practice_mode no _ready")
+
+
+## T32: JOGAR com tudo concluido vai direto ao mapa.
+func _check_play_all_done() -> void:
+	var menu := await _open_menu([true, true, false])
+	menu._on_play_pressed()
+	if menu._story.visible or menu._tutorial.visible:
+		_fail("T32: JOGAR com tudo concluido abriu o enredo ou o tutorial")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T32: JOGAR com tudo concluido levou a %s" % _scene_path())
+
+
+## T26: enredo pulado com o tutorial ja feito vai ao mapa, sem o tutorial.
+func _check_play_story_then_map() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([false, true, false])
+	menu._on_play_pressed()
+	if not menu._story.visible:
+		_fail("T26: JOGAR sem story_seen nao abriu o enredo")
+	menu._story.skip()
+	if menu._tutorial.visible:
+		_fail("T26: o tutorial abriu com tutorial_done")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T26: pular o enredo com o tutorial feito levou a %s" % _scene_path())
+	if _saved_flags(g) != [true, true, false]:
+		_fail("T26: flags gravadas %s" % [_flags(g)])
+
+
+## T25 e T29: primeira vez pelo JOGAR; pular o enredo abre o tutorial e sair
+## dele grava tutorial_skipped e leva ao mapa.
+func _check_play_first_run() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([false, false, false])
+	menu._on_play_pressed()
+	if not menu._story.visible or menu._story.current_index() != 0:
+		_fail("T25: JOGAR na primeira vez nao abriu o enredo na tela 1")
+	menu._story.advance()
+	menu._story.skip()
+	await _frames(2)
+	if not g.story_seen:
+		_fail("T25: pular o enredo nao marcou story_seen")
+	if not menu._tutorial.visible or menu._tutorial.page_index() != 0:
+		_fail("T25: pular o enredo nao abriu o tutorial no passo 1")
+	if _scene_path() != MENU_SCENE:
+		_fail("T25: pular o enredo saiu do menu (%s)" % _scene_path())
+	var aborted := _count_signal(menu._tutorial.aborted)
+	menu._tutorial.confirm_exit()
+	if aborted[0] != 1:
+		_fail("T29: aborted emitido %d vezes" % aborted[0])
+	if _saved_flags(g) != [true, false, true]:
+		_fail("T25/T29: flags gravadas %s, esperava [true, false, true]" % [_flags(g)])
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T29: sair do tutorial na primeira vez levou a %s" % _scene_path())
+
+
+## Vai do passo 1 ao 7 e aperta o botao da ultima pagina.
+func _finish_tutorial_pages(menu: Node) -> Array:
+	var done := _count_signal(menu._tutorial.completed)
+	await _next_pages(menu._tutorial, 6)
+	var last := _find_button(menu._tutorial, menu._tutorial.LAST_LABEL)
+	if last == null:
+		_fail("T30: a ultima pagina nao tem o botao %s" % menu._tutorial.LAST_LABEL)
+	else:
+		last.pressed.emit()
+	return done
+
+
+## T30: fim das paginas leva a pratica (JOGAR com o enredo ja visto).
+func _check_play_tutorial_to_practice() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._on_play_pressed()
+	if menu._story.visible or not menu._tutorial.visible:
+		_fail("T30: JOGAR com story_seen nao foi direto ao tutorial")
+	var done := await _finish_tutorial_pages(menu)
+	if done[0] != 1 or not g.practice_mode:
+		_fail("T30: completed=%d practice_mode=%s" % [done[0], g.practice_mode])
+	await _frames(10)
+	if _scene_path() != ARENA_SCENE or current_scene.get("practice") == null:
+		_fail("T30: o fim do tutorial levou a %s" % _scene_path())
+	else:
+		await _finish_opening(current_scene)
+	g.practice_mode = false
+	paused = false
+
+
+## T31b e T31g: o botao TUTORIAL fica na linha do DUELO e sempre abre o enredo.
+func _check_tutorial_button_opens_story() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, true, false])
+	var btn: Button = menu._buttons[TUTORIAL_BUTTON] if menu._buttons.size() > 9 else null
+	if btn == null or btn.text != "TUTORIAL":
+		_fail("T31b: _buttons[9] nao e o botao TUTORIAL")
+		return
+	if btn.get_parent() != menu._buttons[7].get_parent():
+		_fail("T31b: o botao TUTORIAL nao esta na linha do DUELO")
+	btn.pressed.emit()
+	if not menu._story.visible or menu._story.current_index() != 0:
+		_fail("T31b/T31g: o botao TUTORIAL nao abriu o enredo na tela 1 (story_seen=true)")
+	if menu._tutorial.visible:
+		_fail("T31b: o botao TUTORIAL abriu o tutorial antes do enredo")
+	if g.tutorial_origin != "menu":
+		_fail("T31b: tutorial_origin=%s, esperava menu" % g.tutorial_origin)
+
+
+## T31c2 (PULAR) e T31d (Esc): pelo botao, pular o enredo grava story_seen e
+## abre o tutorial no passo 1, mesmo com tutorial_done.
+func _check_tutorial_button_skip_saves_story() -> void:
+	var g = root.get_node("Global")
+	for how in ["skip", "esc"]:
+		var menu := await _open_menu([false, true, false])
+		menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+		if how == "skip":
+			menu._story.advance()
+			menu._story.skip()
+		else:
+			_press(menu._story, "ui_cancel")
+		await _frames(2)
+		var tag := "T31c2" if how == "skip" else "T31d"
+		if not menu._tutorial.visible or menu._tutorial.page_index() != 0:
+			_fail("%s: pular o enredo pelo botao nao abriu o tutorial no passo 1" % tag)
+		if not g.story_seen:
+			_fail("%s: pular o enredo pelo botao nao marcou story_seen" % tag)
+		if _saved_flags(g) != [true, true, false]:
+			_fail("%s: flags gravadas %s" % [tag, _flags(g)])
+		menu._tutorial.close()
+
+
+## T31e: sair do tutorial pelo botao fica no menu e nao grava tutorial_skipped.
+func _check_tutorial_button_leave() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	menu._tutorial.confirm_exit()
+	await _frames(10)
+	if current_scene != menu:
+		_fail("T31e: sair do tutorial pelo botao levou a %s" % _scene_path())
+		return
+	if g.tutorial_skipped or _saved_flags(g)[2]:
+		_fail("T31e: sair do tutorial pelo botao gravou tutorial_skipped")
+	if not menu._buttons[TUTORIAL_BUTTON].has_focus():
+		_fail("T31e: o foco nao voltou ao botao TUTORIAL")
+
+
+## T31h (log 07): TUTORIAL antes do primeiro JOGAR. Depois, o JOGAR oferece o
+## tutorial sem o enredo, e sair dele ja conta como primeira vez.
+func _check_tutorial_before_first_play() -> void:
+	var g = root.get_node("Global")
+	DirAccess.remove_absolute(g.save_path)
+	g.reset_progress()
+	var menu := await _open_menu([false, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	menu._tutorial.confirm_exit()
+	await _frames(2)
+	if _saved_flags(g) != [true, false, false]:
+		_fail("T31h: flags gravadas %s, esperava [true, false, false]" % [_flags(g)])
+	if g.next_onboarding() != "tutorial":
+		_fail("T31h: next_onboarding()=%s, esperava tutorial" % g.next_onboarding())
+	menu._on_play_pressed()
+	if not menu._tutorial.visible or menu._story.visible:
+		_fail("T31h: JOGAR depois do botao nao foi direto ao tutorial")
+	menu._tutorial.confirm_exit()
+	if not g.tutorial_skipped:
+		_fail("T31h: sair do tutorial pelo JOGAR (depois do botao) nao gravou tutorial_skipped")
+	await _frames(10)
+	if _scene_path() != MAP_SCENE:
+		_fail("T31h: sair do tutorial pelo JOGAR levou a %s" % _scene_path())
+
+
+## T31f: pelo botao, o fluxo inteiro (enredo, paginas, pratica) volta ao menu e
+## so derrubar o chefe grava tutorial_done.
+func _check_tutorial_button_practice() -> void:
+	var g = root.get_node("Global")
+	var menu := await _open_menu([true, false, false])
+	menu._buttons[TUTORIAL_BUTTON].pressed.emit()
+	menu._story.skip()
+	await _finish_tutorial_pages(menu)
+	if g.tutorial_done:
+		_fail("T31f: tutorial_done gravado antes do chefe cair")
+	await _frames(10)
+	var a = current_scene
+	if _scene_path() != ARENA_SCENE or a.get("practice") == null:
+		_fail("T31f: o tutorial pelo botao nao abriu a pratica (%s)" % _scene_path())
+		g.practice_mode = false
+		return
+	await _finish_opening(a)
+	a.on_enemy_hit(_practice_boss(a), 1)
+	await _frames(3)
+	a.coach.ada._finish()
+	await _frames(10)
+	if _saved_flags(g) != [true, true, false] or g.practice_mode:
+		_fail("T31f: flags %s practice_mode=%s" % [_flags(g), g.practice_mode])
+	if _scene_path() != MENU_SCENE:
+		_fail("T31f: a pratica pelo botao terminou em %s" % _scene_path())
