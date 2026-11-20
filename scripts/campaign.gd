@@ -13,6 +13,8 @@ extends RefCounted
 ##   Bonus   -- a Ilha Invertida (gravidade para cima: a > 0, vertice minimo)
 ##
 ## Chaves opcionais de uma fase, alem das basicas:
+##   move_zone   -- Vector2(x1, x2) onde o tanque do jogador anda (with_fuel o poe)
+##   fuel_m      -- combustivel (m) para andar nessa faixa (with_fuel o poe)
 ##   height_line -- altura (m) da linha y = h desenhada no mundo
 ##   balloons    -- [Vector2(x_px, altura_m)] balões amarrados ao chao
 ##   bunkers     -- [x_px] bunkers enterrados (so quebram com tiro caindo de cima)
@@ -26,6 +28,7 @@ extends RefCounted
 ##   power_lock  -- forca travada (fracao): so o angulo muda o alcance
 ##   chief       -- o chefe da ultima fase de cada base (ver BossBrain):
 ##                  {"name", "kind": shield|moving|hopping|gravity|guarded, ...}
+##                  "fires": true -- o chefe atira um morteiro avisado no jogador
 ##   boss_hp     -- vida do castelo (padrao 3; o chefe tem mais)
 ##
 ## Toda fase tem tres estrelas. A primeira e vencer; as outras duas sao desafios
@@ -151,10 +154,13 @@ const BASES := {
 				"boss_x": 1000.0,
 				"planes": 2,
 				"plane_hp": 1,
+				"tanks": {"count": 1, "zone": Vector2(740, 880)},
+				"move_zone": FUEL_ZONE,
+				"fuel_m": FUEL_M,
 				"goals":
 				[
 					{"type": "twin_angles"},
-					{"type": "max_shots", "value": 7},
+					{"type": "max_shots", "value": 9},
 				],
 			},
 			{
@@ -182,6 +188,9 @@ const BASES := {
 				"chief": {"name": "Fortaleza do Escudo", "kind": "shield", "min_descent": 35.0},
 				"planes": 3,
 				"plane_hp": 1,
+				"balloons": [Vector2(620, 4.0)],
+				"move_zone": FUEL_ZONE,
+				"fuel_m": FUEL_M,
 				"goals":
 				[
 					{"type": "angle_hit", "min": 55.0, "max": 90.0},
@@ -276,11 +285,14 @@ const BASES := {
 					"name": "Castelo sobre Rodas",
 					"kind": "moving",
 					"zone": Vector2(1060, 1200),
-					"speed": 22.0
+					"speed": 22.0,
+					"fires": true
 				},
 				"planes": 2,
 				"plane_hp": 2,
 				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
+				"move_zone": FUEL_ZONE,
+				"fuel_m": CHIEF_FUEL_M,
 				"goals":
 				[
 					{"type": "no_damage"},
@@ -479,7 +491,8 @@ const BASES := {
 				{
 					"name": "Castelo Fujão",
 					"kind": "hopping",
-					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]
+					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0],
+					"fires": true
 				},
 				"planes": 4,
 				"plane_hp": 2,
@@ -881,10 +894,14 @@ static func stage(base_id: String, index: int) -> Dictionary:
 
 ## Fora da Delta (que ensina a translacao com faixa livre), o tanque anda pouco:
 ## um tanque de combustivel por fase, para ajustar a posicao sem virar a licao.
-## Alpha fica parada (tutorial) e o plato nao tem chao para andar.
+## Alpha: as fases 2 e 3 declaram o combustivel no proprio dicionario; a fase 1
+## fica parada (tutorial). O plato nao tem chao para andar.
 const FUEL_BASES := ["Base_B", "Base_C", "Base_E", "Base_F"]
 const FUEL_M := 3.0
 const FUEL_ZONE := Vector2(40.0, 250.0)
+## O chefe que atira (Bravo 3) precisa de combustivel para o jogador desviar do
+## morteiro varias vezes: cada desvio de 64 px custa 1,28 m.
+const CHIEF_FUEL_M := 12.0
 
 
 static func with_fuel(base_id: String, st: Dictionary) -> Dictionary:

@@ -95,6 +95,10 @@ const CHIEF_RULES := {
 	"o escudo vermelho só cai depois que todos os outros inimigos caírem. Comece por eles.",
 }
 
+## Acrescentada so na fala do chefe que atira (`fires`): o Iglu tambem e `moving`
+## e nao atira, por isso nao da para pôr isso em CHIEF_RULES.
+const CHIEF_FIRES_SUFFIX := "Ele revida: saia do marcador."
+
 # gdlint: ignore=max-line-length
 const CHIEF_FALLBACK := "este chefe tem uma regra própria. Observe o primeiro tiro antes de gastar munição."
 
@@ -120,6 +124,8 @@ static func intro_lines_for(stage: Dictionary, caption: String) -> Array:
 	var chief: Dictionary = stage.get("chief", {})
 	if not chief.is_empty():
 		var rule: String = CHIEF_RULES.get(chief.get("kind", ""), CHIEF_FALLBACK)
+		if chief.get("fires", false):
+			rule += " " + CHIEF_FIRES_SUFFIX
 		(
 			lines
 			. append(
