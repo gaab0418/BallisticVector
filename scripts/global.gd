@@ -252,7 +252,7 @@ func load_game() -> void:
 	if ammo is Dictionary:
 		for k in ammo:
 			ammo_inventory[k] = int(ammo[k])
-	teacher_mode = bool(cfg.get_value("player", "teacher_mode", teacher_mode))
+	teacher_mode = _read_flag(cfg, "teacher_mode", teacher_mode)
 	brass = int(cfg.get_value("player", "brass", brass))
 	var own = cfg.get_value("player", "owned", owned)
 	if own is Dictionary:
@@ -271,11 +271,11 @@ func load_game() -> void:
 	if eq is Dictionary:
 		for k in eq:
 			equipped[k] = str(eq[k])
-	tutorial_done = bool(cfg.get_value("player", "tutorial_done", tutorial_done))
-	map_intro_done = bool(cfg.get_value("player", "map_intro_done", map_intro_done))
-	victory_seen = bool(cfg.get_value("player", "victory_seen", victory_seen))
-	narration = bool(cfg.get_value("player", "narration", narration))
-	big_text = bool(cfg.get_value("player", "big_text", big_text))
+	tutorial_done = _read_flag(cfg, "tutorial_done", tutorial_done)
+	map_intro_done = _read_flag(cfg, "map_intro_done", map_intro_done)
+	victory_seen = _read_flag(cfg, "victory_seen", victory_seen)
+	narration = _read_flag(cfg, "narration", narration)
+	big_text = _read_flag(cfg, "big_text", big_text)
 	for base_id in bases:
 		var total: int = bases[base_id]["total_stages"]
 		var cleared := int(cfg.get_value(base_id, "stages_cleared", 0))

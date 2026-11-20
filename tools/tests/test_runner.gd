@@ -20,7 +20,8 @@ extends SceneTree
 ##   8. o morteiro avisado dos chefes que atiram: conta, justica (da para
 ##      desviar andando) e as regras de parada (pausa, chefe derrubado, vitoria).
 ## Sai com codigo 1 se qualquer teste falhar ou ocorrer SCRIPT ERROR. BV_SAVE_PATH
-## evita tocar no save de quem joga na mesma maquina.
+## evita tocar no save de quem joga na mesma maquina; sem ela, sai com 2 antes de
+## qualquer teste.
 
 const BOSS_R := 85.0
 const SMALL_R := 35.0
@@ -60,6 +61,11 @@ var boss_brain: GDScript
 
 
 func _initialize() -> void:
+	# Sem BV_SAVE_PATH os testes gravariam (e apagariam) o save real de quem joga.
+	if OS.get_environment("BV_SAVE_PATH").strip_edges().is_empty():
+		printerr("BV_SAVE_PATH vazio: defina um arquivo temporario no mesmo comando do runner.")
+		quit(2)
+		return
 	OS.add_logger(_script_errors)
 	_run.call_deferred()
 
@@ -1917,6 +1923,7 @@ func _test_onboarding_flags() -> void:
 	g.reset_progress()
 	_check_flags_roundtrip(g)
 	_check_old_saves(g)
+	_check_string_bools(g)
 	_check_onboarding_order(g)
 	_check_mark_functions(g)
 	_check_reset_keeps_flags(g)
@@ -2008,6 +2015,47 @@ func _check_old_saves(g: Node) -> void:
 	g.load_game()
 	if _flags(g) != [false, false, false] or g.next_onboarding() != "story":
 		_fail("T8: sem save, flags %s e next '%s'" % [_flags(g), g.next_onboarding()])
+
+
+## T7b: save editado a mao com texto no lugar das bools do player. Carrega sem
+## SCRIPT ERROR, as bools ficam como estavam e as estrelas voltam.
+func _check_string_bools(g: Node) -> void:
+	g.reset_progress()
+	g.teacher_mode = false
+	_clear_onboarding(g)
+	var cfg := ConfigFile.new()
+	cfg.set_value("meta", "version", 2)
+	cfg.set_value("player", "money", 150)
+	for key in [
+		"teacher_mode",
+		"tutorial_done",
+		"map_intro_done",
+		"victory_seen",
+		"narration",
+		"big_text",
+		"story_seen",
+		"tutorial_skipped",
+	]:
+		cfg.set_value("player", key, "sim")
+	cfg.set_value("Base_A", "stages_cleared", 2)
+	cfg.set_value("Base_A", "stars", [2, 1, 0])
+	cfg.save(g.save_path)
+	var before := {}
+	for key in ["teacher_mode", "map_intro_done", "victory_seen", "narration", "big_text"]:
+		before[key] = g.get(key)
+	var errors_before: int = _script_errors.messages.size()
+	g.load_game()
+	if _script_errors.messages.size() != errors_before:
+		_fail("T7b: bool com texto no save deu SCRIPT ERROR no load_game")
+	if g.total_stars() != 3 or g.bases["Base_A"]["stages_cleared"] != 2:
+		_fail("T7b: load_game parou antes das estrelas (%d estrelas)" % g.total_stars())
+	for key in before:
+		if g.get(key) != before[key]:
+			_fail("T7b: %s mudou para %s com texto no save" % [key, g.get(key)])
+	if _flags(g) != [false, false, false]:
+		_fail("T7b: flags com texto no save: %s" % [_flags(g)])
+	g.teacher_mode = false
+	g.reset_progress()
 
 
 ## T9: tabela-verdade do proximo passo da primeira vez.
