@@ -59,10 +59,6 @@ func _build_content() -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", UiTokens.GAP)
 	body.add_child(buttons)
-	var again := UiButton.create("Rever o tutorial da Ada", UiButton.Kind.SECONDARY, null, true)
-	again.custom_minimum_size = Vector2(300, 52)
-	again.pressed.connect(_replay_tutorial.bind(again))
-	buttons.add_child(again)
 	_close_btn = UiButton.create("ENTENDI", UiButton.Kind.PRIMARY, null, true)
 	_close_btn.pressed.connect(close)
 	buttons.add_child(_close_btn)
@@ -72,14 +68,6 @@ func _build_content() -> void:
 func open() -> void:
 	super()
 	_close_btn.grab_focus.call_deferred()
-
-
-## O tutorial volta a aparecer na proxima vez que a Base Alpha, fase 1, abrir.
-func _replay_tutorial(button: Button) -> void:
-	Global.tutorial_done = false
-	Global.save_game()
-	button.text = "Ok! Ele aparece na Alpha, fase 1"
-	button.disabled = true
 
 
 func _on_tab_toggled(on: bool, index: int) -> void:

@@ -107,7 +107,7 @@ var _last_hit_shot: Dictionary = {}
 var _last_hit_x := NAN
 var lab: Node
 var _fx: Node
-## A Engenheira Ada: tutorial, abertura da fase, dicas e parabéns.
+## A Engenheira Ada: abertura da fase, dicas e parabéns.
 var coach: Node
 
 # === Sistema de inimigos ===
@@ -211,7 +211,7 @@ func _ready() -> void:
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
 
-	# A Ada abre a fase (ou dá o tutorial, na primeira vez).
+	# A Ada abre a fase.
 	coach.start_stage()
 
 
@@ -890,7 +890,8 @@ func _poll_guess_hotkey() -> void:
 
 
 func _set_guess_mode(on: bool) -> void:
-	if coach and coach.in_tutorial:
+	# Na pratica do tutorial o chute fica desligado (a HUD nem mostra o botao).
+	if Global.practice_mode:
 		hud.guess_btn.set_pressed_no_signal(false)
 		return
 	guess_mode = on

@@ -84,6 +84,8 @@ func _run() -> void:
 	await _test_chief_volley_live()
 	await _test_legibility()
 	_test_onboarding_flags()
+	_test_angle_hit_reachable()
+	await _test_alpha1_without_old_tutorial()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -2059,3 +2061,88 @@ func _check_reset_keeps_flags(g: Node) -> void:
 		_fail("T12: RECOMECAR mexeu nas flags: %s" % [_flags(g)])
 	if g.money != 150 or g.total_stars() != 0:
 		_fail("T12: RECOMECAR nao zerou ouro (%d) ou estrelas (%d)" % [g.money, g.total_stars()])
+
+
+# ── 9. Alpha 1 sem o tutorial falado ─────────────────────────────────
+
+
+## Algum tiro com o angulo do desafio `angle_hit` acerta o castelo sem bater
+## antes numa montanha (a estrela precisa ser alcancavel).
+func _angle_hit_reachable(st: Dictionary, goal: Dictionary) -> bool:
+	var polys := []
+	for o in st.obstacles:
+		var gp := PackedVector2Array()
+		for p in Campaign.rounded(o.poly):
+			gp.append(o.pos + p)
+		polys.append(gp)
+	for t in _targets(st):
+		if not t.get("boss", false):
+			continue
+		for s in _shots(st):
+			if s.angle_deg >= goal.min and s.angle_deg <= goal.max and _hits(s, polys, t):
+				return true
+	return false
+
+
+## T21 (estrelas): todo desafio de angulo da campanha tem um tiro possivel.
+func _test_angle_hit_reachable() -> void:
+	for entry in _all_stages():
+		for goal in entry[1].goals:
+			if goal.type == "angle_hit" and not _angle_hit_reachable(entry[1], goal):
+				_fail("%s: desafio de angulo %d-%d impossivel" % [entry[0], goal.min, goal.max])
+	# Controle negativo: um angulo que nao chega ao castelo tem que ser acusado.
+	var alpha1: Dictionary = Campaign.BASES.Base_A.stages[0]
+	if _angle_hit_reachable(alpha1, {"min": 88.0, "max": 90.0}):
+		_fail("verificador de angle_hit aceitou 88-90 graus na Alpha 1")
+	print("ok: desafios de angulo alcancaveis")
+
+
+## T21 e T22: a Alpha 1 abre como fase normal e a ajuda nao reativa o tutorial.
+func _test_alpha1_without_old_tutorial() -> void:
+	var g = root.get_node("Global")
+	g.reset_progress()
+	g.lab_mode = false
+	g.practice_mode = false
+	g.tutorial_done = false
+	g.save_game()
+	g.current_base_id = "Base_A"
+	g.current_stage = 0
+	paused = false
+	change_scene_to_file("res://scenes/arena/arena.tscn")
+	await _frames(10)
+	var a = current_scene
+	if a.coach.has_method("_run_tutorial") or "in_tutorial" in a.coach:
+		_fail("T21: o coach ainda tem o tutorial falado")
+	for e in a.active_enemies:
+		if e.name.begins_with("Airplane") and e.process_mode == Node.PROCESS_MODE_DISABLED:
+			_fail("T21: aviao congelado na Alpha 1")
+	var intro: Array = _coach_script().intro_lines_for(a.stage_data, "")
+	if not a.coach.ada.is_talking() or a.coach.ada._text.text != intro[0].text:
+		_fail("T21: Alpha 1 nao abriu com a fala normal: '%s'" % a.coach.ada._text.text)
+	if a.coach.ada.is_talking():
+		a.coach.ada._finish()
+	await _frames(2)
+	# Na pratica a tecla C nao liga o chute (era o papel do in_tutorial).
+	g.practice_mode = true
+	a._set_guess_mode(true)
+	g.practice_mode = false
+	if a.guess_mode or a.hud.guess_btn.button_pressed:
+		_fail("o chute ligou com practice_mode")
+	_check_help_without_tutorial(a, g)
+	if g.tutorial_done:
+		_fail("T21: a Alpha 1 gravou tutorial_done")
+	paused = false
+	g.reset_progress()
+	print("ok: Alpha 1 sem o tutorial falado")
+
+
+## T22: nenhum botao da ajuda fala em tutorial, e nada no save muda.
+func _check_help_without_tutorial(a: Node, g: Node) -> void:
+	var help: Node = a.help_overlay
+	if help.has_method("_replay_tutorial"):
+		_fail("T22: a ajuda ainda tem _replay_tutorial")
+	for node in help.find_children("*", "Button", true, false):
+		if "tutorial" in node.text.to_lower():
+			_fail("T22: botao da ajuda fala em tutorial: '%s'" % node.text)
+	if g.tutorial_done:
+		_fail("T22: a ajuda mexeu em tutorial_done")
