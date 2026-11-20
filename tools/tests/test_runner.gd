@@ -53,6 +53,7 @@ class ScriptErrorLogger:
 				"%s (%s:%d): %s" % [function, file, line, rationale if rationale else code]
 			)
 
+
 ## Carregado em _run(): o boss_brain usa o projectile, que usa o AudioManager, e
 ## um preload aqui compilaria antes de os autoloads existirem.
 var boss_brain: GDScript
