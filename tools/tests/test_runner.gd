@@ -43,6 +43,7 @@ func _run() -> void:
 	await _test_ada_in_arena()
 	_test_text_tone()
 	await _test_help_tone()
+	await _test_qa_adversarial()
 	if failures.is_empty():
 		print("TODOS OS TESTES PASSARAM")
 		quit(0)
@@ -774,3 +775,83 @@ func _test_help_tone() -> void:
 	help.queue_free()
 	await _frames(1)
 	print("ok: tom da ajuda")
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  8. QA adversarial da task ada-tom
+# ═════════════════════════════════════════════════════════════════════
+
+
+func _test_qa_adversarial() -> void:
+	_check_qa_intro_inputs()
+	await _check_qa_alternating_misses()
+	await _check_qa_reopen_stage()
+	print("ok: QA adversarial da Ada")
+
+
+## CA1/CA5: licoes estranhas e chefe sem regra nunca viram fala vazia nem passam de 2 falas.
+func _check_qa_intro_inputs() -> void:
+	var chief := {"name": "Boss", "kind": "inexistente"}
+	var lessons := [
+		"Espere... agora mire.", "...", "?", "Uma so frase sem ponto", "a" + "b".repeat(500)
+	]
+	for lesson in lessons:
+		for with_chief in [false, true]:
+			var st := {"lesson": lesson, "tip": "DICA-SECRETA"}
+			if with_chief:
+				st["chief"] = chief
+			var lines: Array = _coach_script().intro_lines_for(st, "CAP")
+			if lines.size() > (2 if with_chief else 1):
+				_fail("QA: licao '%s' gerou %d falas" % [lesson.left(20), lines.size()])
+			for l in lines:
+				if String(l.text).strip_edges() == "" or "DICA-SECRETA" in l.text:
+					_fail("QA: fala vazia ou com dica para licao '%s'" % lesson.left(20))
+	var no_lesson_key: Array = _coach_script().intro_lines_for({}, "CAP")
+	if not no_lesson_key.is_empty():
+		_fail("QA: fase sem chaves gerou falas")
+	var boss_only: Array = _coach_script().intro_lines_for({"chief": chief}, "CAP")
+	if boss_only.size() != 1 or not boss_only[0].text.begins_with("Boss: "):
+		_fail("QA: chefe sem licao e sem regra: %s" % [boss_only])
+
+
+## CA2: erro, acerto, erro, ... nunca chega a 3 erros seguidos, entao a Ada fica calada.
+func _check_qa_alternating_misses() -> void:
+	var a = await _open_ada_arena()
+	var short := Vector2(300, 652)
+	for _i in range(6):
+		a.coach.on_fire()
+		a.coach.on_shot_ended(short, false)
+		a.coach.on_fire()
+		a.coach.on_hit()
+		a.coach.on_shot_ended(short, false)
+		a.coach.on_fire()
+		a.coach.on_shot_ended(short, false)
+	if a.coach.ada.visible:
+		_fail("QA: erro/acerto/erro alternados dispararam dica")
+	_miss_times(a.coach, 3, short, false)
+	if a.coach.ada._mode != "pop":
+		_fail("QA: 3 erros seguidos depois da alternancia sem dica")
+	a.coach.ada.hide_now()
+	paused = false
+
+
+## CA1: reabrir a fase repete a mesma abertura curta, sem acumular falas.
+func _check_qa_reopen_stage() -> void:
+	var g = root.get_node("Global")
+	for round_n in range(3):
+		g.lab_mode = false
+		g.current_base_id = "Base_B"
+		g.current_stage = 2
+		g.tutorial_done = true
+		paused = false
+		change_scene_to_file("res://scenes/arena/arena.tscn")
+		await _frames(10)
+		var coach = current_scene.coach
+		var lines: Array = coach._intro_lines()
+		if lines.size() > 2:
+			_fail("QA: reabertura %d com %d falas" % [round_n, lines.size()])
+		if not coach.ada.is_talking():
+			_fail("QA: reabertura %d sem fala de abertura" % round_n)
+		coach.ada._finish()
+		coach.ada.hide_now()
+	paused = false
