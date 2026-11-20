@@ -55,6 +55,10 @@ const BRASS_DARK := Color("7e5f2c")
 const PAPER := Color("e9dcb5")
 const PAPER_DARK := Color("cdbb8a")
 const INK := Color("2b2219")
+## Folha branca das figuras do tutorial: fundo neutro para diagramas e sprites.
+const SHEET := Color("ffffff")
+## Clarao do pulso na abertura do enredo (branco quente, nao um branco puro).
+const PULSE_FLASH := Color("fff4d6")
 
 # ═════════════════════════════════════════════════════════════════════
 #  PAPEIS SEMANTICOS

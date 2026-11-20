@@ -87,6 +87,7 @@ func _run() -> void:
 	_test_angle_hit_reachable()
 	await _test_alpha1_without_old_tutorial()
 	await _test_practice_arena()
+	await _test_tutorial_modal()
 	for msg in _script_errors.messages:
 		_fail("erro de script durante os testes: " + msg)
 	if failures.is_empty():
@@ -2403,3 +2404,368 @@ func _check_practice_from_menu() -> void:
 		_fail("T31f: pratica pelo menu sem tutorial_done ou com practice_mode")
 	if _scene_path() != "res://scenes/menu_play/menu_play.tscn":
 		_fail("T31f: pratica pelo menu terminou em %s" % _scene_path())
+
+
+# ── 11. Tutorial modal (7 paginas, moldura branca, saida) ────────────
+
+const TUTORIAL_PAGE_7 := (
+	"Antes de partir, a Ada testa o canhão " + "numa fortaleza que já caiu. Um acerto derruba."
+)
+const TUTORIAL_COMMANDS := [
+	["Espaço", "dispara"],
+	["A e D", "anda, quando há combustível"],
+	["Tab", "troca a munição"],
+	["Estrela", "missões da fase (três estrelas)"],
+	["H", "ajuda"],
+]
+const HELP_SCRIPT_PATH := "res://scripts/help_overlay.gd"
+const TUTORIAL_SHEET_PAGES := [0, 1, 2, 3, 4, 6]
+
+
+func _test_tutorial_modal() -> void:
+	var g = root.get_node("Global")
+	var before := _save_snapshot(g)
+	_check_tutorial_tokens()
+	await _check_tutorial_pages()
+	await _check_tutorial_exit()
+	await _check_tutorial_footer()
+	await _check_tutorial_sheet()
+	await _check_tutorial_commands()
+	await _check_tutorial_text_size()
+	await _check_help_keycap()
+	if _save_snapshot(g) != before:
+		_fail("o tutorial modal mexeu no save")
+	print("ok: tutorial modal")
+
+
+func _new_tutorial() -> Node:
+	var m: Node = load("res://scripts/ui/tutorial_modal.gd").new()
+	root.add_child(m)
+	await _frames(1)
+	return m
+
+
+func _press(m: Node, action: String) -> void:
+	var ev := InputEventAction.new()
+	ev.action = action
+	ev.pressed = true
+	m._input(ev)
+
+
+func _free_modal(m: Node) -> void:
+	m.queue_free()
+	await _frames(1)
+
+
+## Contador de emissoes de um sinal sem argumentos.
+func _count_signal(sig: Signal) -> Array:
+	var n := [0]
+	sig.connect(func(): n[0] += 1)
+	return n
+
+
+func _visible_label(m: Node, text: String) -> Label:
+	for l in m.find_children("*", "Label", true, false):
+		if l.is_visible_in_tree() and l.text == text:
+			return l
+	return null
+
+
+func _find_button(m: Node, text: String) -> Button:
+	for b in m.find_children("*", "Button", true, false):
+		if b.is_visible_in_tree() and b.text == text:
+			return b
+	return null
+
+
+func _next_pages(m: Node, n: int) -> void:
+	for _i in range(n):
+		m.next_page()
+	await _frames(1)
+
+
+## Molduras brancas (UiFrame com fill == branco) visiveis no modal.
+func _white_frames(m: Node) -> int:
+	var n := 0
+	for p in m.find_children("*", "PanelContainer", true, false):
+		var box: StyleBox = p.get_theme_stylebox("panel")
+		if p.is_visible_in_tree() and box is UiFrame and box.fill == Color("ffffff"):
+			n += 1
+	return n
+
+
+## T33 (tokens): SHEET branco, PULSE_FLASH existe e o Kind.SHEET e a moldura branca.
+func _check_tutorial_tokens() -> void:
+	var tokens := load("res://scripts/ui/ui_tokens.gd") as GDScript
+	var consts: Dictionary = tokens.get_script_constant_map()
+	if consts.get("SHEET") != Color("ffffff"):
+		_fail("T33: UiTokens.SHEET nao e branco (%s)" % str(consts.get("SHEET")))
+	if not consts.get("PULSE_FLASH") is Color:
+		_fail("T33: UiTokens.PULSE_FLASH nao existe")
+	if not UiPanel.Kind.has("SHEET"):
+		_fail("T33: UiPanel.Kind.SHEET nao existe")
+		return
+	var box: UiFrame = UiPanel.create(UiPanel.Kind.get("SHEET"))
+	if box.fill != Color("ffffff") or box.rivets:
+		_fail("T33: Kind.SHEET nao e uma moldura branca lisa")
+
+
+## As 7 paginas, o texto da 7 (T35) e a navegacao com limites.
+func _check_tutorial_pages() -> void:
+	var m := await _new_tutorial()
+	var pages: Array = m.PAGES
+	if pages.size() != 7:
+		_fail("T30: o tutorial tem %d paginas, esperava 7" % pages.size())
+	for i in range(pages.size()):
+		if str(pages[i].get("title", "")) == "":
+			_fail("pagina %d do tutorial sem titulo" % (i + 1))
+		var problem := _tone_problem(str(pages[i].get("text", "")))
+		if problem != "":
+			_fail("tom na pagina %d do tutorial: %s" % [i + 1, problem])
+	if pages.size() == 7 and pages[6].get("text", "") != TUTORIAL_PAGE_7:
+		_fail("T35: texto da pagina 7 diferente do plano: '%s'" % pages[6].get("text", ""))
+	m.open()
+	await _frames(2)
+	if m.page_index() != 0 or not m.visible:
+		_fail("open() nao abriu na pagina 0 (%d)" % m.page_index())
+	if paused:
+		_fail("o tutorial pausou o jogo por padrao")
+	m.prev_page()
+	if m.page_index() != 0:
+		_fail("prev_page() na pagina 1 saiu do limite (%d)" % m.page_index())
+	await _next_pages(m, 6)
+	if m.page_index() != 6:
+		_fail("next_page() 6x foi para a pagina %d" % m.page_index())
+	if _visible_label(m, TUTORIAL_PAGE_7) == null:
+		_fail("T35: a pagina 7 nao mostra o texto 'Antes de partir'")
+	await _next_pages(m, 1)
+	if m.page_index() != 6:
+		_fail("next_page() na ultima pagina passou do limite (%d)" % m.page_index())
+	m.prev_page()
+	if m.page_index() != 5:
+		_fail("prev_page() nao voltou (%d)" % m.page_index())
+	await _free_modal(m)
+
+
+## T27, T28 e a semantica herdada da ponte (open_exit_prompt).
+func _check_tutorial_exit() -> void:
+	var m := await _new_tutorial()
+	var done := _count_signal(m.completed)
+	var aborted := _count_signal(m.aborted)
+	m.open()
+	await _next_pages(m, 2)
+	m.ask_exit()
+	await _frames(2)
+	if not m.is_confirming() or _visible_label(m, EXIT_QUESTION) == null:
+		_fail("T27: ask_exit() nao mostrou '%s'" % EXIT_QUESTION)
+	var focus := m.get_viewport().gui_get_focus_owner()
+	if not focus is Button or focus.text != "CONTINUAR O TUTORIAL":
+		_fail("T27: o foco da confirmacao nao esta em CONTINUAR O TUTORIAL")
+	if _visible_label(m, str(m.PAGES[2].get("text", "?"))) != null:
+		_fail("T27: a pagina continuou visivel durante a confirmacao")
+	_press(m, "ui_right")
+	if m.page_index() != 2:
+		_fail("a seta mudou de pagina durante a confirmacao")
+	m.cancel_exit()
+	await _frames(1)
+	if m.is_confirming() or m.page_index() != 2 or not m.visible:
+		_fail("T27: cancelar nao voltou ao passo 3 (%d)" % m.page_index())
+	if _visible_label(m, str(m.PAGES[2].get("text", "?"))) == null:
+		_fail("T27: a pagina 3 nao voltou a aparecer depois de cancelar")
+	_press(m, "ui_cancel")
+	if not m.is_confirming():
+		_fail("T28: Esc na pagina nao pediu a saida")
+	_press(m, "ui_cancel")
+	if m.is_confirming() or m.page_index() != 2:
+		_fail("T28: segundo Esc nao voltou ao passo 3")
+	if aborted[0] != 0 or done[0] != 0:
+		_fail("sinais emitidos sem confirmar a saida")
+	m.ask_exit()
+	m.confirm_exit()
+	await _frames(1)
+	if aborted[0] != 1 or m.visible or m.is_confirming():
+		_fail("T29: confirm_exit() nao fechou e emitiu aborted uma vez (%d)" % aborted[0])
+	# Modo da arena de pratica: cancelar fecha; depois, no modo normal, so esconde.
+	m.open_exit_prompt()
+	await _frames(1)
+	if not m.is_confirming():
+		_fail("open_exit_prompt() nao abriu na confirmacao")
+	m.cancel_exit()
+	if m.visible:
+		_fail("open_exit_prompt(): cancelar nao fechou o modal")
+	m.open()
+	m.ask_exit()
+	m.cancel_exit()
+	if not m.visible or m.page_index() != 0:
+		_fail("depois do modo da pratica, cancelar fechou o modal normal")
+	await _free_modal(m)
+
+
+## Rodape: contador, ANTERIOR, setas, SAIR e o botao da ultima pagina (T30).
+func _check_tutorial_footer() -> void:
+	var m := await _new_tutorial()
+	var done := _count_signal(m.completed)
+	m.open()
+	await _frames(2)
+	if _visible_label(m, "Passo 1 de 7") == null:
+		_fail("rodape sem 'Passo 1 de 7'")
+	var prev := _find_button(m, "← ANTERIOR")
+	if prev == null or not prev.disabled:
+		_fail("ANTERIOR nao esta desabilitado na pagina 1")
+	_press(m, "ui_right")
+	_press(m, "ui_right")
+	await _frames(1)
+	if m.page_index() != 2 or _visible_label(m, "Passo 3 de 7") == null:
+		_fail("a seta direita nao levou ao passo 3 (%d)" % m.page_index())
+	_press(m, "ui_left")
+	if m.page_index() != 1:
+		_fail("a seta esquerda nao voltou uma pagina")
+	var next := _find_button(m, "PRÓXIMO →")
+	if next == null:
+		_fail("sem o botao PRÓXIMO →")
+	else:
+		next.pressed.emit()
+		if m.page_index() != 2:
+			_fail("PRÓXIMO → nao avancou")
+	var leave := _find_button(m, "SAIR DO TUTORIAL")
+	if leave == null:
+		_fail("sem o botao SAIR DO TUTORIAL")
+	else:
+		leave.pressed.emit()
+		if not m.is_confirming():
+			_fail("SAIR DO TUTORIAL nao abriu a confirmacao")
+		m.cancel_exit()
+	await _next_pages(m, 4)
+	var last := _find_button(m, "IR PARA A CALIBRAGEM")
+	if last == null or _find_button(m, "PRÓXIMO →") != null:
+		_fail("T30: a ultima pagina nao troca PRÓXIMO por IR PARA A CALIBRAGEM")
+		await _free_modal(m)
+		return
+	if done[0] != 0:
+		_fail("T30: completed emitido antes da hora")
+	last.pressed.emit()
+	await _frames(1)
+	if done[0] != 1 or m.visible:
+		_fail("T30: IR PARA A CALIBRAGEM nao emitiu completed uma vez e fechou (%d)" % done[0])
+	await _free_modal(m)
+
+
+## T33: moldura branca nas paginas 1-5 e 7; a 6 e a lista no fundo do modal.
+func _check_tutorial_sheet() -> void:
+	var m := await _new_tutorial()
+	m.open()
+	await _frames(2)
+	for i in range(7):
+		var n := _white_frames(m)
+		var want: bool = i in TUTORIAL_SHEET_PAGES
+		if want and n < 1:
+			_fail("T33: a pagina %d nao tem moldura branca" % (i + 1))
+		elif not want and n != 0:
+			_fail("T33: a pagina %d (lista de comandos) tem moldura branca" % (i + 1))
+		await _next_pages(m, 1)
+	await _free_modal(m)
+
+
+## T34: lista de comandos da pagina 6, com as teclas desenhadas.
+func _check_tutorial_commands() -> void:
+	var m := await _new_tutorial()
+	m.open()
+	await _next_pages(m, 5)
+	var list: Node = m.find_child("CommandList", true, false)
+	if list == null or not list.is_visible_in_tree():
+		_fail("T34: a pagina 6 nao mostra a lista de comandos")
+		await _free_modal(m)
+		return
+	var rows := list.get_children()
+	if rows.size() != TUTORIAL_COMMANDS.size():
+		_fail("T34: %d linhas na lista, esperava 5" % rows.size())
+		await _free_modal(m)
+		return
+	for i in range(rows.size()):
+		var text_col: Node = rows[i].get_child(rows[i].get_child_count() - 1)
+		var got := [text_col.get_child(0).text, text_col.get_child(1).text]
+		if got != TUTORIAL_COMMANDS[i]:
+			_fail("T34: linha %d = %s, esperava %s" % [i + 1, str(got), str(TUTORIAL_COMMANDS[i])])
+	_check_command_visuals(rows)
+	await _free_modal(m)
+
+
+func _keycap_letters(row: Node) -> Array:
+	var out := []
+	for c in row.find_children("*", "PanelContainer", true, false):
+		for l in c.find_children("*", "Label", true, false):
+			out.append(l.text)
+	return out
+
+
+func _check_command_visuals(rows: Array) -> void:
+	if rows[0].find_children("*", "TextureRect", true, false).is_empty():
+		_fail("T34: Espaco sem o desenho da tecla")
+	if rows[2].find_children("*", "TextureRect", true, false).is_empty():
+		_fail("T34: Tab sem o desenho da tecla")
+	if _keycap_letters(rows[1]) != ["A", "D"]:
+		_fail("T34: 'A e D' deveria ter duas teclas, A e D (%s)" % str(_keycap_letters(rows[1])))
+	if _keycap_letters(rows[4]) != ["H"]:
+		_fail("T34: 'H' deveria ter uma tecla H (%s)" % str(_keycap_letters(rows[4])))
+	var star := false
+	for n in rows[3].find_children("*", "Control", true, false):
+		if n is UiIcon and n.icon == "star":
+			star = true
+	if not star:
+		_fail("T34: 'Estrela' sem o icone de estrela")
+
+
+## big_text sobe o corpo do texto e a narracao nao quebra o modal.
+func _check_tutorial_text_size() -> void:
+	var g = root.get_node("Global")
+	var big_before: bool = g.big_text
+	var narr_before: bool = g.narration
+	var m := await _new_tutorial()
+	for big in [false, true]:
+		g.big_text = big
+		m.open()
+		await _frames(2)
+		var label := _visible_label(m, str(m.PAGES[0].get("text", "?")))
+		var want: int = UiTokens.FONT_LG if big else UiTokens.FONT_MD
+		if label == null or label.get_theme_font_size("font_size") != want:
+			_fail("big_text=%s: corpo do tutorial nao esta em %d" % [str(big), want])
+		m.close()
+	g.narration = true
+	m.open()
+	await _next_pages(m, 5)
+	m.ask_exit()
+	m.cancel_exit()
+	m.close()
+	g.big_text = big_before
+	g.narration = narr_before
+	await _free_modal(m)
+
+
+## T36: a aba "As teclas" da ajuda continua igual depois de extrair keycap().
+func _check_help_keycap() -> void:
+	var script := load(HELP_SCRIPT_PATH) as GDScript
+	var has_keycap := false
+	for info in script.get_script_method_list():
+		has_keycap = has_keycap or info.name == "keycap"
+	if not has_keycap:
+		_fail("T36: HelpOverlay.keycap() nao existe")
+	var help: Node = script.new()
+	root.add_child(help)
+	await _frames(1)
+	var grid: Node = help._pages[0]
+	if grid.get_child_count() != 11:
+		_fail("T36: a aba As teclas tem %d linhas, esperava 11" % grid.get_child_count())
+	var letters := []
+	for row in grid.get_children():
+		if row.get_child(0) is PanelContainer:
+			var cap: PanelContainer = row.get_child(0)
+			letters.append(cap.get_child(0).text)
+			if cap.custom_minimum_size != Vector2(44, 40):
+				_fail("T36: a tecla com letra mudou de tamanho")
+	if letters != ["A", "F", "C", "H"]:
+		_fail("T36: teclas com letra da ajuda = %s" % str(letters))
+	if has_keycap:
+		var cap: Node = script.call("keycap", "Q")
+		if not cap is PanelContainer or cap.get_child(0).text != "Q":
+			_fail("T36: keycap('Q') nao devolve a tecla com a letra")
+	await _free_modal(help)
