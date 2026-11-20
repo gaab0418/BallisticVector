@@ -593,9 +593,76 @@ func _open_ada_arena() -> Node:
 
 func _test_ada_in_arena() -> void:
 	var a = await _open_ada_arena()
+	await _check_goals_in_star(a)
+	await _check_tip_after_misses(a)
 	_check_no_bubble_without_lesson(a)
 	paused = false
 	print("ok: falas da Ada na arena")
+
+
+## T12: as missoes ficam no botao de estrela (3 linhas: castelo + 2 desafios).
+func _check_goals_in_star(a: Node) -> void:
+	a.hud.goals_pressed.emit()
+	await _frames(3)
+	if not a.briefing.visible:
+		_fail("a estrela nao abriu o cartao de missoes")
+	elif a.briefing._goals.get_child_count() != 3:
+		_fail("cartao de missoes com %d linhas" % a.briefing._goals.get_child_count())
+	a.briefing.close()
+	await _frames(3)
+
+
+## Tres erros seguidos: a Ada para de falar e pensa em voz alta.
+func _miss_times(coach: Node, n: int, pos: Vector2, hit_obstacle: bool) -> void:
+	for _i in range(n):
+		coach.on_fire()
+		coach.on_shot_ended(pos, hit_obstacle)
+
+
+## T8 a T11: 1o limiar = tip da fase; depois, a dica do ultimo tiro.
+func _check_tip_after_misses(a: Node) -> void:
+	var coach = a.coach
+	var short := Vector2(300, 652)
+	var short_tip := "Faltou alcance. Aumente a força ou aproxime o ângulo de 45°."
+	var stage_tip := "Acerte o castelo duas vezes: uma abaixo de 45° e outra acima."
+	# T8: so no 3o erro, e e a tip da fase.
+	_miss_times(coach, 2, short, false)
+	if coach.ada.visible:
+		_fail("a Ada falou antes do 3o erro seguido")
+	_miss_times(coach, 1, short, false)
+	if coach.ada._mode != "pop" or coach.ada._text.text != stage_tip:
+		_fail("1o limiar sem a tip da fase: '%s'" % coach.ada._text.text)
+	# T9: limiares seguintes usam a dica do tiro.
+	coach.ada.hide_now()
+	_miss_times(coach, 3, short, false)
+	if coach.ada._text.text != short_tip:
+		_fail("2o limiar sem a dica do tiro: '%s'" % coach.ada._text.text)
+	coach.ada.hide_now()
+	_miss_times(coach, 3, Vector2(560, 500), true)
+	var mountain := "A montanha bloqueou o tiro. Suba o vértice: mais ângulo ou mais força."
+	if coach.ada._text.text != mountain:
+		_fail("3o limiar sem a dica da montanha: '%s'" % coach.ada._text.text)
+	# T10: um acerto zera a sequencia.
+	coach.ada.hide_now()
+	_miss_times(coach, 2, short, false)
+	coach.on_fire()
+	coach.on_hit()
+	coach.on_shot_ended(short, false)
+	_miss_times(coach, 1, short, false)
+	if coach.ada.visible:
+		_fail("o acerto nao zerou a sequencia de erros")
+	_miss_times(coach, 2, short, false)
+	if coach.ada._mode != "pop":
+		_fail("3 erros depois do acerto nao geraram dica")
+	# T11: fase sem tip cai na dica do tiro, nunca em texto vazio.
+	coach.ada.hide_now()
+	a.stage_data = a.stage_data.duplicate()
+	a.stage_data["tip"] = ""
+	coach._stage_tip_given = false
+	_miss_times(coach, 3, short, false)
+	if coach.ada._text.text != short_tip:
+		_fail("fase sem tip com texto inesperado: '%s'" % coach.ada._text.text)
+	coach.ada.hide_now()
 
 
 ## T7: fase sem licao e sem chefe nao abre balao (nem pausa o jogo a toa).

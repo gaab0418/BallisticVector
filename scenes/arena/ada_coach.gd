@@ -15,6 +15,7 @@ var in_tutorial := false
 var _misses := 0
 var _hit_since_fire := false
 var _hit_in_tutorial := false
+var _stage_tip_given := false
 var _elapsed := 0.0
 var _prev_states: Array = []
 
@@ -317,7 +318,8 @@ func on_hit() -> void:
 
 
 ## Bala do jogador sumiu (chao, montanha ou fora da tela). Tres erros seguidos
-## viram uma dica da Ada, escolhida pelo que aconteceu com o ultimo tiro.
+## viram uma dica da Ada: a primeira e a `tip` da fase; as seguintes olham o que
+## aconteceu com o ultimo tiro.
 func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
 	if in_tutorial or _hit_since_fire:
 		return
@@ -325,7 +327,16 @@ func on_shot_ended(pos: Vector2, hit_obstacle: bool) -> void:
 	if _misses < MISSES_FOR_TIP:
 		return
 	_misses = 0
-	ada.pop(_tip_for(pos, hit_obstacle), "thinking", 5.5)
+	ada.pop(_next_tip(pos, hit_obstacle), "thinking", 5.5)
+
+
+## No 1o limiar da fase vale a `tip` da fase; depois (ou sem `tip`), o ultimo tiro.
+func _next_tip(pos: Vector2, hit_obstacle: bool) -> String:
+	var tip := String(arena.stage_data.get("tip", ""))
+	if not _stage_tip_given and tip.strip_edges() != "":
+		_stage_tip_given = true
+		return tip
+	return _tip_for(pos, hit_obstacle)
 
 
 func _tip_for(pos: Vector2, hit_obstacle: bool) -> String:
