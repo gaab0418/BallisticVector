@@ -2,26 +2,43 @@
 
 **Ballistic Vector** é um jogo tático de combate e simulação balística 2D desenvolvido em **Godot 4.6** (utilizando o renderizador *GL Compatibility*). O jogo foi construído como parte do Projeto Acadêmico Curricular (PAC #1), com foco em *edutainment* (educação matemática) para auxiliar na visualização prática e intuitiva de **Funções Quadráticas** e mecânicas balísticas parabólicas.
 
+**⬇️ Baixar e jogar:** o executável de Windows (e o build de Linux) da versão mais recente está em [Releases](https://github.com/gaab0418/BallisticVector/releases/latest). Não precisa instalar a Godot.
+
+**📄 Game Design Document:** [`docs/GDD.md`](docs/GDD.md), versão 1.0 (entrega N3), com mecânicas, sistemas, narrativa, arte, áudio e os ajustes feitos depois do feedback.
+
+---
+
+## 📖 História
+
+> O Comando Norte tomou o arquipélago em uma noite: um pulso eletromagnético queimou todos os computadores de mira da frota.
+> As fortalezas que a Engenheira Ada projetou viraram castelos deles, blindados contra o pulso. Os nossos canhões viraram sucata.
+> Ada consertou o último que restou: o seu tanque. Sem computador, ele só dispara com a conta certa.
+> **Ela sabe onde cada castelo falha. O resto é cálculo.**
+
+A história explica as mecânicas: sem computador de mira, quem calcula a parábola é o jogador; o mapa é de papel; e a regra de cada chefe (escudo, castelo que anda, que pula, gravidade própria, guarda) é uma falha de projeto que só a Ada conhece, por isso é ela quem dá a dica. O Laboratório é a oficina dela.
+
 ---
 
 ## 🎮 O Jogo e Core Loop
 
-O jogador assume o comando de um canhão de defesa terrestre com o objetivo de proteger seu território contra bombardeios de esquadrões de aviões inimigos e destruir o *bunker* inimigo (Boss) de cada fase.
+O jogador comanda o último tanque do arquipélago e retoma, base por base, as fortalezas do Comando Norte: cada fase pede uma parábola certa para derrubar aviões, balões, tanques inimigos e o castelo-chefe.
 
 ```
-[Mapa de Guerra] ── Seleciona Base (Alpha, Bravo, Charlie) ──> [Loja de Munições]
+[Mapa de Guerra] ── Seleciona Base (Alpha a Norte + bônus) ──> [Loja de Munições]
        ▲                                                                │
        │                                                                ▼
 [Vitória na Campanha] <── Completar 3 Fases <── [Arena de Combate (Turnos Físicos)]
 ```
 
 ### Principais Funcionalidades Implementadas:
+- **Tutorial guiado (botão TUTORIAL do menu)**: mostra o enredo e depois um modal centralizado, com fundo escurecido, que ensina uma mecânica por página com ilustrações (o tanque, a parábola, a lista de teclas em ícones). Fechar no meio pede confirmação. Termina numa prática contra um chefe de 1 HP e volta ao menu. Na primeira campanha, o enredo abre sozinho uma vez.
 - **Mapa de Guerra Cartesiano (`war_map.gd`, `war_table.gd`)**: um pergaminho sobre a mesa de comando, desenhado em código, que é um **plano cartesiano** — grade, eixos x e y numerados e cada base numa ilha com coordenadas. As rotas entre as bases são arcos de parábola; ao conquistar uma base, um barquinho navega a rota até a próxima. Medalhas e bolinhas de fase mostram o progresso; ilhas bloqueadas ficam sob névoa e abrem em ordem (ou todas, no Modo Professor).
 - **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Parábola Visível (`trajectory_view.gd`, `ballistics.gd`)**: A trajetória é desenhada pela própria equação `y = ax² + bx + c`, com o **vértice** (altura máxima), a **raiz** (alcance) sobre uma **régua em metros** no chão, o ponto onde a bala bate numa montanha e a faixa onde ela pode cair. A física, a mira e a HUD usam a mesma escala (`Ballistics.PX_PER_METER = 50`), então o número do painel é o mesmo que a régua mostra.
-- **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase começa com um cartão de missão e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
-- **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto.
+- **Campanha de 7 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) —, **Foxtrot (a parábola e a reta)**, com drones numa rota `y = mx + n`, **Norte (o gelo)**, em que cada quique da bala é uma parábola nova, e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase abre com uma frase curta da Engenheira Ada e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
+- **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto. Os chefes da Bravo 3 e da Delta 3 **atiram de volta**: um marcador avisa onde o morteiro vai cair, e o jogador precisa sair dele com o tanque.
+- **Mobilidade**: além da Base Delta, várias fases dão combustível ao tanque (barra de metros), para andar e buscar um ângulo melhor ou fugir do tiro do chefe.
 - **Laboratório**: modo livre (menu principal), sem inimigos e com mira perfeita. Troque de mundo (Terra, Lua, Marte, Júpiter, Invertido), clique no céu para pôr um alvo e veja a **tabela de pontos (x, y)**: a altura medida na bala, metro a metro, ao lado da altura que a equação prevê.
 - **Progresso salvo**: estrelas, bases, ouro e munição ficam em `user://progresso.cfg` (salvamento automático). O menu mostra "Continuar" e tem "Recomeçar campanha" com confirmação. Sem munição e sem ouro, o mapa entrega um **kit de emergência**.
 - **Modo Professor**: no menu principal; libera todas as bases e já abre a "conta" da parábola (a, b, c, vértice e Bhaskara com os números da tela) para mostrar em aula.
@@ -34,8 +51,10 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 Durante o combate na **Arena**, o topo central da tela mostra a **equação da trajetória**
 (`y = ax² + bx + c`) e as variáveis da parábola — ângulo, força e gravidade — cada uma com a sua
 **engrenagem**. O jogador escolhe uma engrenagem e a gira para alterar aquele valor, vendo a curva,
-a equação e os números responderem na hora. Embaixo de cada engrenagem, os chips "mexe no a b"
-mostram quais coeficientes da equação ela altera, e esses coeficientes ganham destaque na equação.
+a equação e os números responderem na hora. Cada engrenagem tem um **ícone** com tooltip ao lado do
+nome (passe o mouse para ver o que é). No cabeçalho, à direita do ícone, a **bandeja "mexe no"**
+mostra quais coeficientes da equação ela altera (ex.: "mexe no a e no b"), e esses coeficientes
+ganham destaque na equação. A bandeja some quando a engrenagem não altera nenhum coeficiente.
 
 | Tecla / Ação | Função |
 | :--- | :--- |
@@ -44,20 +63,23 @@ mostram quais coeficientes da equação ela altera, e esses coeficientes ganham 
 | **Mouse (segurar e girar)** | Agarra a engrenagem e a gira como uma manivela: o valor acompanha o movimento circular do cursor em volta dela. Duas voltas percorrem a faixa inteira. |
 | **Shift (Segurar)** | Gira a engrenagem 5x mais devagar, para acertar o número exato. |
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
-| **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Na Terra cada munição traz a sua própria gravidade; num planeta, a gravidade é a do planeta. |
-| **A / D** | Anda com o tanque dentro da faixa de manobra (só nas fases da Base Delta). |
+| **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Na Terra cada munição traz a sua própria gravidade; num planeta, a gravidade é a do planeta. O botão de munição mostra a tecla **Tab** e o tooltip "Troca a munição (Tab)". |
+| **A / D** | Anda com o tanque dentro da faixa de manobra (nas fases da Base Delta e nas fases com combustível). O grupo `[A] [move] [D]` tem tooltip "Anda com o tanque (A e D)"; sem combustível, mostra "sem combustível" e as teclas ficam apagadas. |
+| **Tecla C** ou botão **Modo chute** | Esconde a curva e o alcance até o tiro: calcule e clique onde a bala cai. O botão é de ícone (alvo) com a tecla C. |
 | **Clique no céu** (Laboratório) | Põe um alvo: o painel mostra as coordenadas e a que distância a curva passa dele. |
-| **Tecla F** ou botão **Ver conta** | Abre a "conta por trás da curva": de onde saem a, b, c, o vértice e a raiz (Bhaskara). |
+| **Tecla F** ou botão **Ver conta** | Abre a "conta por trás da curva": de onde saem a, b, c, o vértice e a raiz (Bhaskara). O botão é de ícone (ƒ) com a tecla F; o ƒ é desenhado em código (`UiIcon`), não é texto. |
 | **Tecla H** ou botão **?** | Pausa o jogo e abre a ajuda, com as teclas, um diagrama da parábola e o efeito de cada engrenagem. |
 | **Esc** | Abre o menu de pausa. Com a ajuda ou o menu já aberto, fecha o que estiver na frente. |
 | **Botão de engrenagem** (canto superior esquerdo) | Abre o menu de pausa: continuar, ajustes de áudio, reiniciar a batalha ou voltar ao mapa de guerra. |
 
 Ao lado das engrenagens, a HUD mostra a **altura máxima** (vértice, losango ◆) e o **alcance**
-(raiz, bandeira) — os mesmos símbolos e cores desenhados na curva. A missão da fase aparece ao
-entrar; depois fica recolhida no **botão de estrela** (canto superior direito, com o placar),
-que reabre o cartão com o progresso de cada desafio. Com o canhão apontado para
+(raiz, bandeira) — os mesmos símbolos e cores desenhados na curva. As missões da fase ficam no **botão de estrela** (canto superior direito, com o placar), que abre o cartão com a lição, a dica e o progresso de cada desafio. Depois de três erros seguidos, a Ada fala a dica. Com o canhão apontado para
 baixo não há vértice à frente, e o painel diz "Levante o canhão para formar a parábola". A
 imprecisão da munição aparece como uma faixa sobre a régua: "a bala pode cair aqui".
+
+Os **botões de ícone com tecla** (Ver conta F, Modo chute C, munição Tab e o grupo A/D) mostram a
+tecla desenhada no próprio botão (`UiKeycap`) e explicam a ação no tooltip, que aparece ao passar o
+mouse. O tooltip depende de `mouse_filter = MOUSE_FILTER_PASS` no ícone, senão ele nunca aparece.
 
 Menu, mapa, loja e modais também navegam por teclado (setas + Enter), com foco visível.
 
@@ -105,6 +127,16 @@ A paleta vem dos próprios assets (céu crepuscular do `camp.jpg`, verde do tanq
 - **Handjet** (OFL) apenas como fallback, para θ e setas.
 - **Jersey 10** (OFL) para títulos e logotipo.
 
+**Espaçamento do texto** (`scripts/ui/ui_tokens.gd`, seção TIPOGRAFIA). Os valores são pixels absolutos, não relativos ao corpo da fonte:
+
+| Token | Valor | Onde se aplica |
+| :--- | :--- | :--- |
+| `LINE_SPACING` | 8 | Entrelinha de `Label`, `TooltipLabel` (`line_spacing`) e `RichTextLabel` (`line_separation`). Vai ao `ui_theme.tres`: ao mudar, regenere o tema (`tools/build_ui_theme.gd`). Ajuste fino aceito entre 6 e 12. |
+| `WORD_SPACING` | 4 | Espaço entre palavras (`FontVariation.spacing_space`). |
+| `GLYPH_SPACING` | 0 | Espaço entre letras (`FontVariation.spacing_glyph`). Com 1, a VT323 monoespaçada alarga tanto os textos que o painel da parábola volta a cruzar a insígnia da fase. |
+
+`WORD_SPACING` e `GLYPH_SPACING` **não entram no `.tres`**: são montados em runtime por `UiTheme.body_font()`, aplicado no tema de projeto (`apply_fonts`) e em todo `draw_string` que usa `body_font()`. Por isso mudar esses dois não exige regenerar o tema.
+
 Os papéis de texto são variações do tema (`Label.theme_type_variation`): `TitleLabel`, `DisplayLabel`, `HeadingLabel`, `CaptionLabel`, `EditableLabel`, `ResultLabel`, `DangerLabel`, `OverlayLabel` e `InkLabel`. Ícones que as fontes não têm (vértice, raiz, estrela, cadeado, escudo…) são desenhados em código por `UiIcon`. Licenças em `CREDITS.md`.
 
 ### Matemática e conteúdo
@@ -119,13 +151,25 @@ Os papéis de texto são variações do tema (`Label.theme_type_variation`): `Ti
 `tools/tests/test_runner.gd` roda na CI depois do import e protege as garantias do jogo:
 todo script compila, todo obstáculo é um polígono válido, **todo alvo de toda fase é
 atingível** (e as metas de vértice são cumpríveis), a **bala real cai onde a HUD diz**,
-cada tela abre e o save volta igual ao carregar. Para rodar localmente:
+cada tela abre, o save volta igual ao carregar e a Ada fala pouco: no máximo uma frase da lição e um aviso de chefe na abertura, a dica só depois de erros seguidos e nenhum texto em tom infantil. Para rodar localmente:
 
 ```bash
 BV_SAVE_PATH=/tmp/teste.cfg godot --headless --script res://tools/tests/test_runner.gd
 ```
 
-`BV_SAVE_PATH` troca o arquivo de progresso, para os testes nunca tocarem no save real.
+`BV_SAVE_PATH` troca o arquivo de progresso, para os testes nunca tocarem no save real. A variável
+precisa estar **no mesmo comando** que roda o runner: se faltar, o runner para com código 2 antes de qualquer teste, sem tocar no save real. Em
+PowerShell e entre chamadas separadas de shell, `VAR=valor comando` (sintaxe Bash) não vale.
+
+A **seção 7** do runner (`_test_legibility()`, em `tools/tests/test_runner.gd`) cobre a legibilidade
+e a HUD: entrelinha e espaçamento do tema (T1 a T3), a HUD do topo da arena (T4 e T5: nenhuma célula
+vaza do painel, resultados cabem em `RESULT_WIDTH`), os botões de transbordo (T6, T8), a ajuda em três
+abas (T7), a gaveta "Ver conta" e as engrenagens com ícone e bandeja (T9 a T15) e a varredura da HUD
+da arena (T16 a T18). O T7 (aba "A parábola" da ajuda, que passa de 720 px de altura) aparece como
+`PENDENTE` enquanto o ajuste da ajuda não entrar; esse resultado é esperado, e os demais precisam
+passar.
+
+O runner sai com código 1 se algum teste falhar **ou se ocorrer qualquer `SCRIPT ERROR`** durante a execução (um erro de execução aborta só a função de teste em curso, e antes passava por verde); avisos e o aviso de vazamento de objetos no encerramento não reprovam.
 
 ---
 

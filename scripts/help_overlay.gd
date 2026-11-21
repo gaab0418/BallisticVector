@@ -2,7 +2,7 @@ class_name HelpOverlay
 extends UiModal
 ## Tela de ajuda da arena (H ou botao "?"), com o jogo pausado.
 ##
-## Tres abas, em linguagem de crianca:
+## Tres abas, em linguagem direta (publico do ensino medio):
 ##   Teclas          -- todos os controles, com o desenho da tecla
 ##   A parabola      -- mini-diagrama: vertice, raiz, altura do canhao (c)
 ##   As engrenagens  -- o efeito de cada engrenagem, em tres mini-graficos
@@ -59,11 +59,7 @@ func _build_content() -> void:
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	buttons.add_theme_constant_override("separation", UiTokens.GAP)
 	body.add_child(buttons)
-	var again := UiButton.create("Rever o tutorial da Ada", UiButton.Kind.SECONDARY, null, true)
-	again.custom_minimum_size = Vector2(300, 52)
-	again.pressed.connect(_replay_tutorial.bind(again))
-	buttons.add_child(again)
-	_close_btn = UiButton.create("ENTENDI!", UiButton.Kind.PRIMARY, null, true)
+	_close_btn = UiButton.create("ENTENDI", UiButton.Kind.PRIMARY, null, true)
 	_close_btn.pressed.connect(close)
 	buttons.add_child(_close_btn)
 	_tabs[0].button_pressed = true
@@ -72,14 +68,6 @@ func _build_content() -> void:
 func open() -> void:
 	super()
 	_close_btn.grab_focus.call_deferred()
-
-
-## O tutorial volta a aparecer na proxima vez que a Base Alpha, fase 1, abrir.
-func _replay_tutorial(button: Button) -> void:
-	Global.tutorial_done = false
-	Global.save_game()
-	button.text = "Ok! Ele aparece na Alpha, fase 1"
-	button.disabled = true
 
 
 func _on_tab_toggled(on: bool, index: int) -> void:
@@ -106,7 +94,7 @@ func _build_keys_page() -> Control:
 		[ICON_ARROWS_H, "Esquerda e Direita", "escolhem a engrenagem que você vai girar"],
 		[ICON_ARROWS_V, "Cima e Baixo", "giram a engrenagem escolhida"],
 		[ICON_MOUSE, "Mouse", "segure na engrenagem e gire em volta dela"],
-		[ICON_SHIFT, "Shift + seta", "gira devagarinho, para acertar o número"],
+		[ICON_SHIFT, "Shift + seta", "gira devagar, para acertar o número exato"],
 		[ICON_SPACE, "Espaço", "dispara o canhão"],
 		[ICON_TAB, "Tab", "troca a munição"],
 		[null, "A e D", "andam com o tanque (quando há combustível)"],
@@ -132,18 +120,7 @@ func _key_row(tex: Texture2D, key: String, text: String) -> Control:
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(icon)
 	else:
-		# Tecla sem desenho no pack: a letra numa moldura de tecla.
-		var cap := PanelContainer.new()
-		cap.add_theme_stylebox_override(
-			"panel", UiButton.make_style(UiTokens.TEXT, UiTokens.TEXT_DIM, false, 4)
-		)
-		cap.custom_minimum_size = Vector2(44, 40)
-		var letter := Label.new()
-		letter.text = key.substr(0, 1)
-		letter.add_theme_color_override("font_color", UiTokens.INK)
-		letter.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		cap.add_child(letter)
-		row.add_child(cap)
+		row.add_child(keycap(key.substr(0, 1)))
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", -4)
 	var k := Label.new()
@@ -158,6 +135,22 @@ func _key_row(tex: Texture2D, key: String, text: String) -> Control:
 	col.add_child(t)
 	row.add_child(col)
 	return row
+
+
+## Tecla sem desenho no pack: a letra numa moldura de tecla. Tambem e usada pela
+## pagina de comandos do tutorial (TutorialModal).
+static func keycap(letter: String) -> PanelContainer:
+	var cap := PanelContainer.new()
+	cap.add_theme_stylebox_override(
+		"panel", UiButton.make_style(UiTokens.TEXT, UiTokens.TEXT_DIM, false, 4)
+	)
+	cap.custom_minimum_size = Vector2(44, 40)
+	var label := Label.new()
+	label.text = letter
+	label.add_theme_color_override("font_color", UiTokens.INK)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cap.add_child(label)
+	return cap
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -189,8 +182,8 @@ func _build_parabola_page() -> Control:
 	text.add_child(
 		_para(
 			(
-				"Ela sobe, vai ficando mais devagar, para um instantinho lá no alto e cai. "
-				+ "Essa curva se chama PARÁBOLA."
+				"Ela sobe perdendo velocidade vertical, que zera no "
+				+ "ponto mais alto, e depois cai. Essa curva se chama PARÁBOLA."
 			)
 		)
 	)
@@ -207,8 +200,8 @@ func _build_parabola_page() -> Control:
 	text.add_child(
 		_para(
 			(
-				"O losango marca o vértice e a bandeira marca a raiz. Os números do painel "
-				+ "batem com a régua: confira com os olhos!"
+				"O losango marca o vértice e a bandeira marca a "
+				+ "raiz. Os números do painel batem com a régua: confira."
 			)
 		)
 	)
@@ -231,7 +224,7 @@ func _build_gears_page() -> Control:
 		. add_child(
 			_gear_card(
 				"ÂNGULO  ·  mexe no a e no b",
-				"45° vai mais longe. 30° e 60° caem no mesmo lugar!",
+				"45° vai mais longe. 30° e 60° caem no mesmo lugar.",
 				[
 					{
 						"angle": 30.0,
@@ -361,6 +354,6 @@ func _para(text_value: String) -> Label:
 	var label := Label.new()
 	label.text = text_value
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.custom_minimum_size = Vector2(370, 0)
+	label.custom_minimum_size = Vector2(420, 0)
 	label.add_theme_font_size_override("font_size", UiTokens.FONT_SM)
 	return label

@@ -18,6 +18,10 @@ const WarTableScript = preload("res://scenes/war_map/war_table.gd")
 const SFX_CLICK := "res://assets/audio/menu_click.ogg"
 const SFX_BACK := "res://assets/audio/menu_back.ogg"
 const SFX_ERROR := "res://assets/audio/erro.ogg"
+## Fala da primeira visita ao mapa: diz o que fazer, antes de qualquer outro recado.
+const OBJECTIVE_LINE := (
+	"Retome as ilhas, base por base, até o Norte. " + "Clique numa ilha para escolher a fase."
+)
 
 const TOP_BAR_H := 60.0
 const NAV_BUTTON_SIZE := Vector2(170, 52)
@@ -66,6 +70,8 @@ var _quiet_focus := false
 
 
 func _ready() -> void:
+	# O modo prática é transitório: se sobrou de uma saída mal feita, zera aqui.
+	Global.practice_mode = false
 	if Global.are_all_bases_complete() and not Global.victory_seen:
 		get_tree().change_scene_to_file("res://scenes/victory/victory.tscn")
 		return
@@ -97,18 +103,19 @@ func _ready() -> void:
 	add_child(_ada)
 	var line := ""
 	if not Global.map_intro_done:
-		line = "Este é o mapa de guerra! Cada ilha é um capítulo. Clique numa ilha para escolher a fase."
+		_ada.pop(OBJECTIVE_LINE, "proud", 7.0)
 		Global.map_intro_done = true
 	elif Notebook.unseen_count() > 0:
-		line = 'Nova página no meu caderno! Clique em "Caderno" para ver a animação.'
-	# Voltou de uma base conquistada: o barquinho navega ate a proxima ilha.
+		line = 'Página nova no meu caderno. Abra o "Caderno" para ver a animação.'
+	# Voltou de uma base conquistada: o barco navega ate a proxima ilha.
 	if Global.just_conquered != "":
 		_table.animate_boat(_index_of(Global.just_conquered))
 		Global.just_conquered = ""
-		line = "Base conquistada! O barquinho já está levando a tropa para a próxima ilha."
+		line = "Base retomada. O barco já leva a tropa para a próxima ilha."
 	if Global.grant_emergency_ammo():
 		line = (
-			"Acabou a munição? Tome %d balas Enferrujadas, por minha conta!" % Global.EMERGENCY_AMMO
+			"Sem munição? Separei %d balas Enferrujadas da oficina para você."
+			% Global.EMERGENCY_AMMO
 		)
 	if line != "":
 		_ada.pop(line, "happy", 6.0)

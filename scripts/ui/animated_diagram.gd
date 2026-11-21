@@ -238,13 +238,19 @@ func _draw_power_steps() -> void:
 			_flag(s, cols[i], "%d%%" % roundi(pw * 100.0))
 
 
+## Angulo da varredura: de 15 ate o teto `max_angle` (padrao 75).
+func sweep_angle() -> float:
+	var ceiling: float = params.get("max_angle", 75.0)
+	return minf(15.0 + 60.0 * _swing(), ceiling)
+
+
 func _draw_sweep() -> void:
 	_setup_scale(30.0)
 	_draw_ground()
 	var best := _shot(45.0, V, G)
 	_curve(best, Color(_calc, 0.25), 2.0)
 	_flag(best, Color(_calc, 0.5))
-	var angle := 15.0 + 60.0 * _swing()
+	var angle := sweep_angle()
 	var s := _shot(angle, V, G)
 	_curve(s, _edit, 3.0)
 	_flag(s, _edit)

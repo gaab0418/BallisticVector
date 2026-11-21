@@ -11,8 +11,8 @@ const PAGES := [
 		"title": "A parábola",
 		"text":
 		(
-			"A bala sobe, perde velocidade, para um instante lá no alto e "
-			+ "cai. Esse caminho é uma PARÁBOLA."
+			"A bala sobe perdendo velocidade vertical, que zera no "
+			+ "ponto mais alto, e depois cai. Esse caminho é uma PARÁBOLA."
 		),
 		"formula": "y = ax² + bx + c",
 		"anim": "fly",
@@ -24,8 +24,8 @@ const PAGES := [
 		"title": "Ângulos gêmeos",
 		"text":
 		(
-			"30° e 60° somam 90°. Saindo do chão, eles caem no mesmo "
-			+ "lugar: um voa baixo, o outro voa alto."
+			"30° e 60° são complementares (somam 90°). Saindo do chão, "
+			+ "os dois têm o mesmo alcance: um voa baixo, o outro voa alto."
 		),
 		"formula": "θ e 90° − θ: mesmo alcance",
 		"anim": "angles",
@@ -50,8 +50,8 @@ const PAGES := [
 		"title": "A força ao quadrado",
 		"text":
 		(
-			"A força entra duas vezes na conta. Com o dobro da força, a "
-			+ "bala vai QUATRO vezes mais longe!"
+			"A força entra ao quadrado na conta (v²). Com o "
+			+ "dobro da força, a bala vai quatro vezes mais longe."
 		),
 		"formula": "força × 2  →  alcance × 4",
 		"anim": "power",
@@ -63,8 +63,8 @@ const PAGES := [
 		"title": "Mesmo ângulo, outra força",
 		"text":
 		(
-			"Com o ângulo parado, a curva sai sempre do mesmo jeito. A "
-			+ "força só estica ou encolhe a parábola."
+			"Com o ângulo fixo, a curva sai do canhão sempre com a "
+			+ "mesma inclinação. A força só estica ou encolhe a parábola."
 		),
 		"formula": "b = tg θ não muda",
 		"anim": "power_steps",
@@ -86,8 +86,8 @@ const PAGES := [
 		"title": "Na Lua",
 		"text":
 		(
-			"Na Lua a gravidade é fraquinha. O 'a' fica pequeno, a "
-			+ "parábola abre e a bala voa muito longe."
+			"Na Lua a gravidade é fraca. O 'a' fica perto de "
+			+ "zero, a parábola abre e a bala voa muito mais longe."
 		),
 		"formula": "a = −g / (2v²cos²θ)",
 		"anim": "gravity",
@@ -98,7 +98,7 @@ const PAGES := [
 		"stage": 1,
 		"title": "Em Júpiter",
 		"text":
-		"Júpiter puxa forte! O 'a' fica bem negativo e a parábola fecha: o tiro cai pertinho.",
+		"Júpiter puxa forte. O 'a' fica bem mais negativo e a parábola fecha: o tiro cai perto.",
 		"formula": "g maior → curva mais fechada",
 		"anim": "gravity",
 		"p": {"from": 490.0, "to": 1240.0},
@@ -122,8 +122,8 @@ const PAGES := [
 		"title": "Translação",
 		"text":
 		(
-			"Andando com o tanque, a parábola inteira escorrega. O b e o "
-			+ "c mudam, mas o 'a' nunca muda!"
+			"Andando com o tanque, a parábola inteira "
+			+ "desliza para o lado. O b e o c mudam; o 'a' não."
 		),
 		"formula": "a fica igual",
 		"anim": "shift",
@@ -143,8 +143,7 @@ const PAGES := [
 		"base": "Base_D",
 		"stage": 2,
 		"title": "Tudo junto",
-		"text":
-		"Ângulo, força, gravidade e posição: cada um mexe num pedaço da conta. Você domina todos!",
+		"text": "Ângulo, força, gravidade e posição: cada um mexe num pedaço da mesma conta.",
 		"formula": "y = ax² + bx + c",
 		"anim": "fly",
 		"p": {"angle": 35.0, "wobble": true},
@@ -201,8 +200,8 @@ const PAGES := [
 		"title": "Parábola encontra reta",
 		"text":
 		(
-			"Onde a bala cruza a rota, as duas contas dão o mesmo y. É só "
-			+ "igualar: ax² + bx + c = mx + n."
+			"Onde a bala cruza a rota, as duas contas dão o "
+			+ "mesmo y. Basta igualar: ax² + bx + c = mx + n."
 		),
 		"formula": "ax² + (b − m)x + (c − n) = 0",
 		"anim": "intercept",
@@ -251,8 +250,8 @@ const PAGES := [
 		"title": "O máximo da função",
 		"text":
 		(
-			"Com a força parada, o alcance é uma função do ângulo. Ela "
-			+ "sobe, chega no máximo em 45° e desce."
+			"Com a força fixa, o alcance é uma função do "
+			+ "ângulo. Ela sobe, chega ao máximo perto de 45° e desce."
 		),
 		"formula": "alcance máximo em 45°",
 		"anim": "sweep",
@@ -264,8 +263,8 @@ const PAGES := [
 		"title": "Quando a > 0",
 		"text":
 		(
-			"Com a gravidade para cima, o 'a' fica positivo e a parábola "
-			+ "abre para cima, como um sorriso."
+			"Com a gravidade para cima, o 'a' fica "
+			+ "positivo e a parábola fica com a boca para cima."
 		),
 		"formula": "a > 0: boca para cima",
 		"anim": "flip",
@@ -275,8 +274,7 @@ const PAGES := [
 		"base": "Base_Z",
 		"stage": 1,
 		"title": "O vértice mínimo",
-		"text":
-		"Na parábola sorriso, o vértice é o ponto mais BAIXO. É ele que precisa passar pelo alvo.",
+		"text": "Com a > 0, o vértice é o ponto mais baixo. É ele que precisa passar pelo alvo.",
 		"formula": "a > 0: vértice é o mínimo",
 		"anim": "flip",
 		"p": {"mark": "vertex"},

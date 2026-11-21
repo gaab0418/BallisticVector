@@ -23,6 +23,10 @@ extends RefCounted
 ##   DangerLabel   -- dano e alerta
 ##   OverlayLabel  -- texto escrito direto sobre arte, com contorno escuro
 ##   InkLabel      -- texto sobre papel (PAPER)
+##
+## Espacamento do texto: a entrelinha (UiTokens.LINE_SPACING) e constante de
+## tema e vai ao .tres; o espaco entre palavras e entre letras e da fonte
+## (FontVariation) e e montado em runtime por body_font(), fora do .tres.
 
 
 static func build() -> Theme:
@@ -34,6 +38,7 @@ static func build() -> Theme:
 	_build_label(theme)
 	_build_label_variations(theme)
 	_build_tooltip(theme)
+	_build_rich_text(theme)
 	_build_slider(theme)
 	_build_progress(theme)
 	_build_scrollbar(theme)
@@ -58,12 +63,15 @@ static func apply_fonts(theme: Theme) -> void:
 		theme.set_font("font", type_name, bold)
 
 
-## Fonte de texto (VT323) com o Handjet de fallback para θ e setas. `weight`
-## WEIGHT_BOLD liga o engrossamento sintetico.
+## Fonte de texto (VT323) com o Handjet de fallback para θ e setas, ja com o
+## espacamento de palavra e de letra. `weight` WEIGHT_BOLD liga o engrossamento
+## sintetico.
 static func body_font(weight: int = UiTokens.WEIGHT_BODY) -> FontVariation:
 	var font := FontVariation.new()
 	font.base_font = load(UiTokens.FONT_BODY_PATH)
 	font.fallbacks = [load(UiTokens.FONT_FALLBACK_PATH)]
+	font.spacing_space = UiTokens.WORD_SPACING
+	font.spacing_glyph = UiTokens.GLYPH_SPACING
 	if weight == UiTokens.WEIGHT_BOLD:
 		font.variation_embolden = UiTokens.EMBOLDEN
 	return font
@@ -123,6 +131,7 @@ static func _build_label(theme: Theme) -> void:
 	theme.set_color("font_outline_color", "Label", UiTokens.TEXT_OUTLINE)
 	theme.set_color("font_shadow_color", "Label", UiTokens.SHADOW)
 	theme.set_font_size("font_size", "Label", UiTokens.FONT_MD)
+	theme.set_constant("line_spacing", "Label", UiTokens.LINE_SPACING)
 
 
 ## Cada variacao declara so o que difere de Label. Uma tela aplica com
@@ -157,6 +166,12 @@ static func _build_tooltip(theme: Theme) -> void:
 	theme.set_stylebox("panel", "TooltipPanel", UiPanel.create(UiPanel.Kind.CARD))
 	theme.set_color("font_color", "TooltipLabel", UiTokens.TEXT)
 	theme.set_font_size("font_size", "TooltipLabel", UiTokens.FONT_SM)
+	theme.set_constant("line_spacing", "TooltipLabel", UiTokens.LINE_SPACING)
+
+
+## RichTextLabel nao herda de Label: a entrelinha dele e `line_separation`.
+static func _build_rich_text(theme: Theme) -> void:
+	theme.set_constant("line_separation", "RichTextLabel", UiTokens.LINE_SPACING)
 
 
 ## Faixa simples em StyleBoxFlat: no tamanho de um trilho, a moldura de pixel

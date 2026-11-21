@@ -13,6 +13,8 @@ extends RefCounted
 ##   Bonus   -- a Ilha Invertida (gravidade para cima: a > 0, vertice minimo)
 ##
 ## Chaves opcionais de uma fase, alem das basicas:
+##   move_zone   -- Vector2(x1, x2) onde o tanque do jogador anda (with_fuel o poe)
+##   fuel_m      -- combustivel (m) para andar nessa faixa (with_fuel o poe)
 ##   height_line -- altura (m) da linha y = h desenhada no mundo
 ##   balloons    -- [Vector2(x_px, altura_m)] balões amarrados ao chao
 ##   bunkers     -- [x_px] bunkers enterrados (so quebram com tiro caindo de cima)
@@ -26,6 +28,7 @@ extends RefCounted
 ##   power_lock  -- forca travada (fracao): so o angulo muda o alcance
 ##   chief       -- o chefe da ultima fase de cada base (ver BossBrain):
 ##                  {"name", "kind": shield|moving|hopping|gravity|guarded, ...}
+##                  "fires": true -- o chefe atira um morteiro avisado no jogador
 ##   boss_hp     -- vida do castelo (padrao 3; o chefe tem mais)
 ##
 ## Toda fase tem tres estrelas. A primeira e vencer; as outras duas sao desafios
@@ -86,6 +89,25 @@ static func lab_stage(world_key: String) -> Dictionary:
 	return st
 
 
+## Arena de pratica do fim do tutorial: uma fortaleza que ja caiu, com 1 HP, sem
+## avioes e sem desafios. Fica fora de BASES: nao conta estrela nem progresso.
+const PRACTICE_STAGE := {
+	"title": "Calibragem",
+	"lesson": "",
+	"tip": "",
+	"obstacles": [],
+	"boss_x": 900.0,
+	"boss_hp": 1,
+	"planes": 0,
+	"plane_hp": 1,
+	"goals": [],
+}
+
+
+static func practice_stage() -> Dictionary:
+	return PRACTICE_STAGE.duplicate(true)
+
+
 ## Planetas que a engrenagem da gravidade reconhece, para a crianca ligar o
 ## numero a um lugar de verdade.
 const PLANETS := [
@@ -118,8 +140,8 @@ const BASES := {
 				"title": "Primeiro disparo",
 				"lesson":
 				(
-					"Gire a engrenagem do ÂNGULO e repare: a curva muda de forma antes "
-					+ "mesmo de você atirar. Essa curva é uma parábola!"
+					"A curva na tela é uma parábola: gire a engrenagem do ângulo e "
+					+ "veja como ela muda antes do tiro. É o caminho previsto para a bala."
 				),
 				"tip": "Perto de 45° a bala vai mais longe.",
 				"obstacles": ORIGINAL_MOUNTAINS,
@@ -136,8 +158,8 @@ const BASES := {
 				"title": "Ângulos gêmeos",
 				"lesson":
 				(
-					"30° e 60° somam 90°. Saindo do chão, ângulos assim caem no MESMO "
-					+ "lugar: um faz uma curva baixa, o outro uma curva alta."
+					"Ângulos complementares, como 30° e 60°, levam a bala quase ao mesmo "
+					+ "lugar. Eles somam 90°: um faz a curva baixa, o outro a curva alta."
 				),
 				"tip": "Acerte o castelo duas vezes: uma abaixo de 45° e outra acima.",
 				"obstacles":
@@ -151,18 +173,21 @@ const BASES := {
 				"boss_x": 1000.0,
 				"planes": 2,
 				"plane_hp": 1,
+				"tanks": {"count": 1, "zone": Vector2(740, 880)},
+				"move_zone": FUEL_ZONE,
+				"fuel_m": FUEL_M,
 				"goals":
 				[
 					{"type": "twin_angles"},
-					{"type": "max_shots", "value": 7},
+					{"type": "max_shots", "value": 9},
 				],
 			},
 			{
 				"title": "Por cima do paredão",
 				"lesson":
 				(
-					"O ponto mais alto da parábola se chama VÉRTICE. Para passar por cima "
-					+ "de uma montanha alta, o vértice precisa ficar acima dela."
+					"O ponto mais alto da parábola é o VÉRTICE: para "
+					+ "cruzar a montanha, ele tem que ficar acima dela."
 				),
 				"tip": "Mire alto: o losango mostra a altura máxima.",
 				"obstacles":
@@ -182,6 +207,9 @@ const BASES := {
 				"chief": {"name": "Fortaleza do Escudo", "kind": "shield", "min_descent": 35.0},
 				"planes": 3,
 				"plane_hp": 1,
+				"balloons": [Vector2(620, 4.0)],
+				"move_zone": FUEL_ZONE,
+				"fuel_m": FUEL_M,
 				"goals":
 				[
 					{"type": "angle_hit", "min": 55.0, "max": 90.0},
@@ -201,8 +229,8 @@ const BASES := {
 				"title": "Meia força",
 				"lesson":
 				(
-					"A força aparece ao quadrado na conta (v²). Com METADE da força, a bala "
-					+ "vai só a um QUARTO da distância. Confira na régua!"
+					"A força entra ao quadrado na conta (v²): metade da força "
+					+ "leva a bala a um quarto da distância. Confira na régua."
 				),
 				"tip": "O castelo está perto: use pouca força.",
 				"obstacles":
@@ -225,8 +253,8 @@ const BASES := {
 				"title": "Mesmo ângulo, outra força",
 				"lesson":
 				(
-					"Deixe o ângulo parado e mexa só na força: o ponto de queda (a raiz) "
-					+ "anda pela régua, mas a curva continua começando igual."
+					"Com o ângulo fixo, mexer na força leva a raiz para frente ou para trás na "
+					+ "régua. A curva sai do canhão sempre com a mesma inclinação, porque o b não muda."
 				),
 				"tip": "Escolha um ângulo e não mexa mais nele.",
 				"obstacles":
@@ -253,10 +281,10 @@ const BASES := {
 				"title": "Tiro longo",
 				"lesson":
 				(
-					"Para ir o mais longe possível: força no máximo e ângulo perto de 45°. "
-					+ "É o ponto máximo da função alcance!"
+					"Para o tiro mais longo: força no máximo e ângulo "
+					+ "perto de 45°. É o ponto máximo da função alcance."
 				),
-				"tip": "O castelo está lá no fundo.",
+				"tip": "O castelo está no limite do alcance: use força alta.",
 				"obstacles":
 				[
 					{
@@ -276,11 +304,14 @@ const BASES := {
 					"name": "Castelo sobre Rodas",
 					"kind": "moving",
 					"zone": Vector2(1060, 1200),
-					"speed": 22.0
+					"speed": 22.0,
+					"fires": true
 				},
 				"planes": 2,
 				"plane_hp": 2,
 				"tanks": {"count": 1, "zone": Vector2(960, 1120)},
+				"move_zone": FUEL_ZONE,
+				"fuel_m": CHIEF_FUEL_M,
 				"goals":
 				[
 					{"type": "no_damage"},
@@ -300,10 +331,10 @@ const BASES := {
 				"title": "Na Lua",
 				"lesson":
 				(
-					"Na Lua a gravidade é seis vezes mais fraca que na Terra. O número 'a' "
-					+ "da equação fica bem pequeno, a parábola abre e a bala voa longe!"
+					"Na Lua a gravidade é seis vezes mais fraca que na Terra, então a bala "
+					+ "voa bem mais longe. O 'a' da equação fica perto de zero e a parábola abre."
 				),
-				"tip": "Use pouca força, senão a bala some no espaço.",
+				"tip": "Use pouca força, senão a bala passa muito do castelo.",
 				"planet": "moon",
 				"gravity": G_MOON,
 				"obstacles":
@@ -326,8 +357,8 @@ const BASES := {
 				"title": "Em Júpiter",
 				"lesson":
 				(
-					"Júpiter puxa duas vezes e meia mais forte que a Terra. O 'a' fica bem "
-					+ "negativo, a parábola fecha e o tiro cai pertinho."
+					"Júpiter puxa duas vezes e meia mais forte que a Terra: a "
+					+ "parábola fecha e o tiro cai perto. O 'a' fica bem mais negativo."
 				),
 				"tip": "O castelo está perto, mas a gravidade é enorme.",
 				"planet": "jupiter",
@@ -352,8 +383,8 @@ const BASES := {
 				"title": "Em Marte",
 				"lesson":
 				(
-					"Compare os planetas: quanto MAIOR a gravidade, MENOR o alcance. Na "
-					+ "fórmula R = v²·sen(2θ)/g, a gravidade divide."
+					"Quanto maior a gravidade, menor o alcance: em R = v²·sen(2θ)/g, a "
+					+ "gravidade divide. Compare com o que você viu na Lua e em Júpiter."
 				),
 				"tip": "Marte puxa menos que a Terra e mais que a Lua.",
 				"planet": "mars",
@@ -396,10 +427,10 @@ const BASES := {
 				"title": "Rodas no chão",
 				"lesson":
 				(
-					"Use A e D para andar com o tanque. A parábola inteira escorrega para o "
-					+ "lado: o b e o c mudam, mas o 'a' (a abertura) continua igualzinho!"
+					"Ande com o tanque (A e D): a parábola inteira desliza junto, mas o "
+					+ "'a' continua o mesmo. Só o b e o c mudam; a abertura da curva não."
 				),
-				"tip": "Ande até um ponto de onde o tiro passe pela montanha.",
+				"tip": "Ande até um ponto de onde o tiro passe por cima da montanha.",
 				"move_zone": Vector2(40.0, 420.0),
 				"obstacles":
 				[
@@ -422,8 +453,8 @@ const BASES := {
 				"title": "Fuja das bombas",
 				"lesson":
 				(
-					"Na forma do vértice, y = a(x − h)² + k, o h diz onde fica o vértice. "
-					+ "Andar com o tanque muda o h, e os aviões erram o alvo!"
+					"Na forma do vértice, y = a(x − h)² + k, o h é a posição do vértice e o k, a altura "
+					+ "dele. Andar com o tanque muda o h, e tanque em movimento é alvo difícil para as bombas."
 				),
 				"tip": "Não fique parado quando um avião passar por cima.",
 				"move_zone": Vector2(40.0, 380.0),
@@ -452,10 +483,10 @@ const BASES := {
 				"title": "Batalha final",
 				"lesson":
 				(
-					"Tudo junto: ângulo, força, gravidade e posição. Leia a equação, confira "
-					+ "o vértice e a raiz na régua e mostre que você domina a parábola!"
+					"Agora vale tudo: ângulo, força, gravidade e posição. Leia a "
+					+ "equação e confira o vértice e a raiz na régua antes de atirar."
 				),
-				"tip": "Planeje: onde a bala vai subir mais e onde vai cair?",
+				"tip": "Antes de atirar: onde fica o vértice e onde cai a raiz?",
 				"move_zone": Vector2(40.0, 330.0),
 				"obstacles":
 				[
@@ -479,7 +510,8 @@ const BASES := {
 				{
 					"name": "Castelo Fujão",
 					"kind": "hopping",
-					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0]
+					"spots": [1180.0, 1060.0, 1200.0, 1100.0, 1140.0],
+					"fires": true
 				},
 				"planes": 4,
 				"plane_hp": 2,
@@ -502,11 +534,10 @@ const BASES := {
 				"title": "Na altura certa",
 				"lesson":
 				(
-					"A linha tracejada é y = 5. Onde a parábola cruza a linha, a bala está a "
-					+ "5 m de altura. A conta ax² + bx + c = 5 tem DUAS soluções: a bala passa "
-					+ "por 5 m subindo e de novo descendo!"
+					"Se o vértice passar de 5 m, a bala cruza a linha y = 5 duas vezes: "
+					+ "subindo e descendo. Esses dois pontos são as soluções de ax² + bx + c = 5."
 				),
-				"tip": "Os pontinhos na linha são as soluções. Estoure os balões!",
+				"tip": "Os pontos na linha são as soluções. Estoure os balões.",
 				"height_line": 5.0,
 				"balloons": [Vector2(700, 5.0), Vector2(860, 5.0), Vector2(1020, 5.0)],
 				"obstacles":
@@ -529,9 +560,8 @@ const BASES := {
 				"title": "A muralha",
 				"lesson":
 				(
-					"A muralha tem 7 m. A bala só passa se a parábola chegar a y = 7. Se o "
-					+ "delta de ax² + bx + c = 7 der NEGATIVO, a curva nunca chega lá: aumente "
-					+ "o ângulo ou a força."
+					"A muralha tem 7 m: a bala precisa estar acima de y = 7 quando chegar nela. Se o delta "
+					+ "de ax² + bx + c = 7 der negativo, a curva nem chega a 7 m: aumente o ângulo ou a força."
 				),
 				"tip": "Atrás da muralha tem um bunker: ele só quebra com tiro caindo de cima.",
 				"height_line": 7.0,
@@ -564,8 +594,8 @@ const BASES := {
 				"title": "Toque no vértice",
 				"lesson":
 				(
-					"Quando o vértice fica exatamente na linha, a curva só ENCOSTA nela: uma "
-					+ "solução só, e o delta vale zero. Acerte um balão bem no ponto mais alto!"
+					"Com o vértice exatamente na linha y = 6, a curva só encosta nela: "
+					+ "Δ = 0, uma solução. Acerte um balão no ponto mais alto da curva."
 				),
 				"tip": 'Ajuste até aparecer "Δ = 0" ao lado da linha.',
 				"height_line": 6.0,
@@ -601,9 +631,8 @@ const BASES := {
 				"title": "A rota do drone",
 				"lesson":
 				(
-					"Os drones voam numa linha RETA: y = mx + n. A bala encontra o drone onde a "
-					+ "parábola cruza a reta, ou seja, onde ax² + bx + c = mx + n. Os pontinhos "
-					+ "vermelhos são esses encontros!"
+					"Os drones voam na reta y = mx + n, e a bala os encontra onde a parábola cruza essa "
+					+ "reta. Nesses pontos, ax² + bx + c = mx + n. Os pontos vermelhos marcam os encontros."
 				),
 				"tip": "Atire quando o drone passar pelo anel: a bala chega junto com ele.",
 				"route": Vector2(0.15, 2.0),
@@ -628,8 +657,8 @@ const BASES := {
 				"title": "Subindo ou descendo",
 				"lesson":
 				(
-					"Esta rota desce: o m é NEGATIVO. A curva cruza a reta duas vezes, uma com "
-					+ "a bala subindo e outra descendo. Intercepte um drone no primeiro encontro!"
+					"Esta rota desce (m negativo), e a parábola cruza a reta duas vezes: subindo e "
+					+ "descendo. Intercepte um drone no primeiro encontro, com a bala ainda subindo."
 				),
 				"tip": "O primeiro anel é o encontro com a bala ainda subindo.",
 				"route": Vector2(-0.1, 7.0),
@@ -654,9 +683,8 @@ const BASES := {
 				"title": "O comboio",
 				"lesson":
 				(
-					"Quatro drones protegem o castelo: o escudo dele só cai quando todos "
-					+ "caírem. Se o delta de ax² + (b − m)x + (c − n) = 0 der negativo, a curva "
-					+ "nem encosta na rota!"
+					"Se o delta de ax² + (b − m)x + (c − n) = 0 der negativo, a curva nem encosta na "
+					+ "rota. Quatro drones protegem o castelo: o escudo dele só cai quando todos caírem."
 				),
 				"tip": "Derrube os drones primeiro. Depois, o castelo.",
 				"route": Vector2(0.1, 3.0),
@@ -692,11 +720,11 @@ const BASES := {
 				"title": "Gelo que quica",
 				"lesson":
 				(
-					"No gelo a bala QUICA. Depois do quique ela faz outra parábola, mais baixa. "
-					+ "O 'a' é o mesmo (a gravidade e a velocidade para o lado não mudam): só a "
-					+ "inclinação de saída diminui."
+					"No gelo a bala quica e faz uma segunda parábola, mais baixa, com o mesmo 'a'. A "
+					+ "gravidade e a velocidade para o lado não mudam: só a inclinação de saída diminui."
 				),
-				"tip": "A curva fininha depois da bandeira é o quique. Estoure o balão baixinho!",
+				"tip":
+				"A curva fina depois da bandeira é o quique. Use-a para estourar o balão baixo.",
 				"planet": "ice",
 				"bounce": 0.55,
 				"balloons": [Vector2(930, 1.0)],
@@ -720,8 +748,8 @@ const BASES := {
 				"title": "Zona de pouso",
 				"lesson":
 				(
-					"Os suprimentos precisam cair na faixa verde: 12 < x < 15. É um INTERVALO. "
-					+ "A raiz da parábola tem que ficar maior que 12 e menor que 15."
+					"Os suprimentos precisam cair na faixa verde: a raiz tem que ficar "
+					+ "no intervalo 12 < x < 15. Ou seja, maior que 12 m e menor que 15 m."
 				),
 				"tip": "Olhe a bandeira da raiz: ela precisa ficar dentro da faixa verde.",
 				"planet": "ice",
@@ -746,9 +774,8 @@ const BASES := {
 				"title": "Força travada",
 				"lesson":
 				(
-					"A força ficou travada em 80%. Só o ângulo muda o alcance agora. Gire e "
-					+ "descubra: o alcance cresce até perto de 45° e depois diminui. É o MÁXIMO "
-					+ "da função!"
+					"Força travada em 80%: agora só o ângulo muda o alcance. Ele "
+					+ "cresce até perto de 45° e depois diminui: esse é o máximo da função."
 				),
 				"tip": "O iglu anda: perto de 45° a bala vai o mais longe possível.",
 				"planet": "ice",
@@ -790,8 +817,8 @@ const BASES := {
 				"title": "De cabeça para baixo",
 				"lesson":
 				(
-					"Aqui a gravidade puxa para CIMA. O 'a' fica POSITIVO e a parábola abre "
-					+ "para cima, como um sorriso. O vértice agora é o ponto mais BAIXO da curva."
+					"Aqui a gravidade puxa para cima: o 'a' fica positivo e a parábola tem "
+					+ "a boca para cima. O vértice passa a ser o ponto mais baixo da curva."
 				),
 				"tip": "Aponte o canhão para baixo: a bala desce, faz a curva e sobe.",
 				"planet": "inverted",
@@ -813,8 +840,8 @@ const BASES := {
 				"title": "Sorriso de bala",
 				"lesson":
 				(
-					"Com a > 0 o vértice é um MÍNIMO. Para acertar o castelo no chão, o ponto "
-					+ "mais baixo da curva precisa passar por ele."
+					"Com a > 0 o vértice é um mínimo: leve o "
+					+ "ponto mais baixo da curva até o castelo no chão."
 				),
 				"tip": "Pouca força e cano para baixo levam o vértice para perto.",
 				"planet": "inverted",
@@ -886,10 +913,14 @@ static func stage(base_id: String, index: int) -> Dictionary:
 
 ## Fora da Delta (que ensina a translacao com faixa livre), o tanque anda pouco:
 ## um tanque de combustivel por fase, para ajustar a posicao sem virar a licao.
-## Alpha fica parada (tutorial) e o plato nao tem chao para andar.
+## Alpha: as fases 2 e 3 declaram o combustivel no proprio dicionario; a fase 1
+## fica parada (tutorial). O plato nao tem chao para andar.
 const FUEL_BASES := ["Base_B", "Base_C", "Base_E", "Base_F"]
 const FUEL_M := 3.0
 const FUEL_ZONE := Vector2(40.0, 250.0)
+## O chefe que atira (Bravo 3) precisa de combustivel para o jogador desviar do
+## morteiro varias vezes: cada desvio de 64 px custa 1,28 m.
+const CHIEF_FUEL_M := 12.0
 
 
 static func with_fuel(base_id: String, st: Dictionary) -> Dictionary:

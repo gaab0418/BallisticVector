@@ -106,8 +106,10 @@ var _guess_was_pressed := false
 var _last_hit_shot: Dictionary = {}
 var _last_hit_x := NAN
 var lab: Node
+## Arena de pratica do tutorial (Global.practice_mode); null nas fases normais.
+var practice: Node
 var _fx: Node
-## A Engenheira Ada: tutorial, abertura da fase, dicas e parabéns.
+## A Engenheira Ada: abertura da fase, dicas e parabéns.
 var coach: Node
 
 # === Sistema de inimigos ===
@@ -123,6 +125,7 @@ const ArenaHudScript = preload("res://scripts/ui/arena_hud.gd")
 const HelpOverlayScript = preload("res://scripts/help_overlay.gd")
 const PauseMenuScript = preload("res://scripts/ui/pause_menu.gd")
 const LabControllerScript = preload("res://scenes/arena/lab_controller.gd")
+const PracticeControllerScript = preload("res://scenes/arena/practice_controller.gd")
 const ImpactWatcherScript = preload("res://scenes/arena/impact_watcher.gd")
 const AdaCoachScript = preload("res://scenes/arena/ada_coach.gd")
 const ShotTrailScript = preload("res://scenes/arena/shot_trail.gd")
@@ -151,6 +154,8 @@ func _ready() -> void:
 	randomize()
 	if Global.lab_mode:
 		stage_data = Campaign.lab_stage(Global.lab_world)
+	elif Global.practice_mode:
+		stage_data = Campaign.practice_stage()
 	else:
 		stage_data = Campaign.stage(Global.current_base_id, Global.current_stage)
 	world_theme = WORLDS.get(stage_data.get("planet", ""), UiTokens.WORLD_EARTH)
@@ -211,8 +216,20 @@ func _ready() -> void:
 	# Spawnar inimigos para a fase atual
 	_spawn_enemies()
 
-	# A Ada abre a fase (ou dá o tutorial, na primeira vez).
+	if Global.practice_mode:
+		practice = PracticeControllerScript.new()
+		add_child(practice)
+		practice.setup(self)
+		return
+
+	# A Ada abre a fase.
 	coach.start_stage()
+
+
+## Laboratorio e pratica do tutorial nao mexem no que e salvo: municao, ouro,
+## latao, selos, chefes e estrelas so contam numa fase da campanha.
+func _counts_for_progress() -> bool:
+	return not (Global.lab_mode or Global.practice_mode)
 
 
 # =============================================================================
@@ -689,7 +706,7 @@ func _refresh_math() -> void:
 func _fire_projectile() -> void:
 	var ammo = _get_current_ammo()
 
-	if not Global.lab_mode and ammo_counts[current_ammo_index] <= 0:
+	if _counts_for_progress() and ammo_counts[current_ammo_index] <= 0:
 		AudioManager.play_sfx(SFX_ERROR)
 		var other := ammo_counts[(current_ammo_index + 1) % ammo_counts.size()]
 		if other > 0:
@@ -700,10 +717,10 @@ func _fire_projectile() -> void:
 		return
 
 	AudioManager.play_sfx(SFX_FIRE)
-	if not Global.lab_mode:
+	if _counts_for_progress():
 		ammo_counts[current_ammo_index] -= 1
 		Global.ammo_inventory[ammo.ammo_name] = ammo_counts[current_ammo_index]
-	else:
+	elif Global.lab_mode:
 		Global.stats["lab_shots"] = int(Global.stats.get("lab_shots", 0)) + 1
 		if int(Global.stats.lab_shots) >= 10:
 			Global.unlock_achievement("lab")
@@ -785,14 +802,10 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 		goals.on_balloon_hit(bullet.velocity.y < 0.0)
 	if enemy.has_meta("drone") and bullet != null:
 		goals.on_drone_hit(bullet.velocity.y < 0.0)
-		Global.unlock_achievement("intercept")
 	if bullet != null and bullet.get_meta("bounced", false):
 		goals.on_bounce_hit()
-		Global.unlock_achievement("bounce")
-	if enemy.has_meta("is_boss"):
-		Global.unlock_achievement("first_hit")
-		if goals.shots == 1:
-			Global.unlock_achievement("sharpshooter")
+	if _counts_for_progress():
+		_unlock_hit_badges(enemy, bullet)
 	_report_hit_to_goals(enemy, bullet)
 	if bullet != null:
 		_last_hit_shot = bullet.get_meta("shot")
@@ -820,6 +833,18 @@ func on_enemy_hit(enemy: Node2D, dmg: int) -> void:
 			enemy.queue_free()
 		elif brain != null:
 			brain.on_hit()
+
+
+## Selos de acerto: so numa fase da campanha (a pratica nao da selo).
+func _unlock_hit_badges(enemy: Node2D, bullet: Node2D) -> void:
+	if enemy.has_meta("drone") and bullet != null:
+		Global.unlock_achievement("intercept")
+	if bullet != null and bullet.get_meta("bounced", false):
+		Global.unlock_achievement("bounce")
+	if enemy.has_meta("is_boss"):
+		Global.unlock_achievement("first_hit")
+		if goals.shots == 1:
+			Global.unlock_achievement("sharpshooter")
 
 
 ## A bala que acertou ainda existe neste instante (o projétil só se libera depois de
@@ -867,10 +892,12 @@ func _on_player_shot_ended(pos: Vector2, _hit_obstacle: bool) -> void:
 	else:
 		var err := absf(x_m - trajectory.guess_x)
 		if err <= GUESS_TOLERANCE_M:
-			if not Global.lab_mode:
+			if _counts_for_progress():
 				Global.brass += GUESS_BRASS
 				Global.save_game()
-			Global.unlock_achievement("guesser")
+			# O Laboratorio da o selo do chute; a pratica nem liga o chute.
+			if not Global.practice_mode:
+				Global.unlock_achievement("guesser")
 			hud.show_toast(
 				(
 					"Chute certeiro! Errou por só %s m. +%d de latão"
@@ -890,7 +917,8 @@ func _poll_guess_hotkey() -> void:
 
 
 func _set_guess_mode(on: bool) -> void:
-	if coach and coach.in_tutorial:
+	# Na pratica do tutorial o chute fica desligado (a HUD nem mostra o botao).
+	if Global.practice_mode:
 		hud.guess_btn.set_pressed_no_signal(false)
 		return
 	guess_mode = on
@@ -902,6 +930,9 @@ func _set_guess_mode(on: bool) -> void:
 
 # --- Projétil inimigo acertou o jogador ---
 func on_player_hit(dmg: int) -> void:
+	# Bala que chega depois da vitoria nao tira armadura nem estraga a meta no_damage.
+	if stage_cleared:
+		return
 	Global.player_armor -= dmg
 	Global.player_armor = max(Global.player_armor, 0.0)
 	goals.on_damage()
@@ -921,13 +952,14 @@ func on_player_hit(dmg: int) -> void:
 # --- Inimigo foi destruído (chamado pelo airplane_enemy.gd ou internamente) ---
 func on_enemy_destroyed(enemy: Node2D) -> void:
 	var reward := 150 if enemy.name == "Boss" else 25
-	if enemy.get_node_or_null("Brain") != null and not Global.lab_mode:
-		Global.record_chief(Global.current_base_id)
-	Global.money += reward
 	ArenaFx.spawn(self, enemy.global_position, ArenaFx.Kind.EXPLOSION)
-	ArenaFx.float_text(
-		self, enemy.global_position + Vector2(0, -30), "+%d ouro" % reward, UiTokens.GOLD
-	)
+	if _counts_for_progress():
+		if enemy.get_node_or_null("Brain") != null:
+			Global.record_chief(Global.current_base_id)
+		Global.money += reward
+		ArenaFx.float_text(
+			self, enemy.global_position + Vector2(0, -30), "+%d ouro" % reward, UiTokens.GOLD
+		)
 
 	active_enemies.erase(enemy)
 	# Limpar referências inválidas
@@ -951,6 +983,12 @@ func _on_stage_cleared() -> void:
 	if stage_cleared:
 		return
 	stage_cleared = true
+	# Fora da campanha (pratica do tutorial) nao ha estrela nem recompensa, mesmo
+	# se o controlador faltar; e ele quem conclui o tutorial.
+	if not _counts_for_progress():
+		if practice:
+			practice.on_cleared()
+		return
 	# Recompensar o jogador
 	Global.money += 250
 	goals.finish()
@@ -1106,6 +1144,10 @@ func _on_pause_pressed() -> void:
 		return
 	if briefing.visible or result.visible:
 		return
+	# Na pratica, Esc e o botao de pausa perguntam se o jogador quer sair do tutorial.
+	if practice:
+		practice.ask_exit()
+		return
 	pause_menu.open()
 
 
@@ -1136,7 +1178,7 @@ func _on_restart_stage() -> void:
 
 func _update_hud() -> void:
 	var ammo = _get_current_ammo()
-	var count: int = -1 if Global.lab_mode else ammo_counts[current_ammo_index]
+	var count: int = -1 if not _counts_for_progress() else ammo_counts[current_ammo_index]
 	hud.set_ammo(count, ammo.color, ammo.ammo_name)
 
 
@@ -1148,6 +1190,9 @@ func _update_armor_hud() -> void:
 func _update_stage_label() -> void:
 	if Global.lab_mode:
 		hud.set_lab(Campaign.LAB_WORLDS.get(Global.lab_world, {}).get("name", ""))
+		return
+	if Global.practice_mode:
+		hud.set_practice(PracticeControllerScript.TITLE, PracticeControllerScript.SUBTITLE)
 		return
 	var data: Dictionary = Global.get_base_data(Global.current_base_id)
 	var base_name: String = data.get("name", "Base desconhecida")
