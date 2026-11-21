@@ -4,6 +4,8 @@
 
 **⬇️ Baixar e jogar:** o executável de Windows (e o build de Linux) da versão mais recente está em [Releases](https://github.com/gaab0418/BallisticVector/releases/latest). Não precisa instalar a Godot.
 
+**📄 Game Design Document:** [`docs/GDD.md`](docs/GDD.md), versão 1.0 (entrega N3), com mecânicas, sistemas, narrativa, arte, áudio e os ajustes feitos depois do feedback.
+
 ---
 
 ## 📖 História
@@ -22,7 +24,7 @@ A história explica as mecânicas: sem computador de mira, quem calcula a paráb
 O jogador comanda o último tanque do arquipélago e retoma, base por base, as fortalezas do Comando Norte: cada fase pede uma parábola certa para derrubar aviões, balões, tanques inimigos e o castelo-chefe.
 
 ```
-[Mapa de Guerra] ── Seleciona Base (Alpha, Bravo, Charlie) ──> [Loja de Munições]
+[Mapa de Guerra] ── Seleciona Base (Alpha a Norte + bônus) ──> [Loja de Munições]
        ▲                                                                │
        │                                                                ▼
 [Vitória na Campanha] <── Completar 3 Fases <── [Arena de Combate (Turnos Físicos)]
@@ -34,7 +36,7 @@ O jogador comanda o último tanque do arquipélago e retoma, base por base, as f
 - **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Parábola Visível (`trajectory_view.gd`, `ballistics.gd`)**: A trajetória é desenhada pela própria equação `y = ax² + bx + c`, com o **vértice** (altura máxima), a **raiz** (alcance) sobre uma **régua em metros** no chão, o ponto onde a bala bate numa montanha e a faixa onde ela pode cair. A física, a mira e a HUD usam a mesma escala (`Ballistics.PX_PER_METER = 50`), então o número do painel é o mesmo que a régua mostra.
-- **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase abre com uma frase curta da Engenheira Ada e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
+- **Campanha de 7 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) —, **Foxtrot (a parábola e a reta)**, com drones numa rota `y = mx + n`, **Norte (o gelo)**, em que cada quique da bala é uma parábola nova, e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase abre com uma frase curta da Engenheira Ada e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
 - **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto. Os chefes da Bravo 3 e da Delta 3 **atiram de volta**: um marcador avisa onde o morteiro vai cair, e o jogador precisa sair dele com o tanque.
 - **Mobilidade**: além da Base Delta, várias fases dão combustível ao tanque (barra de metros), para andar e buscar um ângulo melhor ou fugir do tiro do chefe.
 - **Laboratório**: modo livre (menu principal), sem inimigos e com mira perfeita. Troque de mundo (Terra, Lua, Marte, Júpiter, Invertido), clique no céu para pôr um alvo e veja a **tabela de pontos (x, y)**: a altura medida na bala, metro a metro, ao lado da altura que a equação prevê.
