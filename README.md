@@ -2,11 +2,24 @@
 
 **Ballistic Vector** é um jogo tático de combate e simulação balística 2D desenvolvido em **Godot 4.6** (utilizando o renderizador *GL Compatibility*). O jogo foi construído como parte do Projeto Acadêmico Curricular (PAC #1), com foco em *edutainment* (educação matemática) para auxiliar na visualização prática e intuitiva de **Funções Quadráticas** e mecânicas balísticas parabólicas.
 
+**⬇️ Baixar e jogar:** o executável de Windows (e o build de Linux) da versão mais recente está em [Releases](https://github.com/gaab0418/BallisticVector/releases/latest). Não precisa instalar a Godot.
+
+---
+
+## 📖 História
+
+> O Comando Norte tomou o arquipélago em uma noite: um pulso eletromagnético queimou todos os computadores de mira da frota.
+> As fortalezas que a Engenheira Ada projetou viraram castelos deles, blindados contra o pulso. Os nossos canhões viraram sucata.
+> Ada consertou o último que restou: o seu tanque. Sem computador, ele só dispara com a conta certa.
+> **Ela sabe onde cada castelo falha. O resto é cálculo.**
+
+A história explica as mecânicas: sem computador de mira, quem calcula a parábola é o jogador; o mapa é de papel; e a regra de cada chefe (escudo, castelo que anda, que pula, gravidade própria, guarda) é uma falha de projeto que só a Ada conhece, por isso é ela quem dá a dica. O Laboratório é a oficina dela.
+
 ---
 
 ## 🎮 O Jogo e Core Loop
 
-O jogador assume o comando de um canhão de defesa terrestre com o objetivo de proteger seu território contra bombardeios de esquadrões de aviões inimigos e destruir o *bunker* inimigo (Boss) de cada fase.
+O jogador comanda o último tanque do arquipélago e retoma, base por base, as fortalezas do Comando Norte: cada fase pede uma parábola certa para derrubar aviões, balões, tanques inimigos e o castelo-chefe.
 
 ```
 [Mapa de Guerra] ── Seleciona Base (Alpha, Bravo, Charlie) ──> [Loja de Munições]
@@ -16,12 +29,14 @@ O jogador assume o comando de um canhão de defesa terrestre com o objetivo de p
 ```
 
 ### Principais Funcionalidades Implementadas:
+- **Tutorial guiado (botão TUTORIAL do menu)**: mostra o enredo e depois um modal centralizado, com fundo escurecido, que ensina uma mecânica por página com ilustrações (o tanque, a parábola, a lista de teclas em ícones). Fechar no meio pede confirmação. Termina numa prática contra um chefe de 1 HP e volta ao menu. Na primeira campanha, o enredo abre sozinho uma vez.
 - **Mapa de Guerra Cartesiano (`war_map.gd`, `war_table.gd`)**: um pergaminho sobre a mesa de comando, desenhado em código, que é um **plano cartesiano** — grade, eixos x e y numerados e cada base numa ilha com coordenadas. As rotas entre as bases são arcos de parábola; ao conquistar uma base, um barquinho navega a rota até a próxima. Medalhas e bolinhas de fase mostram o progresso; ilhas bloqueadas ficam sob névoa e abrem em ordem (ou todas, no Modo Professor).
 - **Loja de Munições Integrada**: Permite ao jogador comprar munições especializadas (Enferrujada ou Perfurante) utilizando o ouro adquirido em combate. O visual conta com cards padronizados, ícones de munição desenhados proceduralmente (`ammo_icon.gd`, que colore a ponta com a cor do `AmmoData`) e animações de feedback de compra.
 - **Física Balística Customizada (`projectile.gd`)**: Não depende de corpos rígidos do motor para os projéteis. Os tiros seguem equações diferenciais discretas sob ação gravitacional customizada de acordo com o tipo da munição.
 - **Parábola Visível (`trajectory_view.gd`, `ballistics.gd`)**: A trajetória é desenhada pela própria equação `y = ax² + bx + c`, com o **vértice** (altura máxima), a **raiz** (alcance) sobre uma **régua em metros** no chão, o ponto onde a bala bate numa montanha e a faixa onde ela pode cair. A física, a mira e a HUD usam a mesma escala (`Ballistics.PX_PER_METER = 50`), então o número do painel é o mesmo que a régua mostra.
 - **Campanha de 5 Capítulos + Ilha Bônus (`campaign.gd`)**: cada base ensina uma ideia — Alpha (o ângulo), Bravo (a força), Charlie (a gravidade, na Lua, em Júpiter e em Marte), Delta (a translação, com o tanque andando), **Echo (o vértice e o delta)**: a linha `y = h` aparece no mundo e o jogo mostra se a parábola a cruza 2, 1 ou 0 vezes (Δ > 0, = 0, < 0) — e a **Ilha Invertida** (bônus): gravidade para cima, `a > 0`, parábola de boca para cima e vértice como ponto **mínimo**. Cada fase abre com uma frase curta da Engenheira Ada e vale até **3 estrelas** por desafios matemáticos (ângulos complementares, vértice numa faixa de altura, estourar um balão subindo e outro descendo…).
-- **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto.
+- **Inimigos e alvos variados**: aviões, balões amarrados com a altura escrita na corda, **bunkers** que só quebram com tiro caindo de cima (descida ≥ 40°), **tanques inimigos** que andam e revidam, e castelos que racham, soltam fumaça e pegam fogo a cada acerto. Os chefes da Bravo 3 e da Delta 3 **atiram de volta**: um marcador avisa onde o morteiro vai cair, e o jogador precisa sair dele com o tanque.
+- **Mobilidade**: além da Base Delta, várias fases dão combustível ao tanque (barra de metros), para andar e buscar um ângulo melhor ou fugir do tiro do chefe.
 - **Laboratório**: modo livre (menu principal), sem inimigos e com mira perfeita. Troque de mundo (Terra, Lua, Marte, Júpiter, Invertido), clique no céu para pôr um alvo e veja a **tabela de pontos (x, y)**: a altura medida na bala, metro a metro, ao lado da altura que a equação prevê.
 - **Progresso salvo**: estrelas, bases, ouro e munição ficam em `user://progresso.cfg` (salvamento automático). O menu mostra "Continuar" e tem "Recomeçar campanha" com confirmação. Sem munição e sem ouro, o mapa entrega um **kit de emergência**.
 - **Modo Professor**: no menu principal; libera todas as bases e já abre a "conta" da parábola (a, b, c, vértice e Bhaskara com os números da tela) para mostrar em aula.
@@ -47,7 +62,7 @@ ganham destaque na equação. A bandeja some quando a engrenagem não altera nen
 | **Shift (Segurar)** | Gira a engrenagem 5x mais devagar, para acertar o número exato. |
 | **Barra de Espaço** | Realiza o disparo do projétil ativo. |
 | **Tecla Tab** | Alterna entre os tipos de munição disponíveis no inventário (Enferrujada / Perfurante). Na Terra cada munição traz a sua própria gravidade; num planeta, a gravidade é a do planeta. O botão de munição mostra a tecla **Tab** e o tooltip "Troca a munição (Tab)". |
-| **A / D** | Anda com o tanque dentro da faixa de manobra (só nas fases da Base Delta). O grupo `[A] [move] [D]` tem tooltip "Anda com o tanque (A e D)"; sem combustível, mostra "sem combustível" e as teclas ficam apagadas. |
+| **A / D** | Anda com o tanque dentro da faixa de manobra (nas fases da Base Delta e nas fases com combustível). O grupo `[A] [move] [D]` tem tooltip "Anda com o tanque (A e D)"; sem combustível, mostra "sem combustível" e as teclas ficam apagadas. |
 | **Tecla C** ou botão **Modo chute** | Esconde a curva e o alcance até o tiro: calcule e clique onde a bala cai. O botão é de ícone (alvo) com a tecla C. |
 | **Clique no céu** (Laboratório) | Põe um alvo: o painel mostra as coordenadas e a que distância a curva passa dele. |
 | **Tecla F** ou botão **Ver conta** | Abre a "conta por trás da curva": de onde saem a, b, c, o vértice e a raiz (Bhaskara). O botão é de ícone (ƒ) com a tecla F; o ƒ é desenhado em código (`UiIcon`), não é texto. |
